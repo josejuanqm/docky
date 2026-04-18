@@ -33,7 +33,7 @@ final class MainWindowView: NSView {
 
     private func setup() {
         wantsLayer = true
-        let hosting = NSHostingView(rootView: TileContainerView())
+        let hosting = ClickThroughHostingView(rootView: TileContainerView())
         hosting.translatesAutoresizingMaskIntoConstraints = false
         addSubview(hosting)
         NSLayoutConstraint.activate([
@@ -45,5 +45,11 @@ final class MainWindowView: NSView {
         preferences.$tileVerticalPadding
             .sink { [weak self] _ in self?.needsDisplay = true }
             .store(in: &cancellables)
+    }
+}
+
+private final class ClickThroughHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
     }
 }

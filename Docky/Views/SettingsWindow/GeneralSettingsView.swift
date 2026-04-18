@@ -24,7 +24,7 @@ struct GeneralSettingsView: View {
                             .frame(width: 48, alignment: .trailing)
                     }
 
-                    Text("Controls the top and bottom padding around the dock tiles and the window corner radius.")
+                    Text("Controls the top and bottom inset inside each dock tile and the window corner radius.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

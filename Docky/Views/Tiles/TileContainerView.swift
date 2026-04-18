@@ -19,13 +19,17 @@ struct TileContainerView: View {
                 TileView(tile: tile)
                     .frame(
                         width: Self.width(for: tile, tileSize: dockSettings.tileSize),
-                        height: dockSettings.tileSize
+                        height: tileHeight
                     )
             }
         }
         .padding(.horizontal, Self.horizontalPadding)
-        .padding(.vertical, preferences.tileVerticalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var tileHeight: CGFloat {
+        let iconHeight = dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
+        return iconHeight + preferences.tileVerticalPadding * 2
     }
 
     static func width(for tile: Tile, tileSize: CGFloat) -> CGFloat {

@@ -16,8 +16,8 @@ import Foundation
 final class DockyPreferences: ObservableObject {
     static let shared = DockyPreferences()
 
-    /// Padding applied above and below the dock icons. Total window height
-    /// becomes `iconHeight + tileVerticalPadding * 2`.
+    /// Padding applied inside each dock tile above and below the icon content.
+    /// Total window height becomes `iconHeight + tileVerticalPadding * 2`.
     @Published var tileVerticalPadding: CGFloat {
         didSet {
             guard tileVerticalPadding != oldValue else { return }

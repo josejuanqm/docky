@@ -33,7 +33,7 @@ struct FolderPopoverView: View {
             } else if items.isEmpty {
                 emptyState
             } else {
-                ScrollView(showsIndicators: true) {
+                ScrollView(showsIndicators: false) {
                     LazyVGrid(columns: columns, spacing: 8) {
                         ForEach(items, id: \.self) { itemURL in
                             Button {
@@ -42,13 +42,15 @@ struct FolderPopoverView: View {
                                 FolderPopoverItemView(url: itemURL)
                             }
                             .buttonStyle(.plain)
-                            .contextMenu {
-                                Button("Reveal in Finder") {
-                                    revealInFinder(itemURL)
-                                }
-                                Button("Open in Finder") {
-                                    openInFinder(itemURL)
-                                }
+                            .background {
+                                ContextActionMenuPresenter(actions: [
+                                    .action("Reveal in Finder") {
+                                        revealInFinder(itemURL)
+                                    },
+                                    .action("Open in Finder") {
+                                        openInFinder(itemURL)
+                                    }
+                                ])
                             }
                         }
                     }

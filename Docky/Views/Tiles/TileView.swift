@@ -11,21 +11,59 @@ import SwiftUI
 
 struct TileView: View {
     let tile: Tile
+    @ObservedObject private var preferences = DockyPreferences.shared
     @State private var isTooltipPresented = false
     @State private var isFolderPopoverPresented = false
     @State private var folderSnapshot: FolderContentsSnapshot = .loaded([])
 
+    private var contextActions: [ContextAction] {
+        switch tile.content {
+        case .folder(let folder):
+            return [
+                .action("Open in Finder") {
+                    Task {
+                        _ = await AppleScriptService.shared.openFinderWindow(for: folder.url)
+                    }
+                },
+                .action("Reveal in Finder") {
+                    Task {
+                        _ = await AppleScriptService.shared.revealInFinder(folder.url)
+                    }
+                }
+            ]
+        case .trash:
+            return [
+                .action("Open Trash") {
+                    Task {
+                        _ = await AppleScriptService.shared.openTrash()
+                    }
+                },
+                .divider,
+                .action("Empty Trash", isDestructive: true) {
+                    Task {
+                        _ = await AppleScriptService.shared.emptyTrash()
+                    }
+                }
+            ]
+        case .app, .widget, .spacer, .divider:
+            return []
+        }
+    }
+
     var body: some View {
         content
+            .padding(.vertical, preferences.tileVerticalPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .contentShape(Rectangle())
             .onHover(perform: updateTooltip)
             .onTapGesture(perform: handleTap)
-            .contextMenu { contextMenuContent }
             .onDisappear {
                 isTooltipPresented = false
                 isFolderPopoverPresented = false
             }
             .background {
+                ContextActionMenuPresenter(actions: contextActions)
+
                 if let tooltipTitle {
                     TileTooltipPopoverPresenter(
                         title: tooltipTitle,
@@ -107,36 +145,6 @@ struct TileView: View {
         }
     }
 
-    @ViewBuilder
-    private var contextMenuContent: some View {
-        switch tile.content {
-        case .folder(let folder):
-            Button("Open in Finder") {
-                Task {
-                    _ = await AppleScriptService.shared.openFinderWindow(for: folder.url)
-                }
-            }
-            Button("Reveal in Finder") {
-                Task {
-                    _ = await AppleScriptService.shared.revealInFinder(folder.url)
-                }
-            }
-        case .trash:
-            Button("Open Trash") {
-                Task {
-                    _ = await AppleScriptService.shared.openTrash()
-                }
-            }
-            Divider()
-            Button("Empty Trash") {
-                Task {
-                    _ = await AppleScriptService.shared.emptyTrash()
-                }
-            }
-        case .app, .widget, .spacer, .divider:
-            EmptyView()
-        }
-    }
 }
 
 private struct TileTooltipView: View {
