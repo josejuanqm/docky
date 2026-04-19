@@ -14,6 +14,10 @@ struct AppTileView: View {
         workspace.isRunning(bundleIdentifier: tile.bundleIdentifier)
     }
 
+    private var isHidden: Bool {
+        workspace.isHidden(bundleIdentifier: tile.bundleIdentifier)
+    }
+
     var body: some View {
         VStack(spacing: 2) {
             iconView
@@ -27,6 +31,7 @@ struct AppTileView: View {
             .resizable()
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
+            .opacity(isHidden ? 0.5 : 1)
     }
 
     @ViewBuilder

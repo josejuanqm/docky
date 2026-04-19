@@ -19,6 +19,7 @@ struct RunningApp: Hashable, Identifiable {
     let localizedName: String
     let bundleURL: URL?
     let launchDate: Date?
+    let isHidden: Bool
 
     var id: String { bundleIdentifier }
 }
@@ -50,6 +51,10 @@ final class WorkspaceService: ObservableObject {
 
     func isRunning(bundleIdentifier: String) -> Bool {
         runningByBundleID[bundleIdentifier] != nil
+    }
+
+    func isHidden(bundleIdentifier: String) -> Bool {
+        runningByBundleID[bundleIdentifier]?.isHidden == true
     }
 
     func activateOrOpen(bundleIdentifier: String) {
@@ -115,7 +120,8 @@ final class WorkspaceService: ObservableObject {
                 bundleIdentifier: bundleID,
                 localizedName: app.localizedName ?? bundleID,
                 bundleURL: app.bundleURL,
-                launchDate: app.launchDate
+                launchDate: app.launchDate,
+                isHidden: app.isHidden
             )
         }
 
@@ -145,6 +151,8 @@ final class WorkspaceService: ObservableObject {
         let names: [NSNotification.Name] = [
             NSWorkspace.didLaunchApplicationNotification,
             NSWorkspace.didTerminateApplicationNotification,
+            NSWorkspace.didHideApplicationNotification,
+            NSWorkspace.didUnhideApplicationNotification,
         ]
         for name in names {
             let token = center.addObserver(

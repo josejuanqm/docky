@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import QuickLookUI
 import SwiftUI
 
 struct FolderPopoverView: View {
@@ -12,74 +13,133 @@ struct FolderPopoverView: View {
     @Binding var isPresented: Bool
 
     @ObservedObject private var permissions = PermissionsService.shared
-    @State private var snapshot: FolderContentsSnapshot
+    @State private var currentEntry: FolderPopoverEntry
+    @State private var backHistory: [FolderPopoverEntry]
+    @State private var selectedItemID: String?
 
-    private let columns = Array(
-        repeating: GridItem(.flexible(minimum: 132, maximum: 160), spacing: 8),
-        count: 6
-    )
+    private let maxColumnCount = 6
+    private let itemWidth: CGFloat = 144
+    private let itemHeight: CGFloat = 158
+    private let itemSpacing: CGFloat = 8
+    private let contentPadding: CGFloat = 20
+    private let minGridWidth: CGFloat = 320
+    private let minGridHeight: CGFloat = 240
+    private let maxGridHeight: CGFloat = 840
+    private let headerHeight: CGFloat = 38
 
     init(tile: FolderTile, initialSnapshot: FolderContentsSnapshot, isPresented: Binding<Bool>) {
         self.tile = tile
         self.initialSnapshot = initialSnapshot
         _isPresented = isPresented
-        _snapshot = State(initialValue: initialSnapshot)
+        let rootEntry = FolderPopoverEntry(
+            url: tile.url,
+            displayName: tile.displayName,
+            snapshot: initialSnapshot
+        )
+        _currentEntry = State(initialValue: rootEntry)
+        _backHistory = State(initialValue: [])
+        _selectedItemID = State(initialValue: nil)
     }
 
     var body: some View {
         bodyContent
             .task(id: reloadKey) {
-                snapshot = FolderAccessService.shared.snapshot(of: tile.url)
+                currentEntry = refreshedEntry(for: currentEntry)
+                backHistory = backHistory.map(refreshedEntry(for:))
+                selectDefaultItemIfNeeded()
             }
             .background(.ultraThinMaterial)
+            .background {
+                FolderPopoverKeyMonitor { event in
+                    handleKeyDown(event)
+                }
+            }
+            .onAppear {
+                selectDefaultItemIfNeeded()
+            }
     }
 
     @ViewBuilder
     private var bodyContent: some View {
-        if case .unreadable = snapshot {
-            unreadableState
-        } else if items.isEmpty {
-            emptyState
-        } else {
-            ScrollView(showsIndicators: false) {
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(items, id: \.self) { itemURL in
-                        Button {
-                            open(itemURL)
-                        } label: {
-                            FolderPopoverItemView(url: itemURL)
-                        }
-                        .buttonStyle(.plain)
-                        .background {
-                            ContextActionMenuPresenter { _ in
-                                [
-                                    .action("Reveal in Finder") {
-                                        revealInFinder(itemURL)
-                                    },
-                                    .action("Open in Finder") {
-                                        openInFinder(itemURL)
+        VStack(spacing: 0) {
+            navigationHeader
+
+            if case .unreadable = currentEntry.snapshot {
+                unreadableState
+            } else if items.isEmpty {
+                emptyState
+            } else {
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: columns, spacing: itemSpacing) {
+                        ForEach(gridItems) { item in
+                            switch item {
+                            case .url(let itemURL):
+                                Button {
+                                    selectedItemID = item.id
+                                    handleSelection(of: itemURL)
+                                } label: {
+                                    FolderPopoverItemView(url: itemURL, isSelected: selectedItemID == item.id)
+                                }
+                                .buttonStyle(.plain)
+                                .onHover { isHovering in
+                                    guard isHovering else { return }
+                                    selectedItemID = item.id
+                                }
+                                .background {
+                                    ContextActionMenuPresenter { _ in
+                                        [
+                                            .action("Reveal in Finder") {
+                                                revealInFinder(itemURL)
+                                            },
+                                            .action("Open in Finder") {
+                                                openInFinder(itemURL)
+                                            }
+                                        ]
                                     }
-                                ]
+                                }
+                            case .action(let action):
+                                Button(action: action.handler) {
+                                    FolderPopoverActionItemView(action: action, isSelected: selectedItemID == item.id)
+                                }
+                                .buttonStyle(.plain)
+                                .onHover { isHovering in
+                                    guard isHovering else { return }
+                                    selectedItemID = item.id
+                                }
                             }
                         }
                     }
+                    .padding(contentPadding)
                 }
-                .padding(20)
             }
-            .frame(width: 920, height: min(max(popoverHeight, 400), 840))
         }
+        .frame(width: popoverWidth, height: popoverHeight)
     }
 
     private var items: [URL] {
-        if case .loaded(let items) = snapshot {
+        if case .loaded(let items) = currentEntry.snapshot {
             return items
         }
         return []
     }
 
+    private var gridItems: [FolderPopoverGridItem] {
+        items.map(FolderPopoverGridItem.url) + [.action(openInFinderItem)]
+    }
+
+    private var openInFinderItem: FolderPopoverAction {
+        FolderPopoverAction(
+            id: "open-in-finder",
+            title: "Open in Finder",
+            systemImageName: "arrowshape.turn.up.right.circle"
+        ) {
+            openCurrentFolderInFinder()
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(nsImage: IconCacheService.shared.icon(forFileURL: tile.url))
+            Image(nsImage: IconCacheService.shared.icon(forFileURL: currentEntry.url))
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
@@ -89,17 +149,17 @@ struct FolderPopoverView: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
 
-            Text(tile.displayName)
+            Text(currentEntry.displayName)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
-        .frame(width: 320, height: 180)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(20)
     }
 
     private var unreadableState: some View {
         VStack(spacing: 12) {
-            Image(nsImage: IconCacheService.shared.icon(forFileURL: tile.url))
+            Image(nsImage: IconCacheService.shared.icon(forFileURL: currentEntry.url))
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
@@ -109,21 +169,111 @@ struct FolderPopoverView: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
 
-            Text(tile.displayName)
+            Text(currentEntry.displayName)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
-        .frame(width: 360, height: 220)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(20)
     }
 
+    private var navigationHeader: some View {
+        HStack(spacing: 12) {
+            if !backHistory.isEmpty {
+                Button(action: navigateBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(.regularMaterial)
+                    )
+                    .overlay(
+                        Circle()
+                            .strokeBorder(.white.opacity(0.14))
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text(currentEntry.displayName)
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, contentPadding)
+        .padding(.top, 16)
+        .frame(height: headerHeight, alignment: .center)
+    }
+
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.fixed(itemWidth), spacing: itemSpacing, alignment: .top),
+            count: columnCount
+        )
+    }
+
+    private var columnCount: Int {
+        min(max(gridItems.count, 1), maxColumnCount)
+    }
+
+    private var rowCount: Int {
+        max(Int(ceil(Double(gridItems.count) / Double(columnCount))), 1)
+    }
+
+    private var popoverWidth: CGFloat {
+        if case .unreadable = currentEntry.snapshot {
+            return 360
+        }
+
+        if items.isEmpty {
+            return 320
+        }
+
+        let gridWidth = CGFloat(columnCount) * itemWidth + CGFloat(max(columnCount - 1, 0)) * itemSpacing
+        return max(minGridWidth, gridWidth + contentPadding * 2)
+    }
+
     private var popoverHeight: CGFloat {
-        let rows = ceil(Double(items.count) / Double(columns.count))
-        return CGFloat(rows) * 170 + 40
+        if case .unreadable = currentEntry.snapshot {
+            return 258
+        }
+
+        if items.isEmpty {
+            return 218
+        }
+
+        let gridHeight = CGFloat(rowCount) * itemHeight + CGFloat(max(rowCount - 1, 0)) * itemSpacing
+        let totalHeight = gridHeight + contentPadding * 2 + headerHeight + 16
+        return min(max(totalHeight, minGridHeight), maxGridHeight)
     }
 
     private var reloadKey: String {
         "\(tile.url.path)|\(permissions.userFolders)|\(isPresented)"
+    }
+
+    private func handleSelection(of itemURL: URL) {
+        if isNavigableFolder(itemURL) {
+            backHistory.append(currentEntry)
+            currentEntry = FolderPopoverEntry(
+                url: itemURL,
+                displayName: displayName(for: itemURL),
+                snapshot: FolderAccessService.shared.snapshot(of: itemURL)
+            )
+            selectDefaultItemIfNeeded()
+            return
+        }
+
+        open(itemURL)
+    }
+
+    private func navigateBack() {
+        guard let previousEntry = backHistory.popLast() else { return }
+        currentEntry = previousEntry
+        selectDefaultItemIfNeeded()
     }
 
     private func open(_ itemURL: URL) {
@@ -148,10 +298,95 @@ struct FolderPopoverView: View {
             }
         }
     }
+
+    private func isNavigableFolder(_ itemURL: URL) -> Bool {
+        let values = try? itemURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+        return values?.isDirectory == true && values?.isPackage != true
+    }
+
+    private func displayName(for itemURL: URL) -> String {
+        (try? itemURL.resourceValues(forKeys: [.localizedNameKey]).localizedName) ?? itemURL.lastPathComponent
+    }
+
+    private func openCurrentFolderInFinder() {
+        openInFinder(currentEntry.url)
+    }
+
+    private func selectDefaultItemIfNeeded() {
+        if let selectedItemID, gridItems.contains(where: { $0.id == selectedItemID }) {
+            return
+        }
+
+        selectedItemID = gridItems.first(where: { item in
+            if case .url = item {
+                return true
+            }
+            return false
+        })?.id ?? gridItems.first?.id
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown else { return false }
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty else { return false }
+        guard event.charactersIgnoringModifiers == " " else { return false }
+        guard let itemURL = selectedItemURL else { return false }
+
+        FolderQuickLookController.shared.preview(itemURL)
+        return true
+    }
+
+    private var selectedItemURL: URL? {
+        guard let selectedItemID else { return nil }
+
+        for item in gridItems {
+            guard item.id == selectedItemID else { continue }
+            if case .url(let url) = item {
+                return url
+            }
+        }
+
+        return nil
+    }
+
+    private func refreshedEntry(for entry: FolderPopoverEntry) -> FolderPopoverEntry {
+        FolderPopoverEntry(
+            url: entry.url,
+            displayName: entry.displayName,
+            snapshot: FolderAccessService.shared.snapshot(of: entry.url)
+        )
+    }
+}
+
+private struct FolderPopoverEntry: Equatable {
+    let url: URL
+    let displayName: String
+    let snapshot: FolderContentsSnapshot
+}
+
+private enum FolderPopoverGridItem: Identifiable {
+    case url(URL)
+    case action(FolderPopoverAction)
+
+    var id: String {
+        switch self {
+        case .url(let url):
+            url.absoluteString
+        case .action(let action):
+            action.id
+        }
+    }
+}
+
+private struct FolderPopoverAction: Identifiable {
+    let id: String
+    let title: String
+    let systemImageName: String
+    let handler: () -> Void
 }
 
 private struct FolderPopoverItemView: View {
     let url: URL
+    let isSelected: Bool
 
     var body: some View {
         VStack(spacing: 8) {
@@ -174,12 +409,136 @@ private struct FolderPopoverItemView: View {
         .frame(maxWidth: .infinity, minHeight: 158, alignment: .top)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(0.001))
+                .fill(isSelected ? .white.opacity(0.12) : .white.opacity(0.001))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isSelected ? .white.opacity(0.22) : .clear)
         )
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var displayName: String {
         (try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName) ?? url.lastPathComponent
+    }
+}
+
+private struct FolderPopoverActionItemView: View {
+    let action: FolderPopoverAction
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: action.systemImageName)
+                .font(.system(size: 64, weight: .ultraLight))
+                .foregroundStyle(.primary)
+                .frame(width: 112, height: 112)
+
+            Text(action.title)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 158, alignment: .top)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isSelected ? .white.opacity(0.12) : .white.opacity(0.001))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isSelected ? .white.opacity(0.22) : .clear)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct FolderPopoverKeyMonitor: NSViewRepresentable {
+    let keyDownHandler: (NSEvent) -> Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(keyDownHandler: keyDownHandler)
+    }
+
+    func makeNSView(context: Context) -> KeyMonitorView {
+        let view = KeyMonitorView()
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: KeyMonitorView, context: Context) {
+        context.coordinator.keyDownHandler = keyDownHandler
+        context.coordinator.attach(to: nsView)
+    }
+
+    static func dismantleNSView(_ nsView: KeyMonitorView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        var keyDownHandler: (NSEvent) -> Bool
+        private weak var view: NSView?
+        private var eventMonitor: Any?
+
+        init(keyDownHandler: @escaping (NSEvent) -> Bool) {
+            self.keyDownHandler = keyDownHandler
+        }
+
+        func attach(to view: NSView) {
+            self.view = view
+
+            guard eventMonitor == nil else { return }
+            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, let view = self.view, view.window?.isKeyWindow == true else {
+                    return event
+                }
+
+                return self.keyDownHandler(event) ? nil : event
+            }
+        }
+
+        func detach() {
+            guard let eventMonitor else { return }
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+
+        deinit {
+            detach()
+        }
+    }
+}
+
+private final class KeyMonitorView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+private final class FolderQuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    static let shared = FolderQuickLookController()
+
+    private var previewURL: URL?
+
+    func preview(_ url: URL) {
+        previewURL = url
+
+        guard let panel = QLPreviewPanel.shared() else { return }
+        panel.dataSource = self
+        panel.delegate = self
+        panel.reloadData()
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        previewURL == nil ? 0 : 1
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+        previewURL as NSURL?
     }
 }
