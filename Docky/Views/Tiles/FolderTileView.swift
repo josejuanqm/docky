@@ -54,19 +54,20 @@ struct FolderTileView: View {
 
     private func stack(in size: CGSize) -> some View {
         let side = min(size.width, size.height) * 0.82
+        let verticalStep: CGFloat = 4
+        let centeredBaseOffset = CGFloat(preview.count - 1) / 2
+
         return ZStack {
             ForEach(Array(preview.enumerated().reversed()), id: \.element) { pair in
+                let depth = CGFloat(pair.offset)
+
                 Image(nsImage: IconCacheService.shared.icon(forFileURL: pair.element))
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
                     .frame(width: side, height: side)
-                    .rotationEffect(.degrees(Double(pair.offset) * -6))
-                    .offset(
-                        x: CGFloat(pair.offset) * -3,
-                        y: CGFloat(pair.offset) * 2
-                    )
-                    .shadow(radius: 1, y: 1)
+                    .opacity(1 - (depth * 0.12))
+                    .offset(y: (centeredBaseOffset - CGFloat(pair.offset)) * verticalStep)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .center)
