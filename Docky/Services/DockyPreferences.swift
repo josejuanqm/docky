@@ -15,6 +15,7 @@ import Foundation
 
 enum PinnedTileItemKind: String, Codable, Equatable {
     case app
+    case appFolder
     case widget
     case smartStack
     case spacer
@@ -25,6 +26,8 @@ struct PinnedTileItem: Codable, Equatable, Identifiable {
     let id: String
     let kind: PinnedTileItemKind
     let bundleIdentifier: String?
+    let folderDisplayName: String?
+    let folderBundleIdentifiers: [String]
     let widgetKind: WidgetKind?
     let widgetOwnerBundleIdentifier: String?
     let widgetSpan: TileSpan?
@@ -35,6 +38,26 @@ struct PinnedTileItem: Codable, Equatable, Identifiable {
             id: "app:\(bundleIdentifier)",
             kind: .app,
             bundleIdentifier: bundleIdentifier,
+            folderDisplayName: nil,
+            folderBundleIdentifiers: [],
+            widgetKind: nil,
+            widgetOwnerBundleIdentifier: nil,
+            widgetSpan: nil,
+            hiddenWidgetOwnerBundleIdentifiers: []
+        )
+    }
+
+    nonisolated static func appFolder(
+        id: String = "custom:\(UUID().uuidString)",
+        displayName: String = "Folder",
+        bundleIdentifiers: [String]
+    ) -> Self {
+        Self(
+            id: id,
+            kind: .appFolder,
+            bundleIdentifier: nil,
+            folderDisplayName: displayName,
+            folderBundleIdentifiers: bundleIdentifiers,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -47,6 +70,8 @@ struct PinnedTileItem: Codable, Equatable, Identifiable {
             id: "custom:\(UUID().uuidString)",
             kind: .widget,
             bundleIdentifier: nil,
+            folderDisplayName: nil,
+            folderBundleIdentifiers: [],
             widgetKind: kind,
             widgetOwnerBundleIdentifier: ownerBundleIdentifier,
             widgetSpan: span,
@@ -59,6 +84,8 @@ struct PinnedTileItem: Codable, Equatable, Identifiable {
             id: "custom:\(UUID().uuidString)",
             kind: .smartStack,
             bundleIdentifier: nil,
+            folderDisplayName: nil,
+            folderBundleIdentifiers: [],
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -71,6 +98,8 @@ struct PinnedTileItem: Codable, Equatable, Identifiable {
             id: "custom:\(UUID().uuidString)",
             kind: .spacer,
             bundleIdentifier: nil,
+            folderDisplayName: nil,
+            folderBundleIdentifiers: [],
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -83,6 +112,8 @@ struct PinnedTileItem: Codable, Equatable, Identifiable {
             id: "custom:\(UUID().uuidString)",
             kind: .divider,
             bundleIdentifier: nil,
+            folderDisplayName: nil,
+            folderBundleIdentifiers: [],
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,

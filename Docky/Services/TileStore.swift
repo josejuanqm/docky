@@ -104,7 +104,8 @@ final class TileStore: ObservableObject {
 
     func isPinned(bundleIdentifier: String) -> Bool {
         preferences.pinnedItems.contains {
-            $0.kind == .app && $0.bundleIdentifier == bundleIdentifier
+            ($0.kind == .app && $0.bundleIdentifier == bundleIdentifier)
+                || ($0.kind == .appFolder && $0.folderBundleIdentifiers.contains(bundleIdentifier))
         }
     }
 
@@ -180,6 +181,110 @@ final class TileStore: ObservableObject {
         return true
     }
 
+    @discardableResult
+    func groupApp(bundleIdentifier: String, intoTileID targetTileID: String) -> Bool {
+        guard !bundleIdentifier.isEmpty,
+              bundleIdentifier != Self.finderBundleID,
+              let targetIndex = preferences.pinnedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == targetTileID }) else {
+            return false
+        }
+
+        let targetItem = preferences.pinnedItems[targetIndex]
+        switch targetItem.kind {
+        case .app:
+            guard let targetBundleIdentifier = targetItem.bundleIdentifier,
+                  targetBundleIdentifier != bundleIdentifier else {
+                return false
+            }
+
+            var updatedItems = preferences.pinnedItems
+            updatedItems.removeAll {
+                ($0.kind == .app && $0.bundleIdentifier == bundleIdentifier)
+                    || Self.pinnedTileID(for: $0) == targetTileID
+            }
+            let insertionIndex = min(targetIndex, updatedItems.count)
+            updatedItems.insert(
+                .appFolder(bundleIdentifiers: [targetBundleIdentifier, bundleIdentifier]),
+                at: insertionIndex
+            )
+            preferences.pinnedItems = updatedItems
+            refreshPinnedTilesFromPreferences()
+            rebuildTiles()
+            return true
+        case .appFolder:
+            guard !targetItem.folderBundleIdentifiers.contains(bundleIdentifier) else {
+                return false
+            }
+
+            var updatedItems = preferences.pinnedItems.filter {
+                !($0.kind == .app && $0.bundleIdentifier == bundleIdentifier)
+            }
+            guard let folderIndex = updatedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == targetTileID }) else {
+                return false
+            }
+
+            let folderItem = updatedItems[folderIndex]
+            updatedItems[folderIndex] = .appFolder(
+                id: folderItem.id,
+                displayName: folderItem.folderDisplayName ?? "Folder",
+                bundleIdentifiers: folderItem.folderBundleIdentifiers + [bundleIdentifier]
+            )
+            preferences.pinnedItems = updatedItems
+            refreshPinnedTilesFromPreferences()
+            rebuildTiles()
+            return true
+        case .widget, .smartStack, .spacer, .divider:
+            return false
+        }
+    }
+
+    func ungroupAppFolder(tileID: String) {
+        guard let itemIndex = preferences.pinnedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == tileID }),
+              preferences.pinnedItems[itemIndex].kind == .appFolder else {
+            return
+        }
+
+        let folderItem = preferences.pinnedItems[itemIndex]
+        let replacementItems = folderItem.folderBundleIdentifiers.map(PinnedTileItem.app(bundleIdentifier:))
+        var pinnedItems = preferences.pinnedItems
+        pinnedItems.remove(at: itemIndex)
+        pinnedItems.insert(contentsOf: replacementItems, at: itemIndex)
+        preferences.pinnedItems = pinnedItems
+        refreshPinnedTilesFromPreferences()
+        rebuildTiles()
+    }
+
+    func removeAppFromFolder(tileID: String, bundleIdentifier: String) {
+        guard let itemIndex = preferences.pinnedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == tileID }),
+              preferences.pinnedItems[itemIndex].kind == .appFolder else {
+            return
+        }
+
+        let existingItem = preferences.pinnedItems[itemIndex]
+        let remainingBundleIdentifiers = existingItem.folderBundleIdentifiers.filter { $0 != bundleIdentifier }
+        guard remainingBundleIdentifiers.count != existingItem.folderBundleIdentifiers.count else {
+            return
+        }
+
+        var pinnedItems = preferences.pinnedItems
+        switch remainingBundleIdentifiers.count {
+        case 0:
+            pinnedItems.remove(at: itemIndex)
+        case 1:
+            pinnedItems[itemIndex] = .app(bundleIdentifier: remainingBundleIdentifiers[0])
+        default:
+            pinnedItems[itemIndex] = .appFolder(
+                id: existingItem.id,
+                displayName: existingItem.folderDisplayName ?? "Folder",
+                bundleIdentifiers: remainingBundleIdentifiers
+            )
+        }
+
+        preferences.pinnedItems = pinnedItems
+        refreshPinnedTilesFromPreferences()
+        rebuildTiles()
+    }
+
     func widgetPlacement(
         kind: WidgetKind,
         ownerBundleIdentifier: String
@@ -218,7 +323,7 @@ final class TileStore: ObservableObject {
     func insertPinnedItem(kind: PinnedTileItemKind, at destinationIndex: Int) {
         let item: PinnedTileItem
         switch kind {
-        case .app, .widget:
+        case .app, .appFolder, .widget:
             return
         case .smartStack:
             item = .smartStack()
@@ -283,6 +388,8 @@ final class TileStore: ObservableObject {
             id: existingItem.id,
             kind: existingItem.kind,
             bundleIdentifier: existingItem.bundleIdentifier,
+            folderDisplayName: existingItem.folderDisplayName,
+            folderBundleIdentifiers: existingItem.folderBundleIdentifiers,
             widgetKind: existingItem.widgetKind,
             widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
             widgetSpan: existingItem.widgetSpan,
@@ -309,6 +416,8 @@ final class TileStore: ObservableObject {
             id: existingItem.id,
             kind: existingItem.kind,
             bundleIdentifier: existingItem.bundleIdentifier,
+            folderDisplayName: existingItem.folderDisplayName,
+            folderBundleIdentifiers: existingItem.folderBundleIdentifiers,
             widgetKind: existingItem.widgetKind,
             widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
             widgetSpan: span,
@@ -371,6 +480,19 @@ final class TileStore: ObservableObject {
                 return Self.makePinnedTile(from: tile, item: item)
             }
             return Self.makePinnedTile(bundleIdentifier: bundleIdentifier, item: item)
+        case .appFolder:
+            let apps = item.folderBundleIdentifiers.compactMap(Self.makeAppTile(bundleIdentifier:))
+            guard apps.count >= 2 else {
+                return nil
+            }
+            return Tile(
+                id: Self.pinnedTileID(for: item),
+                content: .appFolder(AppFolderTile(
+                    identifier: item.id,
+                    displayName: item.folderDisplayName ?? "Folder",
+                    apps: apps
+                ))
+            )
         case .widget:
             guard let widgetKind = item.widgetKind,
                   let ownerBundleIdentifier = item.widgetOwnerBundleIdentifier else {
@@ -535,6 +657,8 @@ final class TileStore: ObservableObject {
         for tile in tiles {
             if case .app(let app) = tile.content, !app.bundleIdentifier.isEmpty {
                 ids.insert(app.bundleIdentifier)
+            } else if case .appFolder(let folder) = tile.content {
+                ids.formUnion(folder.bundleIdentifiers)
             }
         }
         return ids
@@ -566,6 +690,15 @@ final class TileStore: ObservableObject {
                 return nil
             }
             return .app(bundleIdentifier: app.bundleIdentifier)
+        case .appFolder(let folder):
+            guard folder.bundleIdentifiers.count >= 2 else {
+                return nil
+            }
+            return .appFolder(
+                id: folder.identifier,
+                displayName: folder.displayName,
+                bundleIdentifiers: folder.bundleIdentifiers
+            )
         case .widget, .smartStack:
             return nil
         case .spacer:
@@ -573,6 +706,8 @@ final class TileStore: ObservableObject {
                 id: tile.id,
                 kind: .spacer,
                 bundleIdentifier: nil,
+                folderDisplayName: nil,
+                folderBundleIdentifiers: [],
                 widgetKind: nil,
                 widgetOwnerBundleIdentifier: nil,
                 widgetSpan: nil,
@@ -583,6 +718,8 @@ final class TileStore: ObservableObject {
                 id: tile.id,
                 kind: .divider,
                 bundleIdentifier: nil,
+                folderDisplayName: nil,
+                folderBundleIdentifiers: [],
                 widgetKind: nil,
                 widgetOwnerBundleIdentifier: nil,
                 widgetSpan: nil,
@@ -642,17 +779,25 @@ final class TileStore: ObservableObject {
     }
 
     private static func makePinnedTile(bundleIdentifier: String, item: PinnedTileItem) -> Tile? {
-        guard !bundleIdentifier.isEmpty,
-              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+        guard let app = makeAppTile(bundleIdentifier: bundleIdentifier) else {
             return nil
         }
 
         return Tile(
             id: pinnedTileID(for: item),
-            content: .app(AppTile(
-                bundleIdentifier: bundleIdentifier,
-                displayName: FileManager.default.displayName(atPath: url.path)
-            ))
+            content: .app(app)
+        )
+    }
+
+    nonisolated private static func makeAppTile(bundleIdentifier: String) -> AppTile? {
+        guard !bundleIdentifier.isEmpty,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+            return nil
+        }
+
+        return AppTile(
+            bundleIdentifier: bundleIdentifier,
+            displayName: FileManager.default.displayName(atPath: url.path)
         )
     }
 

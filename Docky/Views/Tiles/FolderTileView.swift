@@ -25,27 +25,13 @@ struct FolderTileView: View {
 
     @ViewBuilder
     private var content: some View {
-        if isOpen {
-            openPlaceholder
-        } else if preview.isEmpty {
+        if preview.isEmpty {
             folderIcon
         } else {
             GeometryReader { geo in
                 stack(in: geo.size)
             }
         }
-    }
-
-    private var openPlaceholder: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.primary.opacity(0.16))
-
-            Image(systemName: "chevron.down")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.primary.opacity(0.9))
-        }
-        .padding(6)
     }
 
     private var folderIcon: some View {

@@ -20,6 +20,7 @@ struct TileContainerView: View {
     @State private var draggedTileOffset: CGFloat = 0
     @State private var draggedTileInitialFrame: CGRect?
     @State private var draggedPinnedTileDestinationIndex: Int?
+    @State private var draggedAppFolderTargetTileID: String?
     @State private var tileFrames: [String: CGRect] = [:]
 
     var body: some View {
@@ -261,7 +262,7 @@ struct TileContainerView: View {
         switch tile.content {
         case .app(let app):
             return !app.bundleIdentifier.isEmpty && app.bundleIdentifier != "com.apple.finder"
-        case .widget, .smartStack, .spacer, .divider:
+        case .appFolder, .widget, .smartStack, .spacer, .divider:
             return editMode.isActive && isPinnedReorderable(tileID: tile.id)
         case .folder, .trash:
             return false
@@ -321,6 +322,20 @@ struct TileContainerView: View {
         }
 
         draggedTileOffset = projected(size: value.translation)
+
+        if let bundleIdentifier = bundleIdentifier(for: tile),
+           let groupTargetTileID = appFolderDropTargetTileID(
+               at: value.location,
+               sourceTileID: tile.id,
+               bundleIdentifier: bundleIdentifier
+           ) {
+            draggedAppFolderTargetTileID = groupTargetTileID
+            draggedPinnedTileDestinationIndex = nil
+            editMode.paletteDropDestinationIndex = nil
+            return
+        }
+
+        draggedAppFolderTargetTileID = nil
         updatePreviewDestination(
             at: projected(point: value.location),
             sourceTileID: tile.id,
@@ -336,7 +351,10 @@ struct TileContainerView: View {
             return
         }
 
-        if isPinnedReorderable(tileID: tile.id) {
+        if let groupTargetTileID = draggedAppFolderTargetTileID,
+           let bundleIdentifier = draggedBundleIdentifier {
+            _ = store.groupApp(bundleIdentifier: bundleIdentifier, intoTileID: groupTargetTileID)
+        } else if isPinnedReorderable(tileID: tile.id) {
             let finalPinnedTileIDs = previewPinnedTiles.map(\.id)
             if finalPinnedTileIDs != pinnedTileIDs {
                 store.setPinnedTileOrder(ids: finalPinnedTileIDs)
@@ -433,6 +451,42 @@ struct TileContainerView: View {
         draggedTileOffset = 0
         draggedTileInitialFrame = nil
         draggedPinnedTileDestinationIndex = nil
+        draggedAppFolderTargetTileID = nil
+    }
+
+    private func bundleIdentifier(for tile: Tile) -> String? {
+        guard case .app(let app) = tile.content else {
+            return nil
+        }
+        return app.bundleIdentifier.isEmpty ? nil : app.bundleIdentifier
+    }
+
+    private func appFolderDropTargetTileID(at location: CGPoint, sourceTileID: String, bundleIdentifier: String) -> String? {
+        for tile in previewPinnedTiles where tile.id != sourceTileID {
+            switch tile.content {
+            case .app(let app):
+                guard app.bundleIdentifier != bundleIdentifier else {
+                    continue
+                }
+            case .appFolder(let folder):
+                guard !folder.bundleIdentifiers.contains(bundleIdentifier) else {
+                    continue
+                }
+            case .widget, .smartStack, .folder, .spacer, .divider, .trash:
+                continue
+            }
+
+            guard let frame = tileFrames[tile.id] else {
+                continue
+            }
+
+            let targetFrame = frame.insetBy(dx: frame.width * 0.18, dy: frame.height * 0.18)
+            if targetFrame.contains(location) {
+                return tile.id
+            }
+        }
+
+        return nil
     }
 
     private func projected(size: CGSize) -> CGFloat {

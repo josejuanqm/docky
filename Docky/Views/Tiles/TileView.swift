@@ -18,6 +18,7 @@ struct TileView: View {
     @State private var isHovering = false
     @State private var isTooltipPresented = false
     @State private var isFolderPopoverPresented = false
+    @State private var isAppFolderPopoverPresented = false
     @State private var isContextMenuPresented = false
     @State private var folderSnapshot: FolderContentsSnapshot = .loaded([])
     @State private var lastFolderPopoverDismissedAt: TimeInterval = 0
@@ -30,7 +31,7 @@ struct TileView: View {
             switch tile.content {
             case .app, .folder, .trash:
                 return catalogActions
-            case .widget, .smartStack, .spacer, .divider:
+            case .appFolder, .widget, .smartStack, .spacer, .divider:
                 break
             }
         }
@@ -38,6 +39,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             return appContextActions(for: app, modifierFlags: modifierFlags)
+        case .appFolder(let folder):
+            return appFolderContextActions(for: folder)
         case .widget(let widget):
             return widgetContextActions(for: widget)
         case .smartStack(let stack):
@@ -113,6 +116,13 @@ struct TileView: View {
             })
         }
 
+        if case .appFolder = tile.content {
+            actions.append(.divider)
+            actions.append(.action("Ungroup Folder") {
+                TileStore.shared.ungroupAppFolder(tileID: tile.id)
+            })
+        }
+
         return actions
     }
 
@@ -131,6 +141,7 @@ struct TileView: View {
                 isHovering = false
                 isTooltipPresented = false
                 isFolderPopoverPresented = false
+                isAppFolderPopoverPresented = false
                 isContextMenuPresented = false
             }
             .onChange(of: isFolderPopoverPresented) { _, isPresented in
@@ -161,16 +172,36 @@ struct TileView: View {
                         preferredEdge: inwardPopoverEdge
                     )
                 }
+
+                if case .appFolder(let folder) = tile.content {
+                    AppFolderPopoverPresenter(
+                        tile: folder,
+                        isPresented: $isAppFolderPopoverPresented,
+                        preferredEdge: inwardPopoverEdge
+                    )
+                }
             }
     }
 
     @ViewBuilder
     private var runningIndicator: some View {
-        if case .app(let app) = tile.content,
-           workspace.isRunning(bundleIdentifier: app.bundleIdentifier) {
+        if showsRunningIndicator {
             runningIndicatorShape
                 .frame(width: runningIndicatorSize.width, height: runningIndicatorSize.height)
                 .foregroundStyle(.primary.opacity(0.9))
+        }
+    }
+
+    private var showsRunningIndicator: Bool {
+        switch tile.content {
+        case .app(let app):
+            workspace.isRunning(bundleIdentifier: app.bundleIdentifier)
+        case .appFolder(let folder):
+            folder.apps.contains { app in
+                workspace.isRunning(bundleIdentifier: app.bundleIdentifier)
+            }
+        case .widget, .smartStack, .folder, .spacer, .divider, .trash:
+            false
         }
     }
 
@@ -262,6 +293,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             AppTileView(tile: app)
+        case .appFolder(let folder):
+            AppFolderTileView(tile: folder, isOpen: isAppFolderPopoverPresented)
         case .widget(let widget):
             WidgetTileView(tile: widget)
         case .smartStack(let stack):
@@ -281,6 +314,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             app.displayName
+        case .appFolder(let folder):
+            folder.displayName
         case .widget(let widget):
             widget.title
         case .smartStack(let stack):
@@ -308,6 +343,7 @@ struct TileView: View {
         isTooltipPresented = isHovering
             && tooltipTitle != nil
             && !isFolderPopoverPresented
+            && !isAppFolderPopoverPresented
             && !isContextMenuPresented
     }
 
@@ -316,6 +352,15 @@ struct TileView: View {
         case .app(let app):
             isTooltipPresented = false
             WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
+        case .appFolder:
+            isTooltipPresented = false
+
+            if isAppFolderPopoverPresented {
+                isAppFolderPopoverPresented = false
+                return
+            }
+
+            isAppFolderPopoverPresented = true
         case .widget(let widget):
             isTooltipPresented = false
             handleWidgetTap(widget)
@@ -345,6 +390,30 @@ struct TileView: View {
         case .spacer, .divider:
             return
         }
+    }
+
+    private func appFolderContextActions(for folder: AppFolderTile) -> [ContextAction] {
+        var actions = customPinnedTileActions
+
+        let appActions = folder.apps.map { app in
+            ContextAction.submenu(app.displayName, children: [
+                .action("Open") {
+                    WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
+                },
+                .action("Remove from Folder") {
+                    TileStore.shared.removeAppFromFolder(tileID: tile.id, bundleIdentifier: app.bundleIdentifier)
+                }
+            ])
+        }
+
+        if !appActions.isEmpty {
+            if !actions.isEmpty {
+                actions.append(.divider)
+            }
+            actions.append(.submenu("Apps", children: appActions))
+        }
+
+        return actions
     }
 
     private func appContextActions(

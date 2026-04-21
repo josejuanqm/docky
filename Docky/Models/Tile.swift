@@ -17,6 +17,7 @@ struct Tile: Identifiable, Equatable {
 
 enum TileContent: Equatable {
     case app(AppTile)
+    case appFolder(AppFolderTile)
     case widget(WidgetTile)
     case smartStack(SmartStackTile)
     case folder(FolderTile)
@@ -28,6 +29,16 @@ enum TileContent: Equatable {
 struct AppTile: Equatable {
     let bundleIdentifier: String
     let displayName: String
+}
+
+struct AppFolderTile: Equatable {
+    let identifier: String
+    let displayName: String
+    let apps: [AppTile]
+
+    nonisolated var bundleIdentifiers: [String] {
+        apps.map(\.bundleIdentifier)
+    }
 }
 
 enum WidgetKind: String, CaseIterable, Codable, Identifiable {
