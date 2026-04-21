@@ -23,6 +23,10 @@ struct MediaPlaybackState: Equatable {
     var artworkData: Data?
     var lastUpdated: Date
 
+    var hasContent: Bool {
+        !title.isEmpty || !artist.isEmpty || artworkData != nil
+    }
+
     var estimatedCurrentTime: TimeInterval {
         guard isPlaying, duration > 0 else {
             return min(max(currentTime, 0), duration)
@@ -70,9 +74,14 @@ final class MediaPlaybackService: ObservableObject {
     }
 
     func togglePlayPause(for bundleIdentifier: String) async {
-        guard state(for: bundleIdentifier)?.isAvailable == true else {
+        guard let currentState = state(for: bundleIdentifier), currentState.hasContent else {
             return
         }
+
+        var updatedState = currentState
+        updatedState.isPlaying.toggle()
+        updatedState.lastUpdated = Date()
+        statesByBundleIdentifier[bundleIdentifier] = updatedState
 
         mediaRemote.sendCommand(.togglePlayPause)
         try? await Task.sleep(for: .milliseconds(120))
@@ -80,7 +89,7 @@ final class MediaPlaybackService: ObservableObject {
     }
 
     func skipToNext(for bundleIdentifier: String) async {
-        guard state(for: bundleIdentifier)?.isAvailable == true else {
+        guard state(for: bundleIdentifier)?.hasContent == true else {
             return
         }
 
@@ -90,7 +99,7 @@ final class MediaPlaybackService: ObservableObject {
     }
 
     func skipToPrevious(for bundleIdentifier: String) async {
-        guard state(for: bundleIdentifier)?.isAvailable == true else {
+        guard state(for: bundleIdentifier)?.hasContent == true else {
             return
         }
 
@@ -121,11 +130,18 @@ final class MediaPlaybackService: ObservableObject {
 
     private func apply(_ state: MediaPlaybackState?) {
         guard let state else {
-            statesByBundleIdentifier = [:]
+            let now = Date()
+            statesByBundleIdentifier = statesByBundleIdentifier.mapValues { existingState in
+                var updatedState = existingState
+                updatedState.isAvailable = false
+                updatedState.isPlaying = false
+                updatedState.lastUpdated = now
+                return updatedState
+            }
             return
         }
 
-        statesByBundleIdentifier = [state.bundleIdentifier: state]
+        statesByBundleIdentifier[state.bundleIdentifier] = state
     }
 }
 
@@ -146,6 +162,22 @@ private struct MediaRemoteSnapshot: Decodable {
         let artworkData: String?
         let artworkMimeType: String?
         let timestamp: String?
+
+        func merged(over base: Self?) -> Self {
+            Self(
+                bundleIdentifier: bundleIdentifier ?? base?.bundleIdentifier,
+                parentApplicationBundleIdentifier: parentApplicationBundleIdentifier ?? base?.parentApplicationBundleIdentifier,
+                title: title ?? base?.title,
+                artist: artist ?? base?.artist,
+                album: album ?? base?.album,
+                duration: duration ?? base?.duration,
+                elapsedTime: elapsedTime ?? base?.elapsedTime,
+                playing: playing ?? base?.playing,
+                artworkData: artworkData ?? base?.artworkData,
+                artworkMimeType: artworkMimeType ?? base?.artworkMimeType,
+                timestamp: timestamp ?? base?.timestamp
+            )
+        }
     }
 }
 
@@ -167,6 +199,8 @@ private final class MediaRemoteBridge {
 
     private let sendRemoteCommand: SendCommand?
     private let helper = MediaRemoteHelperProcess()
+    private var lastPayloadByBundleIdentifier: [String: MediaRemoteSnapshot.Payload] = [:]
+    private var lastActiveBundleIdentifier: String?
 
     private init() {
         let bundleURL = NSURL(fileURLWithPath: "/System/Library/PrivateFrameworks/MediaRemote.framework")
@@ -196,7 +230,10 @@ private final class MediaRemoteBridge {
             return
         }
 
-        let payload = snapshot.payload
+        let candidateBundleIdentifier = snapshot.payload.parentApplicationBundleIdentifier ?? snapshot.payload.bundleIdentifier
+        let basePayload = candidateBundleIdentifier.flatMap { lastPayloadByBundleIdentifier[$0] }
+            ?? lastActiveBundleIdentifier.flatMap { lastPayloadByBundleIdentifier[$0] }
+        let payload = snapshot.diff == true ? snapshot.payload.merged(over: basePayload) : snapshot.payload
         let bundleIdentifier = payload.parentApplicationBundleIdentifier ?? payload.bundleIdentifier ?? ""
         let title = payload.title ?? ""
         let artist = payload.artist ?? ""
@@ -211,6 +248,9 @@ private final class MediaRemoteBridge {
             onStateChange?(nil)
             return
         }
+
+        lastPayloadByBundleIdentifier[bundleIdentifier] = payload
+        lastActiveBundleIdentifier = bundleIdentifier
 
         let state = MediaPlaybackState(
             bundleIdentifier: bundleIdentifier,
@@ -361,6 +401,10 @@ private final class MediaRemoteHelperProcess {
 
             guard !lineData.isEmpty else {
                 continue
+            }
+
+            if let text = String(data: lineData, encoding: .utf8) {
+                Self.logger.debug("Helper raw line: \(text, privacy: .public)")
             }
 
             if let snapshot = try? JSONDecoder().decode(MediaRemoteSnapshot.self, from: lineData) {

@@ -13,84 +13,70 @@ struct WidgetTileView: View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(.white.opacity(0.08))
             .overlay {
-                Group {
-                    switch tile.span {
-                    case .one:
-                        compactBody
-                    case .two, .three:
-                        expandedBody
-                    }
+                switch tile.kind {
+                case .nowPlaying:
+                    nowPlayingWidget
                 }
-                .padding(10)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
     }
 
     @ViewBuilder
-    private var compactBody: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            artworkView(size: 34)
+    private var nowPlayingWidget: some View {
+        switch tile.span {
+        case .one:
+            nowPlayingOneUp
+        case .two:
+            nowPlayingTwoUp
+        case .three:
+            nowPlayingThreeUp
+        }
+    }
 
+    private var nowPlayingOneUp: some View {
+        artworkView(size: 52)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(10)
+    }
+
+    private var nowPlayingTwoUp: some View {
+        HStack(spacing: 12) {
+            artworkView(size: 52)
+            controlButton(
+                playbackState?.isPlaying == true ? "pause.fill" : "play.fill",
+                action: togglePlayPause
+            )
             Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
 
-            Text(playbackTitle)
-                .font(.caption2.weight(.semibold))
-                .lineLimit(1)
+    private var nowPlayingThreeUp: some View {
+        HStack(spacing: 12) {
+            artworkView(size: 52)
 
-            if let playbackState, playbackState.isPlaying {
-                Image(systemName: "pause.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(ownerDisplayName)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(playbackTitle)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+
+                Text(playbackArtist)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-        }
-    }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-    @ViewBuilder
-    private var expandedBody: some View {
-        HStack(spacing: 10) {
-            artworkView(size: 48)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Text(playbackTitle)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
-
-                    if let playbackState, playbackState.supportsFavorite, playbackState.isFavorite {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.yellow)
-                    }
-                }
-
-                Text(playbackSubtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(tile.span == .three ? 2 : 1)
-
-                if let playbackState, playbackState.duration > 0 {
-                    ProgressView(value: playbackState.estimatedCurrentTime, total: playbackState.duration)
-                        .tint(.primary.opacity(0.8))
-                        .controlSize(.mini)
-                }
-
-                if tile.span == .three {
-                    HStack(spacing: 10) {
-                        controlSymbol("backward.fill")
-                        controlSymbol(playbackState?.isPlaying == true ? "pause.fill" : "play.fill")
-                        controlSymbol("forward.fill")
-                    }
-                    .foregroundStyle(.secondary)
-                }
+            HStack(spacing: 10) {
+                controlButton(
+                    playbackState?.isPlaying == true ? "pause.fill" : "play.fill",
+                    action: togglePlayPause
+                )
+                controlButton("forward.fill", action: skipToNext)
             }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -112,9 +98,14 @@ struct WidgetTileView: View {
         }
     }
 
-    private func controlSymbol(_ systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 10, weight: .semibold))
+    private func controlButton(_ systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 14, height: 14)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var playbackState: MediaPlaybackState? {
@@ -129,26 +120,35 @@ struct WidgetTileView: View {
     }
 
     private var playbackTitle: String {
-        guard let playbackState, playbackState.isAvailable else {
+        guard let playbackState, playbackState.hasContent else {
             return tile.title
         }
 
         return playbackState.title.isEmpty ? ownerDisplayName : playbackState.title
     }
 
-    private var playbackSubtitle: String {
-        guard let playbackState, playbackState.isAvailable else {
-            return subtitle
+    private var playbackArtist: String {
+        guard let playbackState, playbackState.hasContent else {
+            return ownerDisplayName
         }
 
-        let components = [playbackState.artist, playbackState.album].filter { !$0.isEmpty }
-        return components.isEmpty ? ownerDisplayName : components.joined(separator: " • ")
+        if !playbackState.artist.isEmpty {
+            return playbackState.artist
+        }
+
+        return ownerDisplayName
     }
 
-    private var subtitle: String {
-        switch tile.kind {
-        case .nowPlaying:
-            "Playback controls for \(ownerDisplayName)."
+    private func togglePlayPause() {
+        Task {
+            await mediaPlayback.togglePlayPause(for: tile.ownerBundleIdentifier)
         }
     }
+
+    private func skipToNext() {
+        Task {
+            await mediaPlayback.skipToNext(for: tile.ownerBundleIdentifier)
+        }
+    }
+
 }

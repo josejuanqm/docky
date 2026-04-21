@@ -18,6 +18,7 @@ struct Tile: Identifiable, Equatable {
 enum TileContent: Equatable {
     case app(AppTile)
     case widget(WidgetTile)
+    case smartStack(SmartStackTile)
     case folder(FolderTile)
     case spacer
     case divider
@@ -65,6 +66,20 @@ struct WidgetTile: Equatable {
     let title: String
     let kind: WidgetKind
     let ownerBundleIdentifier: String
+    let span: TileSpan
+
+    var effectiveSpan: TileSpan {
+        switch kind {
+        case .nowPlaying:
+            .three
+        }
+    }
+}
+
+struct SmartStackTile: Equatable {
+    let identifier: String
+    let title: String
+    let widgets: [WidgetTile]
     let span: TileSpan
 }
 

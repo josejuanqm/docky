@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -17,7 +17,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */,
+				11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -26,7 +26,7 @@
 
 /* Begin PBXFileReference section */
 		11051DE72F929079005CE09D /* Docky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docky.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		11051E002F929079005CE09D /* MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
+		11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -57,20 +57,20 @@
 			);
 			sourceTree = "<group>";
 		};
-		11051E032F929079005CE09D /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				11051E002F929079005CE09D /* MediaRemoteAdapter.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		11051DE82F929079005CE09D /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				11051DE72F929079005CE09D /* Docky.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		11051E032F929079005CE09D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
