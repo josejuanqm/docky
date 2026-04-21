@@ -9,16 +9,12 @@ import SwiftUI
 struct FolderTileView: View {
     let tile: FolderTile
     let isOpen: Bool
-    let indicatorPlaceholderSize: CGFloat
     @ObservedObject private var permissions = PermissionsService.shared
     @State private var preview: [URL] = []
 
     var body: some View {
-        VStack(spacing: 2) {
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            indicatorPlaceholder
-        }
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task(id: reloadKey) {
                 preview = FolderAccessService.shared.recentContents(of: tile.url, limit: 3)
             }
@@ -74,12 +70,6 @@ struct FolderTileView: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .center)
-    }
-
-    private var indicatorPlaceholder: some View {
-        Circle()
-            .frame(width: indicatorPlaceholderSize, height: indicatorPlaceholderSize)
-            .foregroundStyle(.clear)
     }
 
     private var reloadKey: String {

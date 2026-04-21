@@ -118,6 +118,9 @@ struct TileView: View {
 
         if case .appFolder = tile.content {
             actions.append(.divider)
+            actions.append(.action("Rename Folder...") {
+                TileStore.shared.presentRenameAppFolderPrompt(tileID: tile.id)
+            })
             actions.append(.action("Ungroup Folder") {
                 TileStore.shared.ungroupAppFolder(tileID: tile.id)
             })
@@ -294,6 +297,10 @@ struct TileView: View {
         dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
     }
 
+    private func renderedWidgetSpan(for span: TileSpan) -> TileSpan {
+        effectiveTileSize < 50 ? .one : span
+    }
+
     private var nonAppTileCornerRadius: CGFloat {
         effectiveTileSize * 0.225
     }
@@ -353,18 +360,24 @@ struct TileView: View {
         case .appFolder(let folder):
             AppFolderTileView(
                 tile: folder,
-                cornerRadius: nonAppTileCornerRadius,
-                indicatorPlaceholderSize: runningIndicatorThickness
+                cornerRadius: nonAppTileCornerRadius
             )
         case .widget(let widget):
-            WidgetTileView(tile: widget, cornerRadius: nonAppTileCornerRadius)
+            WidgetTileView(
+                tile: widget,
+                cornerRadius: nonAppTileCornerRadius,
+                renderedSpan: renderedWidgetSpan(for: widget.span)
+            )
         case .smartStack(let stack):
-            SmartStackTileView(tile: stack, cornerRadius: nonAppTileCornerRadius)
+            SmartStackTileView(
+                tile: stack,
+                cornerRadius: nonAppTileCornerRadius,
+                renderedSpan: renderedWidgetSpan(for: stack.span)
+            )
         case .folder(let folder):
             FolderTileView(
                 tile: folder,
                 isOpen: isFolderPopoverPresented,
-                indicatorPlaceholderSize: runningIndicatorThickness
             )
         case .spacer:
             SpacerTileView()

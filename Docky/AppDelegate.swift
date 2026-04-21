@@ -6,6 +6,7 @@
 //
 
 import Cocoa
+import Combine
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -14,6 +15,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindowController: MainWindowController?
     private var permissionsWindowController: PermissionsWindowController?
     private var settingsWindowController: SettingsWindowController?
+    private var debugSnapshotWindowController: NSWindowController?
+    private var debugStatusItem: NSStatusItem?
+    private var debugSnapshotTextView: NSTextView?
+    private var debugSnapshotCancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         window?.orderOut(nil)
@@ -94,11 +99,157 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func configureMainMenu() {
         let appMenu = NSApp.mainMenu?.items.first?.submenu
-        guard let item = appMenu?.item(withTitle: "Preferences…") ?? appMenu?.item(withTitle: "Settings…") else {
+        if let item = appMenu?.item(withTitle: "Preferences…") ?? appMenu?.item(withTitle: "Settings…") {
+            item.title = "Settings…"
+            item.action = #selector(showSettingsWindow(_:))
+            item.target = self
+        }
+
+        #if DEBUG
+        installDebugStatusItem()
+        #endif
+    }
+
+    #if DEBUG
+    @objc private func showDebugSnapshot(_ sender: Any?) {
+        DockSettingsService.shared.refresh()
+
+        if debugSnapshotWindowController == nil {
+            let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 560, height: 360))
+            textView.isEditable = false
+            textView.isSelectable = true
+            textView.isRichText = false
+            textView.importsGraphics = false
+            textView.usesFindBar = true
+            textView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+            debugSnapshotTextView = textView
+
+            let scrollView = NSScrollView(frame: textView.frame)
+            scrollView.hasVerticalScroller = true
+            scrollView.hasHorizontalScroller = false
+            scrollView.autohidesScrollers = true
+            scrollView.documentView = textView
+
+            let viewController = NSViewController()
+            viewController.view = scrollView
+
+            let window = NSWindow(contentViewController: viewController)
+            window.title = "Dock Debug Snapshot"
+            window.setContentSize(scrollView.frame.size)
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.isReleasedWhenClosed = false
+
+            debugSnapshotWindowController = NSWindowController(window: window)
+            installDebugSnapshotObservers()
+        }
+
+        refreshDebugSnapshotText()
+
+        debugSnapshotWindowController?.showWindow(sender)
+        debugSnapshotWindowController?.window?.center()
+        debugSnapshotWindowController?.window?.makeKeyAndOrderFront(sender)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func installDebugStatusItem() {
+        guard debugStatusItem == nil else {
             return
         }
-        item.title = "Settings…"
-        item.action = #selector(showSettingsWindow(_:))
-        item.target = self
+
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.title = "Docky"
+
+        let debugMenu = NSMenu(title: "Docky")
+        let snapshotItem = NSMenuItem(
+            title: "Show Dock Preferences and Settings",
+            action: #selector(showDebugSnapshot(_:)),
+            keyEquivalent: ""
+        )
+        snapshotItem.target = self
+
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(showSettingsWindow(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+
+        let quitItem = NSMenuItem(
+            title: "Quit Docky",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        quitItem.target = NSApp
+
+        debugMenu.addItem(settingsItem)
+        debugMenu.addItem(snapshotItem)
+        debugMenu.addItem(.separator())
+        debugMenu.addItem(quitItem)
+
+        statusItem.menu = debugMenu
+        debugStatusItem = statusItem
     }
+
+    private func debugSnapshotText() -> String {
+        let preferences = DockyPreferences.shared
+        let dockSettings = DockSettingsService.shared
+
+        return [
+            "Docky Preferences",
+            "---------------",
+            "tileVerticalPadding: \(preferences.tileVerticalPadding)",
+            "tileSpacing: \(preferences.tileSpacing)",
+            "windowCornerRadius: \(preferences.windowCornerRadius)",
+            "windowPosition: \(preferences.windowPosition.rawValue)",
+            "autohidesWindow: \(preferences.autohidesWindow)",
+            "activeIndicatorShape: \(preferences.activeIndicatorShape.rawValue)",
+            "pinnedAppBundleIdentifiers: \(formattedJSON(preferences.pinnedAppBundleIdentifiers))",
+            "pinnedItems: \(formattedJSON(preferences.pinnedItems))",
+            "widgetPlacements: \(formattedJSON(preferences.widgetPlacements))",
+            "",
+            "Dock Settings",
+            "-------------",
+            "orientation: \(dockSettings.orientation.rawValue)",
+            "tileSize: \(dockSettings.tileSize)",
+            "largeSize: \(dockSettings.largeSize)",
+            "magnification: \(dockSettings.magnification)",
+            "autohide: \(dockSettings.autohide)",
+            "autohideDelay: \(dockSettings.autohideDelay)",
+            "autohideTimeModifier: \(dockSettings.autohideTimeModifier)",
+            "minimizeEffect: \(dockSettings.minimizeEffect.rawValue)",
+            "minimizeToApplication: \(dockSettings.minimizeToApplication)",
+            "showRecents: \(dockSettings.showRecents)",
+            "showProcessIndicators: \(dockSettings.showProcessIndicators)"
+        ].joined(separator: "\n")
+    }
+
+    private func formattedJSON<T: Encodable>(_ value: T) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        guard let data = try? encoder.encode(value),
+              let string = String(data: data, encoding: .utf8) else {
+            return String(describing: value)
+        }
+
+        return string
+    }
+
+    private func installDebugSnapshotObservers() {
+        guard debugSnapshotCancellables.isEmpty else {
+            return
+        }
+
+        DockyPreferences.shared.objectWillChange
+            .merge(with: DockSettingsService.shared.objectWillChange)
+            .sink { [weak self] _ in
+                self?.refreshDebugSnapshotText()
+            }
+            .store(in: &debugSnapshotCancellables)
+    }
+
+    private func refreshDebugSnapshotText() {
+        debugSnapshotTextView?.string = debugSnapshotText()
+    }
+    #endif
 }

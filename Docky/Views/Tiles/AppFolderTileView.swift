@@ -9,14 +9,10 @@ import SwiftUI
 struct AppFolderTileView: View {
     let tile: AppFolderTile
     let cornerRadius: CGFloat
-    let indicatorPlaceholderSize: CGFloat
 
     var body: some View {
-        VStack(spacing: 2) {
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            indicatorPlaceholder
-        }
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -24,7 +20,6 @@ struct AppFolderTileView: View {
         GeometryReader { geo in
             iconGrid(in: geo.size)
         }
-        .offset(y: -2)
     }
 
     private func iconGrid(in size: CGSize) -> some View {
@@ -33,8 +28,8 @@ struct AppFolderTileView: View {
         let gap = min(size.width, size.height) * 0.06
 
         return ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.white.opacity(0.1))
+            Color.clear
+                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(.white.opacity(0.1), lineWidth: 1)
@@ -52,8 +47,8 @@ struct AppFolderTileView: View {
                                         .interpolation(.high)
                                         .aspectRatio(contentMode: .fit)
                                 } else {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(.white.opacity(0.06))
+                                    RoundedRectangle(cornerRadius: min(cornerRadius, 8), style: .continuous)
+                                        .fill(.primary.opacity(0.06))
                                 }
                             }
                             .frame(width: side, height: side)
@@ -63,13 +58,6 @@ struct AppFolderTileView: View {
             }
             .padding(size.width * 0.12)
         }
-        .padding(4)
-    }
-
-    private var indicatorPlaceholder: some View {
-        Circle()
-            .frame(width: indicatorPlaceholderSize, height: indicatorPlaceholderSize)
-            .foregroundStyle(.clear)
     }
 }
 

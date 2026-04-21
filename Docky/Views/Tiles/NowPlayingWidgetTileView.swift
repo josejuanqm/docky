@@ -10,59 +10,62 @@ import SwiftUI
 struct NowPlayingWidgetTileView: View {
     let tile: WidgetTile
     let cornerRadius: CGFloat
+    let renderedSpan: TileSpan
     @ObservedObject private var mediaPlayback = MediaPlaybackService.shared
     @State private var isHovering = false
 
     var body: some View {
-        ZStack {
-            WidgetMaterialBackground(cornerRadius: cornerRadius)
+        GeometryReader { proxy in
+            let layout = layout(in: proxy.size)
 
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color(nsColor: prominentTintColor).opacity(0.36))
+            ZStack {
+                Color(nsColor: prominentTintColor)
+                    .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius, style: .continuous))
 
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
 
-            content
+                content(layout: layout)
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(layout: LayoutMetrics) -> some View {
         if playbackState?.hasContent != true {
-            notPlayingState
+            notPlayingState(layout: layout)
         } else {
-            switch tile.span {
+            switch renderedSpan {
             case .one:
-                nowPlayingOneUp
+                nowPlayingOneUp(layout: layout)
             case .two:
-                nowPlayingTwoUp
+                nowPlayingTwoUp(layout: layout)
             case .three:
-                nowPlayingThreeUp
+                nowPlayingThreeUp(layout: layout)
             }
         }
     }
 
-    private var notPlayingState: some View {
-        VStack(spacing: 4) {
-            if tile.span == .one {
+    private func notPlayingState(layout: LayoutMetrics) -> some View {
+        VStack(spacing: layout.stackSpacing) {
+            if renderedSpan == .one {
                 Image(systemName: "music.note")
                     .opacity(0.25)
-                    .font(.title)
+                    .font(.system(size: layout.largeGlyphSize, weight: .regular))
             } else {
                 Text("Not Playing")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: layout.titleFontSize, weight: .semibold))
             }
         }
         .foregroundStyle(primaryForegroundColor)
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .padding(10)
+        .padding(layout.contentPadding)
     }
 
-    private var nowPlayingOneUp: some View {
-        artworkView(size: nil)
+    private func nowPlayingOneUp(layout: LayoutMetrics) -> some View {
+        artworkView(size: nil, artworkCornerRadius: layout.artworkCornerRadius)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 if isHovering {
@@ -70,7 +73,7 @@ struct NowPlayingWidgetTileView: View {
                         Color.black.opacity(0.18)
 
                         Image(systemName: playbackState?.isPlaying == true ? "pause.fill" : "play.fill")
-                            .font(.system(size: 24, weight: .semibold))
+                            .font(.system(size: layout.largeGlyphSize, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.95))
                     }
                     .transition(.opacity)
@@ -79,55 +82,61 @@ struct NowPlayingWidgetTileView: View {
             .onHover { isHovering = $0 }
     }
 
-    private var nowPlayingTwoUp: some View {
-        HStack(spacing: 12) {
-            artworkView(size: 52)
-            HStack(spacing: 10) {
-                controlButton("backward.fill", action: skipToPrevious)
+    private func nowPlayingTwoUp(layout: LayoutMetrics) -> some View {
+        HStack(spacing: layout.contentGap) {
+            artworkView(size: layout.artworkSize, artworkCornerRadius: layout.artworkCornerRadius)
+
+            HStack(spacing: layout.controlClusterSpacing) {
+                controlButton("backward.fill", layout: layout, action: skipToPrevious)
                 controlButton(
                     playbackState?.isPlaying == true ? "pause.fill" : "play.fill",
+                    layout: layout,
                     action: togglePlayPause
                 )
-                controlButton("forward.fill", action: skipToNext)
+                controlButton("forward.fill", layout: layout, action: skipToNext)
             }
+            .frame(maxWidth: .infinity)
+
             Spacer(minLength: 0)
         }
-        .padding(10)
+        .padding(layout.contentPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
-    private var nowPlayingThreeUp: some View {
-        HStack(spacing: 12) {
-            artworkView(size: 52)
+    private func nowPlayingThreeUp(layout: LayoutMetrics) -> some View {
+        HStack(spacing: layout.contentGap) {
+            artworkView(size: layout.artworkSize, artworkCornerRadius: layout.artworkCornerRadius)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: layout.stackSpacing) {
                 Text(playbackTitle)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: layout.titleFontSize, weight: .semibold))
                     .foregroundStyle(primaryForegroundColor)
                     .lineLimit(1)
 
                 Text(playbackArtist)
-                    .font(.caption2)
+                    .font(.system(size: layout.subtitleFontSize))
                     .foregroundStyle(secondaryForegroundColor)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 12) {
+            HStack(spacing: layout.contentGap) {
                 controlButton(
                     playbackState?.isPlaying == true ? "pause.fill" : "play.fill",
+                    layout: layout,
                     action: togglePlayPause
                 )
-                controlButton("forward.fill", action: skipToNext)
+                controlButton("forward.fill", layout: layout, action: skipToNext)
             }
-            .padding(.trailing, 2)
+            .fixedSize()
+            .padding(.trailing, layout.trailingControlPadding)
         }
-        .padding(10)
+        .padding(layout.contentPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
-    private func artworkView(size: CGFloat?) -> some View {
+    private func artworkView(size: CGFloat?, artworkCornerRadius: CGFloat) -> some View {
         if let artworkData = playbackState?.artworkData,
            let artworkImage = NSImage(data: artworkData) {
             Image(nsImage: artworkImage)
@@ -135,7 +144,7 @@ struct NowPlayingWidgetTileView: View {
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fill)
                 .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: size == nil ? 12 : 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: artworkCornerRadius, style: .continuous))
         } else {
             Image(nsImage: IconCacheService.shared.icon(forBundleIdentifier: tile.ownerBundleIdentifier))
                 .resizable()
@@ -145,15 +154,49 @@ struct NowPlayingWidgetTileView: View {
         }
     }
 
-    private func controlButton(_ systemName: String, action: @escaping () -> Void) -> some View {
+    private func controlButton(_ systemName: String, layout: LayoutMetrics, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: layout.controlIconSize, weight: .semibold))
                 .foregroundStyle(primaryForegroundColor)
-                .frame(width: 18, height: 18)
+                .frame(width: layout.controlButtonSize, height: layout.controlButtonSize)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func layout(in size: CGSize) -> LayoutMetrics {
+        let width = max(size.width, 1)
+        let height = max(size.height, 1)
+        let minSide = min(width, height)
+        let contentPadding = min(max(minSide * 0.12, 4), minSide * 0.18)
+        let availableHeight = max(0, height - contentPadding * 2)
+        let contentGap = min(max(minSide * 0.1, 4), minSide * 0.2)
+        let stackSpacing = min(max(minSide * 0.05, 2), minSide * 0.1)
+        let controlClusterSpacing = min(max(minSide * 0.08, 4), minSide * 0.14)
+        let controlButtonSize = min(max(minSide * 0.24, 16), availableHeight)
+        let artworkWidthFraction: CGFloat = renderedSpan == .two ? 0.34 : 0.24
+        let artworkSize = min(availableHeight, width * artworkWidthFraction)
+        let artworkCornerRadius = min(artworkSize / 2, max(0, cornerRadius - contentPadding))
+        let titleFontSize = min(max(minSide * 0.18, 11), 16)
+        let subtitleFontSize = min(max(minSide * 0.14, 9), 13)
+        let controlIconSize = min(max(controlButtonSize * 0.72, 11), controlButtonSize)
+        let largeGlyphSize = min(max(minSide * 0.42, 18), minSide * 0.56)
+
+        return LayoutMetrics(
+            contentPadding: contentPadding,
+            contentGap: contentGap,
+            controlClusterSpacing: controlClusterSpacing,
+            stackSpacing: stackSpacing,
+            trailingControlPadding: stackSpacing,
+            artworkSize: artworkSize,
+            artworkCornerRadius: artworkCornerRadius,
+            titleFontSize: titleFontSize,
+            subtitleFontSize: subtitleFontSize,
+            controlIconSize: controlIconSize,
+            controlButtonSize: controlButtonSize,
+            largeGlyphSize: largeGlyphSize
+        )
     }
 
     private var playbackState: MediaPlaybackState? {
@@ -269,23 +312,19 @@ struct NowPlayingWidgetTileView: View {
     }
 }
 
-private struct WidgetMaterialBackground: NSViewRepresentable {
-    let cornerRadius: CGFloat
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .withinWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.wantsLayer = true
-        nsView.layer?.cornerCurve = .continuous
-        nsView.layer?.cornerRadius = cornerRadius
-        nsView.layer?.masksToBounds = true
-    }
+private struct LayoutMetrics {
+    let contentPadding: CGFloat
+    let contentGap: CGFloat
+    let controlClusterSpacing: CGFloat
+    let stackSpacing: CGFloat
+    let trailingControlPadding: CGFloat
+    let artworkSize: CGFloat
+    let artworkCornerRadius: CGFloat
+    let titleFontSize: CGFloat
+    let subtitleFontSize: CGFloat
+    let controlIconSize: CGFloat
+    let controlButtonSize: CGFloat
+    let largeGlyphSize: CGFloat
 }
 
 private extension NSColor {

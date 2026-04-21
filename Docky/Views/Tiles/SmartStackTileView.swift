@@ -9,6 +9,7 @@ import SwiftUI
 struct SmartStackTileView: View {
     let tile: SmartStackTile
     let cornerRadius: CGFloat
+    let renderedSpan: TileSpan
 
     @State private var selection = 0
     @State private var isHovering = false
@@ -24,7 +25,11 @@ struct SmartStackTileView: View {
                     GeometryReader { proxy in
                         VStack(spacing: 0) {
                             ForEach(Array(tile.widgets.enumerated()), id: \.element.identifier) { index, widget in
-                                WidgetTileView(tile: widget, cornerRadius: cornerRadius)
+                                WidgetTileView(
+                                    tile: widget,
+                                    cornerRadius: cornerRadius,
+                                    renderedSpan: renderedSpan
+                                )
                                     .frame(width: proxy.size.width, height: proxy.size.height)
                             }
                         }
