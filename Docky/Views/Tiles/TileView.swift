@@ -30,7 +30,7 @@ struct TileView: View {
             switch tile.content {
             case .app, .folder, .trash:
                 return catalogActions
-            case .widget, .spacer, .divider:
+            case .widget, .smartStack, .spacer, .divider:
                 break
             }
         }
@@ -40,6 +40,8 @@ struct TileView: View {
             return appContextActions(for: app, modifierFlags: modifierFlags)
         case .widget(let widget):
             return widgetContextActions(for: widget)
+        case .smartStack:
+            return []
         case .folder(let folder):
             return [
                 .action("Open in Finder") {
@@ -68,8 +70,36 @@ struct TileView: View {
                 }
             ]
         case .spacer, .divider:
+            return customPinnedTileActions
+        }
+    }
+
+    private var customPinnedTileActions: [ContextAction] {
+        guard tile.id.hasPrefix("pinned:") else {
             return []
         }
+
+        var actions: [ContextAction] = [
+            .action("Edit Dock...") {
+                DockEditModeService.shared.enter()
+            }
+        ]
+
+        if case .spacer = tile.content {
+            actions.append(.divider)
+            actions.append(.action("Remove from Dock") {
+                TileStore.shared.removePinnedItem(tileID: tile.id)
+            })
+        }
+
+        if case .divider = tile.content {
+            actions.append(.divider)
+            actions.append(.action("Remove from Dock") {
+                TileStore.shared.removePinnedItem(tileID: tile.id)
+            })
+        }
+
+        return actions
     }
 
     var body: some View {
@@ -220,12 +250,14 @@ struct TileView: View {
             AppTileView(tile: app)
         case .widget(let widget):
             WidgetTileView(tile: widget)
+        case .smartStack(let stack):
+            SmartStackTileView(tile: stack)
         case .folder(let folder):
             FolderTileView(tile: folder, isOpen: isFolderPopoverPresented)
         case .spacer:
             SpacerTileView()
         case .divider:
-            DividerTileView()
+            DividerTileView(tileID: tile.id)
         case .trash:
             TrashTileView()
         }
@@ -237,6 +269,8 @@ struct TileView: View {
             app.displayName
         case .widget(let widget):
             widget.title
+        case .smartStack(let stack):
+            stack.title
         case .folder(let folder):
             folder.displayName
         case .trash:
@@ -271,6 +305,9 @@ struct TileView: View {
         case .widget(let widget):
             isTooltipPresented = false
             handleWidgetTap(widget)
+        case .smartStack:
+            isTooltipPresented = false
+            return
         case .folder(let folder):
             isTooltipPresented = false
 
@@ -378,20 +415,11 @@ struct TileView: View {
             ownerBundleIdentifier: ownerBundleIdentifier
         )
 
-        if let existingPlacement {
+        if existingPlacement != nil {
             let actions: [ContextAction] = [
-                .action("Now Playing", isOn: true) {},
-                .submenu("Span", children: TileSpan.allCases.map { span in
-                    ContextAction.action("\(span.rawValue) Tiles", isOn: existingPlacement.span == span) {
-                        TileStore.shared.setWidget(
-                            kind: .nowPlaying,
-                            ownerBundleIdentifier: ownerBundleIdentifier,
-                            span: span
-                        )
-                    }
-                }),
+                .action("Now Playing Stack", isOn: true) {},
                 .divider,
-                .action("Remove Now Playing Widget") {
+                .action("Remove Now Playing Stack") {
                     TileStore.shared.removeWidget(
                         kind: .nowPlaying,
                         ownerBundleIdentifier: ownerBundleIdentifier
@@ -403,15 +431,13 @@ struct TileView: View {
         }
 
         return [
-            .submenu("Add Now Playing Widget", children: TileSpan.allCases.map { span in
-                ContextAction.action("\(span.rawValue) Tiles") {
-                    TileStore.shared.setWidget(
-                        kind: .nowPlaying,
-                        ownerBundleIdentifier: ownerBundleIdentifier,
-                        span: span
-                    )
-                }
-            })
+            .action("Add Now Playing Stack") {
+                TileStore.shared.setWidget(
+                    kind: .nowPlaying,
+                    ownerBundleIdentifier: ownerBundleIdentifier,
+                    span: .three
+                )
+            }
         ]
     }
 
@@ -449,16 +475,7 @@ struct TileView: View {
             }
 
             actions.append(.divider)
-            actions.append(.submenu("Span", children: TileSpan.allCases.map { span in
-                ContextAction.action("\(span.rawValue) Tiles", isOn: span == widget.span) {
-                    TileStore.shared.setWidget(
-                        kind: widget.kind,
-                        ownerBundleIdentifier: widget.ownerBundleIdentifier,
-                        span: span
-                    )
-                }
-            }))
-            actions.append(.action("Remove Widget") {
+            actions.append(.action("Remove Stack") {
                 TileStore.shared.removeWidget(
                     kind: widget.kind,
                     ownerBundleIdentifier: widget.ownerBundleIdentifier

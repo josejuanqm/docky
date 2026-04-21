@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TileContainerView: View {
     static let edgePadding: CGFloat = 8
@@ -13,6 +14,7 @@ struct TileContainerView: View {
     @ObservedObject private var store = TileStore.shared
     @ObservedObject private var dockSettings = DockSettingsService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
+    @ObservedObject private var editMode = DockEditModeService.shared
 
     @State private var draggedTileID: String?
     @State private var draggedTileOffset: CGFloat = 0
@@ -20,30 +22,58 @@ struct TileContainerView: View {
     @State private var draggedPinnedTileDestinationIndex: Int?
     @State private var tileFrames: [String: CGRect] = [:]
 
-    private let reorderCoordinateSpaceName = "TileContainerReorderSpace"
-
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Group {
-                if position.isVertical {
-                    VStack(spacing: preferences.tileSpacing) {
-                        tileViews
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                Group {
+                    if position.isVertical {
+                        VStack(spacing: preferences.tileSpacing) {
+                            tileViews
+                        }
+                        .padding(.vertical, Self.edgePadding)
+                    } else {
+                        HStack(spacing: preferences.tileSpacing) {
+                            tileViews
+                        }
+                        .padding(.horizontal, Self.edgePadding)
                     }
-                    .padding(.vertical, Self.edgePadding)
-                } else {
-                    HStack(spacing: preferences.tileSpacing) {
-                        tileViews
-                    }
-                    .padding(.horizontal, Self.edgePadding)
+                }
+
+                draggedTileOverlay
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onPreferenceChange(TileFramePreferenceKey.self) { tileFrames = $0 }
+            .onChange(of: editMode.paletteDrag) { _, paletteDrag in
+                guard paletteDrag != nil else {
+                    editMode.paletteDropDestinationIndex = nil
+                    return
                 }
             }
+            .onDrop(of: [UTType.plainText], delegate: PaletteInsertDropDelegate(
+                updateLocation: { location in
+                    let globalLocation = CGPoint(
+                        x: proxy.frame(in: .global).minX + location.x,
+                        y: proxy.frame(in: .global).minY + location.y
+                    )
+                    updatePalettePreviewDestination(at: globalLocation)
+                },
+                clearPreview: {
+                    editMode.endPaletteDrag()
+                },
+                performInsert: {
+                    guard let kind = editMode.paletteDrag?.kind,
+                          let destinationIndex = editMode.paletteDropDestinationIndex else {
+                        editMode.endPaletteDrag()
+                        return false
+                    }
 
-            draggedTileOverlay
+                    TileStore.shared.insertPinnedItem(kind: kind, at: destinationIndex)
+                    editMode.endPaletteDrag()
+                    return true
+                }
+            ))
+            .animation(tileMutationAnimation, value: displayTiles)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .coordinateSpace(name: reorderCoordinateSpaceName)
-        .onPreferenceChange(TileFramePreferenceKey.self) { tileFrames = $0 }
-        .animation(tileMutationAnimation, value: displayTiles)
     }
 
     @ViewBuilder
@@ -63,7 +93,7 @@ struct TileContainerView: View {
                     GeometryReader { proxy in
                         Color.clear.preference(
                             key: TileFramePreferenceKey.self,
-                            value: [tile.id: proxy.frame(in: .named(reorderCoordinateSpaceName))]
+                            value: [tile.id: proxy.frame(in: .global)]
                         )
                     }
                 }
@@ -118,15 +148,36 @@ struct TileContainerView: View {
     }
 
     private var previewPinnedTiles: [Tile] {
-        guard let draggedTile,
-              let destinationIndex = draggedPinnedTileDestinationIndex else {
+        guard let destinationIndex = activePinnedDropDestinationIndex else {
             return pinnedTiles
         }
 
-        var remainingPinnedTiles = pinnedTiles.filter { $0.id != draggedTile.id }
+        var remainingPinnedTiles = pinnedTiles
+        if let draggedTileID {
+            remainingPinnedTiles.removeAll { $0.id == draggedTileID }
+        }
         let clampedDestinationIndex = min(max(destinationIndex, 0), remainingPinnedTiles.count)
-        remainingPinnedTiles.insert(draggedTile, at: clampedDestinationIndex)
+        if let draggedTile {
+            remainingPinnedTiles.insert(draggedTile, at: clampedDestinationIndex)
+        } else if let palettePreviewTile {
+            remainingPinnedTiles.insert(palettePreviewTile, at: clampedDestinationIndex)
+        }
         return remainingPinnedTiles
+    }
+
+    private var palettePreviewTile: Tile? {
+        guard let paletteDrag = editMode.paletteDrag else {
+            return nil
+        }
+
+        switch paletteDrag.kind {
+        case .app:
+            return nil
+        case .spacer:
+            return Tile(id: "editor-preview:spacer", content: .spacer)
+        case .divider:
+            return Tile(id: "editor-preview:divider", content: .divider)
+        }
     }
 
     private var draggedTile: Tile? {
@@ -143,6 +194,10 @@ struct TileContainerView: View {
         }
 
         return CGPoint(x: frame.midX, y: frame.midY)
+    }
+
+    private var activePinnedDropDestinationIndex: Int? {
+        draggedTileID == nil ? editMode.paletteDropDestinationIndex : draggedPinnedTileDestinationIndex
     }
 
     private var tileTransition: AnyTransition {
@@ -179,10 +234,14 @@ struct TileContainerView: View {
     }
 
     private func isTileDraggable(_ tile: Tile) -> Bool {
-        guard case .app(let app) = tile.content else {
+        switch tile.content {
+        case .app(let app):
+            return !app.bundleIdentifier.isEmpty && app.bundleIdentifier != "com.apple.finder"
+        case .spacer, .divider:
+            return editMode.isActive && isPinnedReorderable(tileID: tile.id)
+        case .widget, .smartStack, .folder, .trash:
             return false
         }
-        return !app.bundleIdentifier.isEmpty && app.bundleIdentifier != "com.apple.finder"
     }
 
     private var isDraggingPinnedTile: Bool {
@@ -200,7 +259,7 @@ struct TileContainerView: View {
     }
 
     private func reorderGesture(for tile: Tile) -> some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .named(reorderCoordinateSpaceName))
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
                 updateDrag(for: tile, value: value)
             }
@@ -225,7 +284,11 @@ struct TileContainerView: View {
         }
 
         draggedTileOffset = projected(size: value.translation)
-        updatePreviewDestination(at: projected(point: value.location), draggedTile: tile)
+        updatePreviewDestination(
+            at: projected(point: value.location),
+            sourceTileID: tile.id,
+            isPinnedSource: isPinnedReorderable(tileID: tile.id)
+        )
     }
 
     private func endDrag(for tile: Tile, value: DragGesture.Value) {
@@ -258,17 +321,23 @@ struct TileContainerView: View {
         return app.bundleIdentifier
     }
 
-    private func updatePreviewDestination(at positionValue: CGFloat, draggedTile: Tile) {
-        guard isPointInPinnedDropRegion(positionValue) || isPinnedReorderable(tileID: draggedTile.id) else {
-            if !isPinnedReorderable(tileID: draggedTile.id) {
+    private func updatePreviewDestination(at positionValue: CGFloat, sourceTileID: String, isPinnedSource: Bool) {
+        guard isPointInPinnedDropRegion(positionValue) || isPinnedSource else {
+            if isPinnedSource {
                 draggedPinnedTileDestinationIndex = nil
+            } else {
+                editMode.paletteDropDestinationIndex = nil
             }
             return
         }
 
-        let visiblePinnedTiles = previewPinnedTiles.filter { $0.id != draggedTile.id }
+        let visiblePinnedTiles = previewPinnedTiles.filter { $0.id != sourceTileID }
         guard !visiblePinnedTiles.isEmpty else {
-            draggedPinnedTileDestinationIndex = 0
+            if isPinnedSource {
+                draggedPinnedTileDestinationIndex = 0
+            } else {
+                editMode.paletteDropDestinationIndex = 0
+            }
             return
         }
 
@@ -280,13 +349,31 @@ struct TileContainerView: View {
             return positionValue < midpoint
         }?.offset ?? visiblePinnedTiles.count
 
-        guard draggedPinnedTileDestinationIndex != destinationIndex else {
+        let currentDestinationIndex = isPinnedSource ? draggedPinnedTileDestinationIndex : editMode.paletteDropDestinationIndex
+        guard currentDestinationIndex != destinationIndex else {
             return
         }
 
         withAnimation(tileMutationAnimation) {
-            draggedPinnedTileDestinationIndex = destinationIndex
+            if isPinnedSource {
+                draggedPinnedTileDestinationIndex = destinationIndex
+            } else {
+                editMode.paletteDropDestinationIndex = destinationIndex
+            }
         }
+    }
+
+    private func updatePalettePreviewDestination(at location: CGPoint) {
+        guard let palettePreviewTile else {
+            editMode.paletteDropDestinationIndex = nil
+            return
+        }
+
+        updatePreviewDestination(
+            at: projected(point: location),
+            sourceTileID: palettePreviewTile.id,
+            isPinnedSource: false
+        )
     }
 
     private func isPointInPinnedDropRegion(_ positionValue: CGFloat) -> Bool {
@@ -334,13 +421,17 @@ struct TileContainerView: View {
         case (false, .divider):
             CGSize(width: dividerWidth, height: tileHeight)
         case (false, .widget(let widget)):
-            CGSize(width: spanExtent(for: widget.span, baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
+            CGSize(width: spanExtent(for: widget.effectiveSpan, baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
+        case (false, .smartStack(let stack)):
+            CGSize(width: spanExtent(for: stack.span, baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
         case (false, _):
             CGSize(width: tileSize, height: tileHeight)
         case (true, .divider):
             CGSize(width: tileHeight, height: dividerWidth)
         case (true, .widget(let widget)):
-            CGSize(width: tileHeight, height: spanExtent(for: widget.span, baseTileSize: tileSize, tileSpacing: tileSpacing))
+            CGSize(width: tileHeight, height: spanExtent(for: widget.effectiveSpan, baseTileSize: tileSize, tileSpacing: tileSpacing))
+        case (true, .smartStack(let stack)):
+            CGSize(width: tileHeight, height: spanExtent(for: stack.span, baseTileSize: tileSize, tileSpacing: tileSpacing))
         case (true, _):
             CGSize(width: tileHeight, height: tileSize)
         }
@@ -374,6 +465,34 @@ struct TileContainerView: View {
         let width = sizes.reduce(CGFloat(0)) { $0 + $1.width } + spacings + edgePadding * 2
         let height = sizes.map(\.height).max() ?? tileHeight
         return CGSize(width: width, height: height)
+    }
+}
+
+private struct PaletteInsertDropDelegate: DropDelegate {
+    let updateLocation: (CGPoint) -> Void
+    let clearPreview: () -> Void
+    let performInsert: () -> Bool
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [UTType.plainText])
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateLocation(info.location)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateLocation(info.location)
+        return DropProposal(operation: .copy)
+    }
+
+    func dropExited(info: DropInfo) {
+        clearPreview()
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        updateLocation(info.location)
+        return performInsert()
     }
 }
 

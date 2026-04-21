@@ -84,6 +84,7 @@ final class MainWindow: NSWindow {
     private let dockSettings = DockSettingsService.shared
     private let preferences = DockyPreferences.shared
     private let tileStore = TileStore.shared
+    private let editMode = DockEditModeService.shared
     private let minimumWidth: CGFloat = 120
     private var cancellables: Set<AnyCancellable> = []
     private var hideWorkItem: DispatchWorkItem?
@@ -135,6 +136,19 @@ final class MainWindow: NSWindow {
             .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.applyCurrentFrame(animated: true, duration: self?.tileMutationAnimationDuration) }
+            .store(in: &cancellables)
+
+        editMode.$isActive
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isActive in
+                guard let self else { return }
+                if isActive {
+                    self.hideWorkItem?.cancel()
+                    self.setVisibility(.visible, animated: true)
+                } else {
+                    self.scheduleHideIfNeeded()
+                }
+            }
             .store(in: &cancellables)
     }
 
@@ -199,7 +213,7 @@ final class MainWindow: NSWindow {
     }
 
     private var shouldRemainVisible: Bool {
-        isPointerInsideWindow || activeInteractionCount > 0
+        isPointerInsideWindow || activeInteractionCount > 0 || editMode.isActive
     }
 
     private func setVisibility(_ state: VisibilityState, animated: Bool) {

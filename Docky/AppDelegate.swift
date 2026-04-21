@@ -11,7 +11,7 @@ import Cocoa
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBOutlet var window: NSWindow!
-    private var mainWindowController: NSWindowController?
+    private var mainWindowController: MainWindowController?
     private var permissionsWindowController: PermissionsWindowController?
     private var settingsWindowController: SettingsWindowController?
 
@@ -73,7 +73,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindowController?.showWindow(self)
     }
 
-    private func makeMainWindowController() -> NSWindowController? {
+    private func makeMainWindowController() -> MainWindowController? {
         var topLevelObjects: NSArray?
         let didLoadNib = Bundle.main.loadNibNamed(
             "MainWindow",
@@ -89,7 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return nil
         }
 
-        return NSWindowController(window: mainWindow)
+        return MainWindowController(window: mainWindow)
     }
 
     private func configureMainMenu() {

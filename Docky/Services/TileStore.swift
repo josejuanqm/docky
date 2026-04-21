@@ -31,6 +31,7 @@ final class TileStore: ObservableObject {
     private var notificationObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
     private let preferences = DockyPreferences.shared
+    private let mediaPlayback = MediaPlaybackService.shared
 
     private init() {
         refresh()
@@ -45,7 +46,7 @@ final class TileStore: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.rebuildTiles() }
             .store(in: &cancellables)
-        preferences.$pinnedAppBundleIdentifiers
+        preferences.$pinnedItems
             .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -55,6 +56,12 @@ final class TileStore: ObservableObject {
             .store(in: &cancellables)
         preferences.$widgetPlacements
             .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.rebuildTiles()
+            }
+            .store(in: &cancellables)
+        mediaPlayback.$statesByBundleIdentifier
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.rebuildTiles()
@@ -96,7 +103,9 @@ final class TileStore: ObservableObject {
     }
 
     func isPinned(bundleIdentifier: String) -> Bool {
-        preferences.pinnedAppBundleIdentifiers.contains(bundleIdentifier)
+        preferences.pinnedItems.contains {
+            $0.kind == .app && $0.bundleIdentifier == bundleIdentifier
+        }
     }
 
     @discardableResult
@@ -105,21 +114,21 @@ final class TileStore: ObservableObject {
             return false
         }
 
-        var pinnedBundleIdentifiers = preferences.pinnedAppBundleIdentifiers
+        var pinnedItems = preferences.pinnedItems
 
         if pinned {
-            guard !pinnedBundleIdentifiers.contains(bundleIdentifier) else {
+            guard !pinnedItems.contains(where: { $0.kind == .app && $0.bundleIdentifier == bundleIdentifier }) else {
                 return false
             }
-            pinnedBundleIdentifiers.append(bundleIdentifier)
+            pinnedItems.append(.app(bundleIdentifier: bundleIdentifier))
         } else {
-            guard pinnedBundleIdentifiers.contains(bundleIdentifier) else {
+            guard pinnedItems.contains(where: { $0.kind == .app && $0.bundleIdentifier == bundleIdentifier }) else {
                 return false
             }
-            pinnedBundleIdentifiers.removeAll { $0 == bundleIdentifier }
+            pinnedItems.removeAll { $0.kind == .app && $0.bundleIdentifier == bundleIdentifier }
         }
 
-        preferences.pinnedAppBundleIdentifiers = pinnedBundleIdentifiers
+        preferences.pinnedItems = pinnedItems
         refreshPinnedTilesFromPreferences()
         rebuildTiles()
         return true
@@ -136,8 +145,14 @@ final class TileStore: ObservableObject {
             return
         }
 
+        let itemsByID = Dictionary(uniqueKeysWithValues: preferences.pinnedItems.map { (Self.pinnedTileID(for: $0), $0) })
+        let reorderedItems = ids.compactMap { itemsByID[$0] }
+        guard reorderedItems.count == preferences.pinnedItems.count else {
+            return
+        }
+
         pinnedTiles = reorderedTiles
-        preferences.pinnedAppBundleIdentifiers = reorderedTiles.compactMap(bundleIdentifier(of:))
+        preferences.pinnedItems = reorderedItems
         rebuildTiles()
     }
 
@@ -200,6 +215,37 @@ final class TileStore: ObservableObject {
         }
     }
 
+    func insertPinnedItem(kind: PinnedTileItemKind, at destinationIndex: Int) {
+        let item: PinnedTileItem
+        switch kind {
+        case .app:
+            return
+        case .spacer:
+            item = .spacer()
+        case .divider:
+            item = .divider()
+        }
+
+        var pinnedItems = preferences.pinnedItems
+        let clampedDestinationIndex = min(max(destinationIndex, 0), pinnedItems.count)
+        pinnedItems.insert(item, at: clampedDestinationIndex)
+        preferences.pinnedItems = pinnedItems
+        refreshPinnedTilesFromPreferences()
+        rebuildTiles()
+    }
+
+    func removePinnedItem(tileID: String) {
+        var pinnedItems = preferences.pinnedItems
+        let originalCount = pinnedItems.count
+        pinnedItems.removeAll { Self.pinnedTileID(for: $0) == tileID }
+        guard pinnedItems.count != originalCount else {
+            return
+        }
+        preferences.pinnedItems = pinnedItems
+        refreshPinnedTilesFromPreferences()
+        rebuildTiles()
+    }
+
     private static let finderBundleID = "com.apple.finder"
 
     private func bundleIdentifier(of tile: Tile) -> String? {
@@ -210,28 +256,37 @@ final class TileStore: ObservableObject {
     }
 
     private func seedPinnedPreferencesIfNeeded(from refreshed: [Tile]) {
-        guard preferences.pinnedAppBundleIdentifiers.isEmpty else {
+        guard preferences.pinnedItems.isEmpty else {
             return
         }
 
-        let bundleIdentifiers = refreshed.compactMap { bundleIdentifier(of: $0) }
-        guard !bundleIdentifiers.isEmpty else {
+        let pinnedItems = refreshed.compactMap(Self.pinnedItem(from:))
+        guard !pinnedItems.isEmpty else {
             return
         }
 
-        preferences.pinnedAppBundleIdentifiers = bundleIdentifiers
+        preferences.pinnedItems = pinnedItems
     }
 
     private func refreshPinnedTilesFromPreferences() {
-        pinnedTiles = preferences.pinnedAppBundleIdentifiers.compactMap(tileForPinnedBundleIdentifier(_:))
+        pinnedTiles = preferences.pinnedItems.compactMap(tile(for:))
     }
 
-    private func tileForPinnedBundleIdentifier(_ bundleIdentifier: String) -> Tile? {
-        if let tile = dockPinnedTilesByBundleIdentifier[bundleIdentifier] {
-            return Self.makePinnedTile(from: tile, bundleIdentifier: bundleIdentifier)
+    private func tile(for item: PinnedTileItem) -> Tile? {
+        switch item.kind {
+        case .app:
+            guard let bundleIdentifier = item.bundleIdentifier else {
+                return nil
+            }
+            if let tile = dockPinnedTilesByBundleIdentifier[bundleIdentifier] {
+                return Self.makePinnedTile(from: tile, item: item)
+            }
+            return Self.makePinnedTile(bundleIdentifier: bundleIdentifier, item: item)
+        case .spacer:
+            return Tile(id: Self.pinnedTileID(for: item), content: .spacer)
+        case .divider:
+            return Tile(id: Self.pinnedTileID(for: item), content: .divider)
         }
-
-        return Self.makePinnedTile(bundleIdentifier: bundleIdentifier)
     }
 
     private func rebuildTiles() {
@@ -247,6 +302,7 @@ final class TileStore: ObservableObject {
         )
 
         let runningTiles = displayedRunning.map(Self.tile(for:))
+        let trailingSmartStackTile = smartStackTile()
 
         var result: [Tile] = tilesWithWidgets(appendedTo: [Self.finderTile()])
         result.append(contentsOf: tilesWithWidgets(appendedTo: pinnedWithoutFinder))
@@ -255,6 +311,9 @@ final class TileStore: ObservableObject {
         }
         result.append(contentsOf: tilesWithWidgets(appendedTo: runningTiles))
         result.append(Tile(id: "divider:trailing", content: .divider))
+        if let trailingSmartStackTile {
+            result.append(trailingSmartStackTile)
+        }
         result.append(contentsOf: otherTiles)
         result.append(Tile(id: "trash", content: .trash))
         tiles = result
@@ -276,7 +335,7 @@ final class TileStore: ObservableObject {
 
     private func widgetTiles(for bundleIdentifier: String) -> [Tile] {
         preferences.widgetPlacements
-            .filter { $0.ownerBundleIdentifier == bundleIdentifier }
+            .filter { $0.ownerBundleIdentifier == bundleIdentifier && $0.kind != .nowPlaying }
             .map { placement in
                 Tile(
                     id: "widget:\(placement.id)",
@@ -289,6 +348,35 @@ final class TileStore: ObservableObject {
                     ))
                 )
             }
+    }
+
+    private func smartStackTile() -> Tile? {
+        let widgets = mediaPlayback.statesByBundleIdentifier.values
+            .filter(\.hasContent)
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            .map { state in
+                WidgetTile(
+                    identifier: "\(state.bundleIdentifier):nowPlaying",
+                    title: WidgetKind.nowPlaying.title,
+                    kind: .nowPlaying,
+                    ownerBundleIdentifier: state.bundleIdentifier,
+                    span: .three
+                )
+            }
+
+        guard !widgets.isEmpty else {
+            return nil
+        }
+
+        return Tile(
+            id: "smart-stack:media",
+            content: .smartStack(SmartStackTile(
+                identifier: "media",
+                title: "Smart Stack",
+                widgets: widgets,
+                span: .three
+            ))
+        )
     }
 
     /// Preserves rightmost-unpinned-app position across exits. Rules:
@@ -367,6 +455,26 @@ final class TileStore: ObservableObject {
         )
     }
 
+    nonisolated private static func pinnedItem(from tile: Tile) -> PinnedTileItem? {
+        switch tile.content {
+        case .app(let app):
+            guard !app.bundleIdentifier.isEmpty else {
+                return nil
+            }
+            return .app(bundleIdentifier: app.bundleIdentifier)
+        case .spacer:
+            return PinnedTileItem(id: tile.id, kind: .spacer, bundleIdentifier: nil)
+        case .divider:
+            return PinnedTileItem(id: tile.id, kind: .divider, bundleIdentifier: nil)
+        case .widget, .smartStack, .folder, .trash:
+            return nil
+        }
+    }
+
+    private static func pinnedTileID(for item: PinnedTileItem) -> String {
+        "pinned:\(item.id)"
+    }
+
     // MARK: - Parsing plist entries
 
     private static func parse(entry: [String: Any], fallbackID: String) -> Tile? {
@@ -400,25 +508,25 @@ final class TileStore: ObservableObject {
         )))
     }
 
-    private static func makePinnedTile(from tile: Tile, bundleIdentifier: String) -> Tile? {
+    private static func makePinnedTile(from tile: Tile, item: PinnedTileItem) -> Tile? {
         guard case .app(let app) = tile.content else {
             return nil
         }
 
         return Tile(
-            id: "pinned:\(bundleIdentifier)",
-            content: .app(AppTile(bundleIdentifier: bundleIdentifier, displayName: app.displayName))
+            id: pinnedTileID(for: item),
+            content: .app(AppTile(bundleIdentifier: item.bundleIdentifier ?? "", displayName: app.displayName))
         )
     }
 
-    private static func makePinnedTile(bundleIdentifier: String) -> Tile? {
+    private static func makePinnedTile(bundleIdentifier: String, item: PinnedTileItem) -> Tile? {
         guard !bundleIdentifier.isEmpty,
               let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
             return nil
         }
 
         return Tile(
-            id: "pinned:\(bundleIdentifier)",
+            id: pinnedTileID(for: item),
             content: .app(AppTile(
                 bundleIdentifier: bundleIdentifier,
                 displayName: FileManager.default.displayName(atPath: url.path)

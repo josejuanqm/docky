@@ -7,6 +7,7 @@ import SwiftUI
 
 struct DividerTileView: View {
     private static let lineVerticalInset: CGFloat = 15
+    let tileID: String
     @ObservedObject private var dockSettings = DockSettingsService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
 
@@ -15,8 +16,10 @@ struct DividerTileView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .background {
-                ContextActionMenuPresenter { _ in
-                    dividerContextActions
+                if !isPinnedCustomDivider {
+                    ContextActionMenuPresenter { _ in
+                        dividerContextActions
+                    }
                 }
             }
     }
@@ -27,6 +30,10 @@ struct DividerTileView: View {
                 preferences.autohidesWindow.toggle()
             },
             .submenu("Position on Screen", children: positionActions),
+            .divider,
+            .action("Edit Dock...") {
+                DockEditModeService.shared.enter()
+            },
             .divider,
             .action("Settings...") {
                 (NSApp.delegate as? AppDelegate)?.showSettingsWindow(nil)
@@ -63,5 +70,9 @@ struct DividerTileView: View {
 
     private var position: ResolvedDockWindowPosition {
         preferences.windowPosition.resolved(systemOrientation: dockSettings.orientation)
+    }
+
+    private var isPinnedCustomDivider: Bool {
+        tileID.hasPrefix("pinned:")
     }
 }

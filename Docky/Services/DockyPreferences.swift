@@ -13,6 +13,30 @@
 import Combine
 import Foundation
 
+enum PinnedTileItemKind: String, Codable, Equatable {
+    case app
+    case spacer
+    case divider
+}
+
+struct PinnedTileItem: Codable, Equatable, Identifiable {
+    let id: String
+    let kind: PinnedTileItemKind
+    let bundleIdentifier: String?
+
+    nonisolated static func app(bundleIdentifier: String) -> Self {
+        Self(id: "app:\(bundleIdentifier)", kind: .app, bundleIdentifier: bundleIdentifier)
+    }
+
+    nonisolated static func spacer() -> Self {
+        Self(id: "custom:\(UUID().uuidString)", kind: .spacer, bundleIdentifier: nil)
+    }
+
+    nonisolated static func divider() -> Self {
+        Self(id: "custom:\(UUID().uuidString)", kind: .divider, bundleIdentifier: nil)
+    }
+}
+
 enum DockWindowPosition: String, CaseIterable, Identifiable {
     case system
     case left
@@ -138,6 +162,21 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Docky-owned ordered pinned section items.
+    @Published var pinnedItems: [PinnedTileItem] {
+        didSet {
+            guard pinnedItems != oldValue else { return }
+            persistPinnedItems(pinnedItems)
+
+            let appBundleIdentifiers = pinnedItems.compactMap { item in
+                item.kind == .app ? item.bundleIdentifier : nil
+            }
+            if pinnedAppBundleIdentifiers != appBundleIdentifiers {
+                pinnedAppBundleIdentifiers = appBundleIdentifiers
+            }
+        }
+    }
+
     /// Enabled widgets grouped by the app tile they extend.
     @Published var widgetPlacements: [WidgetPlacement] {
         didSet {
@@ -158,6 +197,7 @@ final class DockyPreferences: ObservableObject {
         static let autohidesWindow = "docky.autohidesWindow"
         static let activeIndicatorShape = "docky.activeIndicatorShape"
         static let pinnedAppBundleIdentifiers = "docky.pinnedAppBundleIdentifiers"
+        static let pinnedItems = "docky.pinnedItems"
         static let widgetPlacements = "docky.widgetPlacements"
     }
 
@@ -169,6 +209,7 @@ final class DockyPreferences: ObservableObject {
         static let autohidesWindow = false
         static let activeIndicatorShape: DockTileIndicatorShape = .dot
         static let pinnedAppBundleIdentifiers: [String] = []
+        static let pinnedItems: [PinnedTileItem] = []
         static let widgetPlacements: [WidgetPlacement] = []
     }
 
@@ -181,14 +222,19 @@ final class DockyPreferences: ObservableObject {
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
         let storedActiveIndicatorShape = defaults.string(forKey: Keys.activeIndicatorShape)
         let storedPinnedAppBundleIdentifiers = defaults.stringArray(forKey: Keys.pinnedAppBundleIdentifiers)
+        let storedPinnedItems = defaults.data(forKey: Keys.pinnedItems)
         let storedWidgetPlacements = defaults.data(forKey: Keys.widgetPlacements)
+        let initialPinnedAppBundleIdentifiers = storedPinnedAppBundleIdentifiers ?? DefaultValues.pinnedAppBundleIdentifiers
+        let initialPinnedItems = Self.decodePinnedItems(from: storedPinnedItems)
+            ?? initialPinnedAppBundleIdentifiers.map(PinnedTileItem.app(bundleIdentifier:))
         self.tileVerticalPadding = storedVerticalPadding.map { CGFloat($0) } ?? DefaultValues.tileVerticalPadding
         self.tileSpacing = storedTileSpacing.map { CGFloat($0) } ?? DefaultValues.tileSpacing
         self.windowCornerRadius = storedWindowCornerRadius.map { CGFloat($0) } ?? DefaultValues.windowCornerRadius
         self.windowPosition = (storedWindowPosition.flatMap(DockWindowPosition.init(rawValue:)) ?? DefaultValues.windowPosition)
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
         self.activeIndicatorShape = (storedActiveIndicatorShape.flatMap(DockTileIndicatorShape.init(rawValue:)) ?? DefaultValues.activeIndicatorShape)
-        self.pinnedAppBundleIdentifiers = storedPinnedAppBundleIdentifiers ?? DefaultValues.pinnedAppBundleIdentifiers
+        self.pinnedAppBundleIdentifiers = initialPinnedAppBundleIdentifiers
+        self.pinnedItems = initialPinnedItems
         self.widgetPlacements = Self.decodeWidgetPlacements(from: storedWidgetPlacements) ?? DefaultValues.widgetPlacements
     }
 
@@ -200,7 +246,17 @@ final class DockyPreferences: ObservableObject {
         autohidesWindow = DefaultValues.autohidesWindow
         activeIndicatorShape = DefaultValues.activeIndicatorShape
         pinnedAppBundleIdentifiers = DefaultValues.pinnedAppBundleIdentifiers
+        pinnedItems = DefaultValues.pinnedItems
         widgetPlacements = DefaultValues.widgetPlacements
+    }
+
+    private func persistPinnedItems(_ items: [PinnedTileItem]) {
+        guard let data = try? encoder.encode(items) else {
+            defaults.removeObject(forKey: Keys.pinnedItems)
+            return
+        }
+
+        defaults.set(data, forKey: Keys.pinnedItems)
     }
 
     private func persistWidgetPlacements(_ placements: [WidgetPlacement]) {
@@ -218,5 +274,13 @@ final class DockyPreferences: ObservableObject {
         }
 
         return try? JSONDecoder().decode([WidgetPlacement].self, from: data)
+    }
+
+    private static func decodePinnedItems(from data: Data?) -> [PinnedTileItem]? {
+        guard let data else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode([PinnedTileItem].self, from: data)
     }
 }
