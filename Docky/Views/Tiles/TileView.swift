@@ -14,6 +14,7 @@ struct TileView: View {
     @ObservedObject private var dockSettings = DockSettingsService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
     @ObservedObject private var workspace = WorkspaceService.shared
+    @ObservedObject private var mediaPlayback = MediaPlaybackService.shared
     @State private var isHovering = false
     @State private var isTooltipPresented = false
     @State private var isFolderPopoverPresented = false
@@ -37,6 +38,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             return appContextActions(for: app, modifierFlags: modifierFlags)
+        case .widget(let widget):
+            return widgetContextActions(for: widget)
         case .folder(let folder):
             return [
                 .action("Open in Finder") {
@@ -64,7 +67,7 @@ struct TileView: View {
                     }
                 }
             ]
-        case .widget, .spacer, .divider:
+        case .spacer, .divider:
             return []
         }
     }
@@ -265,6 +268,9 @@ struct TileView: View {
         case .app(let app):
             isTooltipPresented = false
             WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
+        case .widget(let widget):
+            isTooltipPresented = false
+            handleWidgetTap(widget)
         case .folder(let folder):
             isTooltipPresented = false
 
@@ -285,7 +291,7 @@ struct TileView: View {
             Task {
                 _ = await AppleScriptService.shared.openTrash()
             }
-        case .widget, .spacer, .divider:
+        case .spacer, .divider:
             return
         }
     }
@@ -354,7 +360,121 @@ struct TileView: View {
             WorkspaceService.shared.revealApplicationInFinder(bundleIdentifier: app.bundleIdentifier)
         })
 
+        let widgetActions = widgetManagementActions(for: app.bundleIdentifier)
+        if !widgetActions.isEmpty {
+            actions.append(.submenu("Widgets", children: widgetActions))
+        }
+
         return actions
+    }
+
+    private func widgetManagementActions(for ownerBundleIdentifier: String) -> [ContextAction] {
+        guard MediaPlaybackService.shared.supportsWidget(bundleIdentifier: ownerBundleIdentifier) else {
+            return []
+        }
+
+        let existingPlacement = TileStore.shared.widgetPlacement(
+            kind: .nowPlaying,
+            ownerBundleIdentifier: ownerBundleIdentifier
+        )
+
+        if let existingPlacement {
+            let actions: [ContextAction] = [
+                .action("Now Playing", isOn: true) {},
+                .submenu("Span", children: TileSpan.allCases.map { span in
+                    ContextAction.action("\(span.rawValue) Tiles", isOn: existingPlacement.span == span) {
+                        TileStore.shared.setWidget(
+                            kind: .nowPlaying,
+                            ownerBundleIdentifier: ownerBundleIdentifier,
+                            span: span
+                        )
+                    }
+                }),
+                .divider,
+                .action("Remove Now Playing Widget") {
+                    TileStore.shared.removeWidget(
+                        kind: .nowPlaying,
+                        ownerBundleIdentifier: ownerBundleIdentifier
+                    )
+                },
+            ]
+
+            return actions
+        }
+
+        return [
+            .submenu("Add Now Playing Widget", children: TileSpan.allCases.map { span in
+                ContextAction.action("\(span.rawValue) Tiles") {
+                    TileStore.shared.setWidget(
+                        kind: .nowPlaying,
+                        ownerBundleIdentifier: ownerBundleIdentifier,
+                        span: span
+                    )
+                }
+            })
+        ]
+    }
+
+    private func widgetContextActions(for widget: WidgetTile) -> [ContextAction] {
+        switch widget.kind {
+        case .nowPlaying:
+            var actions: [ContextAction] = [
+                .action("Open App") {
+                    WorkspaceService.shared.activateOrOpen(bundleIdentifier: widget.ownerBundleIdentifier)
+                },
+                .divider,
+                .action("Play/Pause") {
+                    Task {
+                        await mediaPlayback.togglePlayPause(for: widget.ownerBundleIdentifier)
+                    }
+                },
+                .action("Previous Track") {
+                    Task {
+                        await mediaPlayback.skipToPrevious(for: widget.ownerBundleIdentifier)
+                    }
+                },
+                .action("Next Track") {
+                    Task {
+                        await mediaPlayback.skipToNext(for: widget.ownerBundleIdentifier)
+                    }
+                },
+            ]
+
+            if let playbackState = mediaPlayback.state(for: widget.ownerBundleIdentifier), playbackState.supportsFavorite {
+                actions.append(.action(playbackState.isFavorite ? "Unfavorite" : "Favorite") {
+                    Task {
+                        await mediaPlayback.setFavorite(!playbackState.isFavorite, for: widget.ownerBundleIdentifier)
+                    }
+                })
+            }
+
+            actions.append(.divider)
+            actions.append(.submenu("Span", children: TileSpan.allCases.map { span in
+                ContextAction.action("\(span.rawValue) Tiles", isOn: span == widget.span) {
+                    TileStore.shared.setWidget(
+                        kind: widget.kind,
+                        ownerBundleIdentifier: widget.ownerBundleIdentifier,
+                        span: span
+                    )
+                }
+            }))
+            actions.append(.action("Remove Widget") {
+                TileStore.shared.removeWidget(
+                    kind: widget.kind,
+                    ownerBundleIdentifier: widget.ownerBundleIdentifier
+                )
+            })
+            return actions
+        }
+    }
+
+    private func handleWidgetTap(_ widget: WidgetTile) {
+        switch widget.kind {
+        case .nowPlaying:
+            Task {
+                await mediaPlayback.togglePlayPause(for: widget.ownerBundleIdentifier)
+            }
+        }
     }
 
 }

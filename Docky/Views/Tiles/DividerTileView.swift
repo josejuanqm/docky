@@ -16,17 +16,34 @@ struct DividerTileView: View {
             .contentShape(Rectangle())
             .background {
                 ContextActionMenuPresenter { _ in
-                    [
-                        .action("Settings...") {
-                            (NSApp.delegate as? AppDelegate)?.showSettingsWindow(nil)
-                        },
-                        .divider,
-                        .action("Quit Docky", isDestructive: true) {
-                            NSApp.terminate(nil)
-                        }
-                    ]
+                    dividerContextActions
                 }
             }
+    }
+
+    private var dividerContextActions: [ContextAction] {
+        [
+            .action(preferences.autohidesWindow ? "Turn Hiding Off" : "Turn Hiding On") {
+                preferences.autohidesWindow.toggle()
+            },
+            .submenu("Position on Screen", children: positionActions),
+            .divider,
+            .action("Settings...") {
+                (NSApp.delegate as? AppDelegate)?.showSettingsWindow(nil)
+            },
+            .divider,
+            .action("Quit Docky", isDestructive: true) {
+                NSApp.terminate(nil)
+            }
+        ]
+    }
+
+    private var positionActions: [ContextAction] {
+        DockWindowPosition.allCases.map { position in
+            .action(position.title, isOn: preferences.windowPosition == position) {
+                preferences.windowPosition = position
+            }
+        }
     }
 
     @ViewBuilder

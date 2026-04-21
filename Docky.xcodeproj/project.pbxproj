@@ -6,8 +6,27 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		11051E022F929079005CE09D /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		11051DE72F929079005CE09D /* Docky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docky.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		11051E002F929079005CE09D /* MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -33,8 +52,17 @@
 			isa = PBXGroup;
 			children = (
 				11051DE92F929079005CE09D /* Docky */,
+				11051E032F929079005CE09D /* Frameworks */,
 				11051DE82F929079005CE09D /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		11051E032F929079005CE09D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				11051E002F929079005CE09D /* MediaRemoteAdapter.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		11051DE82F929079005CE09D /* Products */ = {
@@ -55,6 +83,7 @@
 				11051DE32F929079005CE09D /* Sources */,
 				11051DE42F929079005CE09D /* Frameworks */,
 				11051DE52F929079005CE09D /* Resources */,
+				11051E022F929079005CE09D /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -267,6 +296,10 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Docky/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Docky needs automation access to control Finder for reveal, folder, and Trash actions.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -311,6 +344,10 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Docky/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Docky needs automation access to control Finder for reveal, folder, and Trash actions.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

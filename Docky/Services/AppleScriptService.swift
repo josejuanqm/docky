@@ -19,6 +19,19 @@ final class AppleScriptService {
         await runFinderScript(.permissionProbe)
     }
 
+    func executeDescriptor(source: String) throws -> NSAppleEventDescriptor? {
+        guard let script = NSAppleScript(source: source) else {
+            throw AppleScriptServiceError.compilationFailed
+        }
+
+        var errorInfo: NSDictionary?
+        let result = script.executeAndReturnError(&errorInfo)
+        if let error = scriptError(from: errorInfo) {
+            throw error
+        }
+        return result
+    }
+
     @discardableResult
     func runCatalogScript(
         source: String,
@@ -106,15 +119,7 @@ final class AppleScriptService {
     }
 
     private func execute(source: String) throws {
-        guard let script = NSAppleScript(source: source) else {
-            throw AppleScriptServiceError.compilationFailed
-        }
-
-        var errorInfo: NSDictionary?
-        script.executeAndReturnError(&errorInfo)
-        if let error = scriptError(from: errorInfo) {
-            throw error
-        }
+        _ = try executeDescriptor(source: source)
     }
 
     private func scriptError(from errorInfo: NSDictionary?) -> AppleScriptServiceError? {

@@ -53,6 +53,13 @@ final class TileStore: ObservableObject {
                 self?.rebuildTiles()
             }
             .store(in: &cancellables)
+        preferences.$widgetPlacements
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.rebuildTiles()
+            }
+            .store(in: &cancellables)
     }
 
     deinit {
@@ -158,6 +165,41 @@ final class TileStore: ObservableObject {
         return true
     }
 
+    func widgetPlacement(
+        kind: WidgetKind,
+        ownerBundleIdentifier: String
+    ) -> WidgetPlacement? {
+        preferences.widgetPlacements.first {
+            $0.kind == kind && $0.ownerBundleIdentifier == ownerBundleIdentifier
+        }
+    }
+
+    func hasWidget(kind: WidgetKind, ownerBundleIdentifier: String) -> Bool {
+        widgetPlacement(kind: kind, ownerBundleIdentifier: ownerBundleIdentifier) != nil
+    }
+
+    func setWidget(
+        kind: WidgetKind,
+        ownerBundleIdentifier: String,
+        span: TileSpan
+    ) {
+        var placements = preferences.widgetPlacements.filter {
+            !($0.kind == kind && $0.ownerBundleIdentifier == ownerBundleIdentifier)
+        }
+        placements.append(WidgetPlacement(
+            kind: kind,
+            ownerBundleIdentifier: ownerBundleIdentifier,
+            span: span
+        ))
+        preferences.widgetPlacements = placements
+    }
+
+    func removeWidget(kind: WidgetKind, ownerBundleIdentifier: String) {
+        preferences.widgetPlacements.removeAll {
+            $0.kind == kind && $0.ownerBundleIdentifier == ownerBundleIdentifier
+        }
+    }
+
     private static let finderBundleID = "com.apple.finder"
 
     private func bundleIdentifier(of tile: Tile) -> String? {
@@ -206,16 +248,47 @@ final class TileStore: ObservableObject {
 
         let runningTiles = displayedRunning.map(Self.tile(for:))
 
-        var result: [Tile] = [Self.finderTile()]
-        result.append(contentsOf: pinnedWithoutFinder)
+        var result: [Tile] = tilesWithWidgets(appendedTo: [Self.finderTile()])
+        result.append(contentsOf: tilesWithWidgets(appendedTo: pinnedWithoutFinder))
         if !runningTiles.isEmpty {
             result.append(Tile(id: "divider:running", content: .divider))
         }
-        result.append(contentsOf: runningTiles)
+        result.append(contentsOf: tilesWithWidgets(appendedTo: runningTiles))
         result.append(Tile(id: "divider:trailing", content: .divider))
         result.append(contentsOf: otherTiles)
         result.append(Tile(id: "trash", content: .trash))
         tiles = result
+    }
+
+    private func tilesWithWidgets(appendedTo baseTiles: [Tile]) -> [Tile] {
+        var result: [Tile] = []
+
+        for tile in baseTiles {
+            result.append(tile)
+            guard let bundleIdentifier = bundleIdentifier(of: tile) else {
+                continue
+            }
+            result.append(contentsOf: widgetTiles(for: bundleIdentifier))
+        }
+
+        return result
+    }
+
+    private func widgetTiles(for bundleIdentifier: String) -> [Tile] {
+        preferences.widgetPlacements
+            .filter { $0.ownerBundleIdentifier == bundleIdentifier }
+            .map { placement in
+                Tile(
+                    id: "widget:\(placement.id)",
+                    content: .widget(WidgetTile(
+                        identifier: placement.id,
+                        title: placement.kind.title,
+                        kind: placement.kind,
+                        ownerBundleIdentifier: placement.ownerBundleIdentifier,
+                        span: placement.span
+                    ))
+                )
+            }
     }
 
     /// Preserves rightmost-unpinned-app position across exits. Rules:
@@ -389,7 +462,7 @@ final class TileStore: ObservableObject {
 
     // MARK: - Running-but-not-pinned tiles
 
-    private static func tile(for app: RunningApp) -> Tile {
+    nonisolated private static func tile(for app: RunningApp) -> Tile {
         Tile(
             id: "running:\(app.bundleIdentifier)",
             content: .app(AppTile(

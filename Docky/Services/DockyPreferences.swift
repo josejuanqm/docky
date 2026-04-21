@@ -138,7 +138,17 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Enabled widgets grouped by the app tile they extend.
+    @Published var widgetPlacements: [WidgetPlacement] {
+        didSet {
+            guard widgetPlacements != oldValue else { return }
+            persistWidgetPlacements(widgetPlacements)
+        }
+    }
+
     private let defaults: UserDefaults
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
 
     private enum Keys {
         static let tileVerticalPadding = "docky.tileVerticalPadding"
@@ -148,6 +158,7 @@ final class DockyPreferences: ObservableObject {
         static let autohidesWindow = "docky.autohidesWindow"
         static let activeIndicatorShape = "docky.activeIndicatorShape"
         static let pinnedAppBundleIdentifiers = "docky.pinnedAppBundleIdentifiers"
+        static let widgetPlacements = "docky.widgetPlacements"
     }
 
     private enum DefaultValues {
@@ -158,6 +169,7 @@ final class DockyPreferences: ObservableObject {
         static let autohidesWindow = false
         static let activeIndicatorShape: DockTileIndicatorShape = .dot
         static let pinnedAppBundleIdentifiers: [String] = []
+        static let widgetPlacements: [WidgetPlacement] = []
     }
 
     private init() {
@@ -169,6 +181,7 @@ final class DockyPreferences: ObservableObject {
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
         let storedActiveIndicatorShape = defaults.string(forKey: Keys.activeIndicatorShape)
         let storedPinnedAppBundleIdentifiers = defaults.stringArray(forKey: Keys.pinnedAppBundleIdentifiers)
+        let storedWidgetPlacements = defaults.data(forKey: Keys.widgetPlacements)
         self.tileVerticalPadding = storedVerticalPadding.map { CGFloat($0) } ?? DefaultValues.tileVerticalPadding
         self.tileSpacing = storedTileSpacing.map { CGFloat($0) } ?? DefaultValues.tileSpacing
         self.windowCornerRadius = storedWindowCornerRadius.map { CGFloat($0) } ?? DefaultValues.windowCornerRadius
@@ -176,6 +189,7 @@ final class DockyPreferences: ObservableObject {
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
         self.activeIndicatorShape = (storedActiveIndicatorShape.flatMap(DockTileIndicatorShape.init(rawValue:)) ?? DefaultValues.activeIndicatorShape)
         self.pinnedAppBundleIdentifiers = storedPinnedAppBundleIdentifiers ?? DefaultValues.pinnedAppBundleIdentifiers
+        self.widgetPlacements = Self.decodeWidgetPlacements(from: storedWidgetPlacements) ?? DefaultValues.widgetPlacements
     }
 
     func resetToDefaults() {
@@ -186,5 +200,23 @@ final class DockyPreferences: ObservableObject {
         autohidesWindow = DefaultValues.autohidesWindow
         activeIndicatorShape = DefaultValues.activeIndicatorShape
         pinnedAppBundleIdentifiers = DefaultValues.pinnedAppBundleIdentifiers
+        widgetPlacements = DefaultValues.widgetPlacements
+    }
+
+    private func persistWidgetPlacements(_ placements: [WidgetPlacement]) {
+        guard let data = try? encoder.encode(placements) else {
+            defaults.removeObject(forKey: Keys.widgetPlacements)
+            return
+        }
+
+        defaults.set(data, forKey: Keys.widgetPlacements)
+    }
+
+    private static func decodeWidgetPlacements(from data: Data?) -> [WidgetPlacement]? {
+        guard let data else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode([WidgetPlacement].self, from: data)
     }
 }

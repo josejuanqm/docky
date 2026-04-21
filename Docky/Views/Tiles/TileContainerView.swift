@@ -49,7 +49,13 @@ struct TileContainerView: View {
     @ViewBuilder
     private var tileViews: some View {
         ForEach(displayTiles) { tile in
-            let size = Self.size(for: tile, tileSize: dockSettings.tileSize, tileHeight: tileHeight, position: position)
+            let size = Self.size(
+                for: tile,
+                tileSize: dockSettings.tileSize,
+                tileHeight: tileHeight,
+                tileSpacing: preferences.tileSpacing,
+                position: position
+            )
             TileView(tile: tile)
                 .frame(width: size.width, height: size.height)
                 .opacity(tile.id == draggedTileID ? 0 : 1)
@@ -69,7 +75,13 @@ struct TileContainerView: View {
     @ViewBuilder
     private var draggedTileOverlay: some View {
         if let draggedTile {
-            let size = Self.size(for: draggedTile, tileSize: dockSettings.tileSize, tileHeight: tileHeight, position: position)
+            let size = Self.size(
+                for: draggedTile,
+                tileSize: dockSettings.tileSize,
+                tileHeight: tileHeight,
+                tileSpacing: preferences.tileSpacing,
+                position: position
+            )
             TileView(tile: draggedTile)
                 .frame(width: size.width, height: size.height)
                 .position(draggedTilePosition)
@@ -315,18 +327,28 @@ struct TileContainerView: View {
         for tile: Tile,
         tileSize: CGFloat,
         tileHeight: CGFloat,
+        tileSpacing: CGFloat = 0,
         position: ResolvedDockWindowPosition
     ) -> CGSize {
         switch (position.isVertical, tile.content) {
         case (false, .divider):
             CGSize(width: dividerWidth, height: tileHeight)
+        case (false, .widget(let widget)):
+            CGSize(width: spanExtent(for: widget.span, baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
         case (false, _):
             CGSize(width: tileSize, height: tileHeight)
         case (true, .divider):
             CGSize(width: tileHeight, height: dividerWidth)
+        case (true, .widget(let widget)):
+            CGSize(width: tileHeight, height: spanExtent(for: widget.span, baseTileSize: tileSize, tileSpacing: tileSpacing))
         case (true, _):
             CGSize(width: tileHeight, height: tileSize)
         }
+    }
+
+    private static func spanExtent(for span: TileSpan, baseTileSize: CGFloat, tileSpacing: CGFloat) -> CGFloat {
+        let spanCount = CGFloat(span.rawValue)
+        return baseTileSize * spanCount + tileSpacing * max(0, spanCount - 1)
     }
 
     /// Total content size for the given tile list, including inter-tile spacing
@@ -338,7 +360,9 @@ struct TileContainerView: View {
         tileSpacing: CGFloat,
         position: ResolvedDockWindowPosition
     ) -> CGSize {
-        let sizes = tiles.map { size(for: $0, tileSize: tileSize, tileHeight: tileHeight, position: position) }
+        let sizes = tiles.map {
+            size(for: $0, tileSize: tileSize, tileHeight: tileHeight, tileSpacing: tileSpacing, position: position)
+        }
         let spacings = max(0, CGFloat(tiles.count) - 1) * tileSpacing
 
         if position.isVertical {
