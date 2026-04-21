@@ -197,19 +197,28 @@ final class TileStore: ObservableObject {
                 return false
             }
 
+            let folderApps = [targetBundleIdentifier, bundleIdentifier].compactMap(Self.makeAppTile(bundleIdentifier:))
+            let seededFolderName = AppFolderNamingService.shared.seedName(for: folderApps)
+            let createdFolder = PinnedTileItem.appFolder(
+                displayName: seededFolderName,
+                bundleIdentifiers: [targetBundleIdentifier, bundleIdentifier]
+            )
+
             var updatedItems = preferences.pinnedItems
             updatedItems.removeAll {
                 ($0.kind == .app && $0.bundleIdentifier == bundleIdentifier)
                     || Self.pinnedTileID(for: $0) == targetTileID
             }
             let insertionIndex = min(targetIndex, updatedItems.count)
-            updatedItems.insert(
-                .appFolder(bundleIdentifiers: [targetBundleIdentifier, bundleIdentifier]),
-                at: insertionIndex
-            )
+            updatedItems.insert(createdFolder, at: insertionIndex)
             preferences.pinnedItems = updatedItems
             refreshPinnedTilesFromPreferences()
             rebuildTiles()
+            suggestAppFolderNameIfNeeded(
+                folderID: createdFolder.id,
+                expectedDisplayName: seededFolderName,
+                apps: folderApps
+            )
             return true
         case .appFolder:
             guard !targetItem.folderBundleIdentifiers.contains(bundleIdentifier) else {
@@ -252,6 +261,54 @@ final class TileStore: ObservableObject {
         preferences.pinnedItems = pinnedItems
         refreshPinnedTilesFromPreferences()
         rebuildTiles()
+    }
+
+    func renameAppFolder(tileID: String, displayName: String) {
+        guard let itemIndex = preferences.pinnedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == tileID }),
+              preferences.pinnedItems[itemIndex].kind == .appFolder else {
+            return
+        }
+
+        let normalizedDisplayName = normalizeAppFolderDisplayName(displayName)
+        let existingItem = preferences.pinnedItems[itemIndex]
+        guard existingItem.folderDisplayName != normalizedDisplayName else {
+            return
+        }
+
+        var pinnedItems = preferences.pinnedItems
+        pinnedItems[itemIndex] = .appFolder(
+            id: existingItem.id,
+            displayName: normalizedDisplayName,
+            bundleIdentifiers: existingItem.folderBundleIdentifiers
+        )
+        preferences.pinnedItems = pinnedItems
+        refreshPinnedTilesFromPreferences()
+        rebuildTiles()
+    }
+
+    func presentRenameAppFolderPrompt(tileID: String) {
+        guard let item = pinnedItem(forTileID: tileID),
+              item.kind == .appFolder else {
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Rename Folder"
+        alert.informativeText = "Choose a name for this app folder."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        textField.stringValue = item.folderDisplayName ?? "Folder"
+        textField.placeholderString = "Folder"
+        alert.accessoryView = textField
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+
+        renameAppFolder(tileID: tileID, displayName: textField.stringValue)
     }
 
     func removeAppFromFolder(tileID: String, bundleIdentifier: String) {
@@ -464,6 +521,34 @@ final class TileStore: ObservableObject {
 
     private func refreshPinnedTilesFromPreferences() {
         pinnedTiles = preferences.pinnedItems.compactMap(tile(for:))
+    }
+
+    private func suggestAppFolderNameIfNeeded(folderID: String, expectedDisplayName: String, apps: [AppTile]) {
+        guard apps.count >= 2 else {
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard let suggestedName = await AppFolderNamingService.shared.suggestInitialName(for: apps) else {
+                return
+            }
+
+            guard let itemIndex = self.preferences.pinnedItems.firstIndex(where: { $0.id == folderID }) else {
+                return
+            }
+
+            let existingItem = self.preferences.pinnedItems[itemIndex]
+            guard existingItem.kind == .appFolder,
+                  (existingItem.folderDisplayName ?? "Folder") == expectedDisplayName else {
+                return
+            }
+
+            self.renameAppFolder(
+                tileID: Self.pinnedTileID(for: existingItem),
+                displayName: suggestedName
+            )
+        }
     }
 
     private func pinnedItem(forTileID tileID: String) -> PinnedTileItem? {
@@ -732,6 +817,14 @@ final class TileStore: ObservableObject {
 
     private static func pinnedTileID(for item: PinnedTileItem) -> String {
         "pinned:\(item.id)"
+    }
+
+    private func normalizeAppFolderDisplayName(_ value: String) -> String {
+        let normalized = value
+            .split(whereSeparator: \ .isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? "Folder" : normalized
     }
 
     // MARK: - Parsing plist entries
