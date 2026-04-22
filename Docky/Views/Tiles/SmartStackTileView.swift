@@ -12,65 +12,74 @@ struct SmartStackTileView: View {
     let renderedSpan: TileSpan
 
     @State private var selection = 0
-    @State private var isHovering = false
-    @State private var scrollMonitor: Any?
     @State private var lastScrollAt: TimeInterval = 0
+    @State private var accumulatedScrollOffset: CGFloat = 0
     @State private var showsPagingIndicator = false
     @State private var indicatorHideWorkItem: DispatchWorkItem?
 
     var body: some View {
-        Group {
-            if tile.widgets.isEmpty {
-                emptyState
-            } else {
-                HStack(spacing: 8) {
-                    GeometryReader { proxy in
-                        VStack(spacing: 0) {
-                            ForEach(Array(tile.widgets.enumerated()), id: \.element.identifier) { index, widget in
-                                WidgetTileView(
-                                    tile: widget,
-                                    cornerRadius: cornerRadius,
-                                    renderedSpan: renderedSpan,
-                                    isWithinStack: true
-                                )
-                                    .frame(width: proxy.size.width, height: proxy.size.height)
-                            }
-                        }
-                        .offset(y: -CGFloat(selection) * proxy.size.height)
-                        .animation(.easeInOut(duration: 0.2), value: selection)
-                    }
-                    .clipped()
-                    .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius, style: .continuous))
-                    .overlay {
-                        if tile.widgets.count > 1 {
-                            VStack(spacing: 5) {
-                                ForEach(tile.widgets.indices, id: \.self) { index in
-                                    Capsule(style: .continuous)
-                                        .fill(index == selection ? Color.primary.opacity(0.9) : Color.primary.opacity(0.22))
-                                        .frame(width: 3, height: index == selection ? 18 : 8)
-                                        .animation(.easeInOut(duration: 0.18), value: selection)
-                                }
-                            }
-                            .frame(width: 6)
-                            .opacity(showsPagingIndicator ? 1 : 0)
-                            .animation(.easeInOut(duration: 0.18), value: showsPagingIndicator)
-                        }
-                    }
-                }
-            }
+        SmartStackScrollHostingView(content: contentView) { deltaX, deltaY in
+            handleScroll(deltaX: deltaX, deltaY: deltaY)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onHover { isHovering = $0 }
         .onChange(of: tile.widgets.count) { _, count in
             selection = min(selection, max(0, count - 1))
             if count <= 1 {
                 hidePagingIndicator()
             }
         }
-        .onAppear(perform: installScrollMonitor)
-        .onDisappear {
-            removeScrollMonitor()
-            hidePagingIndicator()
+        .onDisappear(perform: hidePagingIndicator)
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if tile.widgets.isEmpty {
+            emptyState
+        } else {
+            HStack(spacing: 8) {
+                GeometryReader { proxy in
+                    VStack(spacing: 0) {
+                        ForEach(Array(tile.widgets.enumerated()), id: \.element.identifier) { index, widget in
+                            WidgetTileView(
+                                tile: widget,
+                                cornerRadius: cornerRadius,
+                                renderedSpan: renderedSpan,
+                                isWithinStack: true
+                            )
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                        }
+                    }
+                    .offset(y: -CGFloat(selection) * proxy.size.height)
+                    .animation(.easeInOut(duration: 0.2), value: selection)
+                }
+                .clipped()
+                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(alignment: .trailing) {
+                    if tile.widgets.count > 1 {
+                        VStack(spacing: 5) {
+                            ForEach(tile.widgets.indices, id: \.self) { index in
+                                Capsule(style: .continuous)
+                                    .fill(index == selection ? Color.primary.opacity(0.9) : Color.primary.opacity(0.22))
+                                    .frame(width: 3, height: index == selection ? 18 : 8)
+                                    .animation(.easeInOut(duration: 0.18), value: selection)
+                            }
+                        }
+                        .frame(width: 6)
+                        .opacity(showsPagingIndicator ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.18), value: showsPagingIndicator)
+                        .offset(x: 8)
+                    }
+                }
+                .background {
+                    Color
+                        .primary.opacity(0.2)
+                        .clipShape(.rect(cornerRadius: cornerRadius, style: .continuous))
+                        .padding(showsPagingIndicator ? -4 : 0)
+                        .padding(.trailing, showsPagingIndicator ? -8 : 0)
+                        .opacity(showsPagingIndicator ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.20), value: showsPagingIndicator)
+                }
+            }
         }
     }
 
@@ -90,35 +99,13 @@ struct SmartStackTileView: View {
             }
     }
 
-    private func installScrollMonitor() {
-        guard scrollMonitor == nil else {
-            return
-        }
-
-        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
-            guard isHovering else {
-                return event
-            }
-
-            if handleScroll(deltaY: event.scrollingDeltaY) {
-                return nil
-            }
-
-            return event
-        }
-    }
-
-    private func removeScrollMonitor() {
-        guard let scrollMonitor else {
-            return
-        }
-
-        NSEvent.removeMonitor(scrollMonitor)
-        self.scrollMonitor = nil
-    }
-
-    private func handleScroll(deltaY: CGFloat) -> Bool {
+    private func handleScroll(deltaX: CGFloat, deltaY: CGFloat) -> Bool {
         guard tile.widgets.count > 1 else {
+            return false
+        }
+
+        let dominantDelta = abs(deltaY) >= abs(deltaX) ? deltaY : deltaX
+        guard dominantDelta != 0 else {
             return false
         }
 
@@ -128,21 +115,25 @@ struct SmartStackTileView: View {
         }
 
         let threshold: CGFloat = 4
-        if deltaY <= -threshold {
+        accumulatedScrollOffset += dominantDelta
+
+        if accumulatedScrollOffset <= -threshold {
             selection = min(selection + 1, tile.widgets.count - 1)
             lastScrollAt = now
+            accumulatedScrollOffset = 0
             showPagingIndicator()
             return true
         }
 
-        if deltaY >= threshold {
+        if accumulatedScrollOffset >= threshold {
             selection = max(selection - 1, 0)
             lastScrollAt = now
+            accumulatedScrollOffset = 0
             showPagingIndicator()
             return true
         }
 
-        return false
+        return true
     }
 
     private func showPagingIndicator() {
@@ -161,6 +152,39 @@ struct SmartStackTileView: View {
     private func hidePagingIndicator() {
         indicatorHideWorkItem?.cancel()
         indicatorHideWorkItem = nil
+        accumulatedScrollOffset = 0
         showsPagingIndicator = false
+    }
+}
+
+private struct SmartStackScrollHostingView<Content: View>: NSViewRepresentable {
+    let content: Content
+    let onScroll: (CGFloat, CGFloat) -> Bool
+
+    func makeNSView(context: Context) -> ScrollHostingView<Content> {
+        let view = ScrollHostingView(rootView: content)
+        view.scrollHandler = onScroll
+        return view
+    }
+
+    func updateNSView(_ nsView: ScrollHostingView<Content>, context: Context) {
+        nsView.rootView = content
+        nsView.scrollHandler = onScroll
+    }
+}
+
+private final class ScrollHostingView<Content: View>: NSHostingView<Content> {
+    var scrollHandler: ((CGFloat, CGFloat) -> Bool)?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        if scrollHandler?(event.scrollingDeltaX, event.scrollingDeltaY) == true {
+            return
+        }
+
+        super.scrollWheel(with: event)
     }
 }
