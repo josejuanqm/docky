@@ -17,6 +17,7 @@ import Combine
 import ScreenCaptureKit
 
 private let axWindowNumberAttribute = "AXWindowNumber" as CFString
+private let axCloseAction = "AXClose" as CFString
 
 struct RunningApp: Hashable, Identifiable {
     let bundleIdentifier: String
@@ -114,14 +115,7 @@ final class WorkspaceService: ObservableObject {
             return false
         }
 
-        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: window.bundleIdentifier).first else {
-            refreshMinimizedWindows()
-            return false
-        }
-
-        let applicationElement = AXUIElementCreateApplication(runningApp.processIdentifier)
-        guard let windowElement = minimizedWindowElements(applicationElement: applicationElement)
-            .first(where: { minimizedWindowMatches($0, target: window) }) else {
+        guard let (runningApp, windowElement) = minimizedWindowTarget(for: window) else {
             refreshMinimizedWindows()
             return false
         }
@@ -139,6 +133,25 @@ final class WorkspaceService: ObservableObject {
 
         refreshMinimizedWindows()
         return restored
+    }
+
+    @discardableResult
+    func closeMinimizedWindow(_ window: MinimizedWindowTile) -> Bool {
+        guard PermissionsService.shared.accessibility == .granted else {
+            PermissionsService.shared.presentPermissionAlert(for: .accessibility, actionTitle: "close minimized windows")
+            return false
+        }
+
+        guard let (_, windowElement) = minimizedWindowTarget(for: window) else {
+            refreshMinimizedWindows()
+            return false
+        }
+
+        let closed = AXUIElementPerformAction(windowElement, axCloseAction) == .success
+            || closeMinimizedWindowViaButton(windowElement)
+
+        refreshMinimizedWindows()
+        return closed
     }
 
     func hide(bundleIdentifier: String) {
@@ -373,6 +386,30 @@ final class WorkspaceService: ObservableObject {
         }
 
         return stringAttribute(kAXTitleAttribute as CFString, of: element) == target.windowTitle
+    }
+
+    private func minimizedWindowTarget(for window: MinimizedWindowTile) -> (NSRunningApplication, AXUIElement)? {
+        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: window.bundleIdentifier).first else {
+            return nil
+        }
+
+        let applicationElement = AXUIElementCreateApplication(runningApp.processIdentifier)
+        guard let windowElement = minimizedWindowElements(applicationElement: applicationElement)
+            .first(where: { minimizedWindowMatches($0, target: window) }) else {
+            return nil
+        }
+
+        return (runningApp, windowElement)
+    }
+
+    private func closeMinimizedWindowViaButton(_ windowElement: AXUIElement) -> Bool {
+        guard let closeButtonValue = valueAttribute(kAXCloseButtonAttribute as CFString, of: windowElement) else {
+            return false
+        }
+
+        let closeButton = unsafeBitCast(closeButtonValue, to: AXUIElement.self)
+
+        return AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success
     }
 
     private func roleAttribute(of element: AXUIElement) -> String? {

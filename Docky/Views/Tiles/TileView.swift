@@ -638,39 +638,17 @@ struct TileView: View {
 
     private func minimizedWindowContextActions(
         for window: MinimizedWindowTile,
-        modifierFlags: NSEvent.ModifierFlags
+        modifierFlags _: NSEvent.ModifierFlags
     ) -> [ContextAction] {
         let workspace = WorkspaceService.shared
-        let app = AppTile(bundleIdentifier: window.bundleIdentifier, displayName: window.appDisplayName)
-        let isPinned = TileStore.shared.isPinned(bundleIdentifier: window.bundleIdentifier)
-        let canTogglePinned = window.bundleIdentifier != Self.finderBundleIdentifier
-        let useForceQuit = modifierFlags.contains(.option)
-        var actions: [ContextAction] = [
+        return [
             .action("Restore Window") {
                 _ = workspace.restoreMinimizedWindow(window)
             },
-            .action("Show All Windows") {
-                workspace.showAllWindows(bundleIdentifier: window.bundleIdentifier)
-            },
-            .divider,
-            .submenu("Options", children: appOptionsActions(for: app, isPinned: isPinned, canTogglePinned: canTogglePinned))
+            .action("Close Window") {
+                _ = workspace.closeMinimizedWindow(window)
+            }
         ]
-
-        if workspace.isRunning(bundleIdentifier: window.bundleIdentifier)
-            && window.bundleIdentifier != Self.finderBundleIdentifier {
-            actions.append(.divider)
-            actions.append(.action("Hide") {
-                workspace.hide(bundleIdentifier: window.bundleIdentifier)
-            })
-            actions.append(.action(
-                useForceQuit ? "Force Quit" : "Quit",
-                isDestructive: useForceQuit
-            ) {
-                workspace.quit(bundleIdentifier: window.bundleIdentifier, force: useForceQuit)
-            })
-        }
-
-        return actions
     }
 
     private func appOptionsActions(
