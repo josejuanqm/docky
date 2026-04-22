@@ -58,7 +58,6 @@ struct DividerTileView: View {
             Rectangle()
                 .fill(.primary.opacity(0.2))
                 .frame(height: 1)
-                .padding(.horizontal, lineInset)
         } else {
             Rectangle()
                 .fill(.primary.opacity(0.2))

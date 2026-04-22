@@ -48,6 +48,10 @@ final class TileStore: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.rebuildTiles() }
             .store(in: &cancellables)
+        WorkspaceService.shared.$minimizedWindows
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.rebuildTiles() }
+            .store(in: &cancellables)
         preferences.$pinnedItems
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -752,12 +756,39 @@ final class TileStore: ObservableObject {
         rebuildTiles()
     }
 
-    func setFolderDisplayMode(tileID: String, mode: FolderTileDisplayMode) {
-        guard let itemIndex = preferences.trailingItems.firstIndex(where: { Self.trailingTileID(for: $0) == tileID }),
-              preferences.trailingItems[itemIndex].kind == .folder else {
+    func setFolderDisplayMode(tileID: String, folderURL: URL, mode: FolderTileDisplayMode) {
+        let normalizedFolderURL = folderURL.standardizedFileURL
+
+        if let itemIndex = preferences.trailingItems.firstIndex(where: {
+            matchesFolderItem($0, tileID: tileID, normalizedFolderURL: normalizedFolderURL)
+        }) {
+            updateFolderDisplayMode(at: itemIndex, mode: mode)
             return
         }
 
+        if let sourceTileID = systemOtherTiles.first(where: {
+            guard case .folder(let folder) = $0.content else { return false }
+            return folder.url.standardizedFileURL == normalizedFolderURL
+        })?.id {
+            var trailingItems = preferences.trailingItems
+            trailingItems.insert(.folder(sourceTileID: sourceTileID, displayMode: mode), at: trailingItems.firstIndex(where: { $0.kind == .trash }) ?? trailingItems.count)
+            preferences.trailingItems = trailingItems
+            refreshTrailingTilesFromPreferences()
+            rebuildTiles()
+        }
+    }
+
+    func folderDisplayMode(tileID: String, folderURL: URL) -> FolderTileDisplayMode {
+        let normalizedFolderURL = folderURL.standardizedFileURL
+        guard let item = preferences.trailingItems.first(where: {
+            matchesFolderItem($0, tileID: tileID, normalizedFolderURL: normalizedFolderURL)
+        }) else {
+            return .contents
+        }
+        return item.effectiveFolderDisplayMode
+    }
+
+    private func updateFolderDisplayMode(at itemIndex: Int, mode: FolderTileDisplayMode) {
         let existingItem = preferences.trailingItems[itemIndex]
         guard existingItem.effectiveFolderDisplayMode != mode else {
             return
@@ -779,6 +810,24 @@ final class TileStore: ObservableObject {
         preferences.trailingItems = trailingItems
         refreshTrailingTilesFromPreferences()
         rebuildTiles()
+    }
+
+    private func matchesFolderItem(_ item: TrailingTileItem, tileID: String, normalizedFolderURL: URL) -> Bool {
+        guard item.kind == .folder else {
+            return false
+        }
+        if Self.trailingTileID(for: item) == tileID {
+            return true
+        }
+        if let itemFolderURL = item.folderURL?.standardizedFileURL {
+            return itemFolderURL == normalizedFolderURL
+        }
+        guard let sourceTileID = item.sourceTileID,
+              let tile = systemOtherTilesByID[sourceTileID],
+              case .folder(let folder) = tile.content else {
+            return false
+        }
+        return folder.url.standardizedFileURL == normalizedFolderURL
     }
 
     func removePinnedItem(tileID: String) {
@@ -1076,6 +1125,7 @@ final class TileStore: ObservableObject {
         )
 
         let runningTiles = displayedRunning.map(Self.tile(for:))
+        let minimizedWindowTiles = WorkspaceService.shared.minimizedWindows.map(Self.tile(for:))
 
         var result: [Tile] = tilesWithWidgets(appendedTo: [Self.finderTile()])
         result.append(contentsOf: tilesWithWidgets(appendedTo: pinnedWithoutFinder))
@@ -1084,8 +1134,31 @@ final class TileStore: ObservableObject {
         }
         result.append(contentsOf: tilesWithWidgets(appendedTo: runningTiles))
         result.append(Tile(id: "divider:trailing", content: .divider))
-        result.append(contentsOf: trailingTiles)
+        result.append(contentsOf: trailingTiles(withInsertedMinimizedWindows: minimizedWindowTiles))
         tiles = result
+    }
+
+    private func trailingTiles(withInsertedMinimizedWindows minimizedWindowTiles: [Tile]) -> [Tile] {
+        guard !minimizedWindowTiles.isEmpty else {
+            return trailingTiles
+        }
+
+        var result: [Tile] = []
+        var insertedMinimizedWindows = false
+
+        for tile in trailingTiles {
+            if !insertedMinimizedWindows, case .trash = tile.content {
+                result.append(contentsOf: minimizedWindowTiles)
+                insertedMinimizedWindows = true
+            }
+            result.append(tile)
+        }
+
+        if !insertedMinimizedWindows {
+            result.append(contentsOf: minimizedWindowTiles)
+        }
+
+        return result
     }
 
     private func tilesWithWidgets(appendedTo baseTiles: [Tile]) -> [Tile] {
@@ -1224,6 +1297,10 @@ final class TileStore: ObservableObject {
         )
     }
 
+    nonisolated private static func tile(for minimizedWindow: MinimizedWindowTile) -> Tile {
+        Tile(id: "minimized-window:\(minimizedWindow.windowIdentifier)", content: .minimizedWindow(minimizedWindow))
+    }
+
     nonisolated private static func pinnedItem(from tile: Tile) -> PinnedTileItem? {
         switch tile.content {
         case .app(let app):
@@ -1266,7 +1343,7 @@ final class TileStore: ObservableObject {
                 widgetSpan: nil,
                 hiddenWidgetOwnerBundleIdentifiers: []
             )
-        case .folder, .trash:
+        case .folder, .trash, .minimizedWindow:
             return nil
         }
     }
@@ -1285,7 +1362,7 @@ final class TileStore: ObservableObject {
             return .folder(sourceTileID: tile.id)
         case .trash:
             return .trash()
-        case .widget, .smartStack, .app, .appFolder, .spacer, .divider:
+        case .widget, .smartStack, .app, .appFolder, .spacer, .divider, .minimizedWindow:
             return nil
         }
     }

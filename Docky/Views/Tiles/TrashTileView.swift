@@ -7,6 +7,8 @@ import AppKit
 import SwiftUI
 
 struct TrashTileView: View {
+    @ObservedObject private var trash = TrashService.shared
+
     var body: some View {
         Image(nsImage: icon)
             .resizable()
@@ -15,6 +17,7 @@ struct TrashTileView: View {
     }
 
     private var icon: NSImage {
-        NSImage(named: "NSTrashEmpty") ?? NSImage()
+        let imageName = trash.isEmpty ? "NSTrashEmpty" : "NSTrashFull"
+        return NSImage(named: imageName) ?? NSImage(named: "NSTrashEmpty") ?? NSImage()
     }
 }

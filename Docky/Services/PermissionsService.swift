@@ -49,7 +49,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .finderAutomation:
             return "Docky can ask Finder to reveal files, open folders in Finder, open the Trash, and empty the Trash. macOS controls this separately from file access, and you can grant or revoke it at any time in Privacy & Security."
         case .accessibility:
-            return "Accessibility access lets Docky click menu bar items for curated menuClick actions. These actions are slower and more fragile than built-in actions, so Docky requests this only when needed."
+            return "Accessibility access lets Docky click menu bar items for curated menuClick actions and inspect minimized windows so it can show and restore them beside the Trash. These actions are slower and more fragile than built-in actions, so Docky requests this only when needed."
         }
     }
 
@@ -71,7 +71,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .finderAutomation:
             return false
         case .accessibility:
-            return false
+            return true
         }
     }
 }

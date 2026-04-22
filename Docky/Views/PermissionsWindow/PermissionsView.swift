@@ -3,6 +3,7 @@
 //  Docky
 //
 
+import AppKit
 import SwiftUI
 
 struct PermissionsView: View {
@@ -63,6 +64,10 @@ struct PermissionsView: View {
             Text(step.explanation)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if showsAppDragProxy {
+                draggableAppProxy
+            }
         }
     }
 
@@ -76,6 +81,59 @@ struct PermissionsView: View {
                 requestButton
             }
         }
+    }
+
+    private var showsAppDragProxy: Bool {
+        switch step {
+        case .userFolders, .accessibility:
+            true
+        case .finderAutomation:
+            false
+        }
+    }
+
+    private var draggableAppProxy: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Drag Docky into the list in System Settings to add it without searching.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: dockyAppURL.path))
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 48, height: 48)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Docky.app")
+                        .font(.headline)
+                    Text("Drag this into the macOS privacy list")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "hand.draw")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.secondary.opacity(0.15))
+            )
+            .onDrag {
+                NSItemProvider(object: dockyAppURL as NSURL)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private var dockyAppURL: URL {
+        Bundle.main.bundleURL
     }
 
     private var footer: some View {

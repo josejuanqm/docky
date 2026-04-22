@@ -24,11 +24,11 @@ struct FolderTileView: View {
     private var content: some View {
         if isOpen {
             openPlaceholder
-        } else if tile.displayMode == .folder || preview.isEmpty {
+        } else if tile.displayMode == .folder {
             folderIcon
         } else {
             GeometryReader { geo in
-                stack(in: geo.size)
+                contentsStack(in: geo.size)
             }
         }
     }
@@ -52,6 +52,15 @@ struct FolderTileView: View {
             .aspectRatio(contentMode: .fit)
     }
 
+    @ViewBuilder
+    private func contentsStack(in size: CGSize) -> some View {
+        if preview.isEmpty {
+            fallbackStack(in: size)
+        } else {
+            stack(in: size)
+        }
+    }
+
     private func stack(in size: CGSize) -> some View {
         let side = min(size.width, size.height) * 0.82
         let verticalStep: CGFloat = 4
@@ -68,6 +77,25 @@ struct FolderTileView: View {
                     .frame(width: side, height: side)
                     .opacity(1 - (depth * 0.12))
                     .offset(y: (centeredBaseOffset - CGFloat(pair.offset)) * verticalStep)
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .center)
+    }
+
+    private func fallbackStack(in size: CGSize) -> some View {
+        let side = min(size.width, size.height) * 0.8
+        let offsets: [CGFloat] = [-4, 0, 4]
+
+        return ZStack {
+            ForEach(Array(offsets.enumerated()), id: \.offset) { index, offset in
+                Image(nsImage: IconCacheService.shared.icon(forFileURL: tile.url))
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: side, height: side)
+                    .opacity(index == 1 ? 1 : 0.55)
+                    .offset(y: offset)
+                    .scaleEffect(index == 1 ? 1 : 0.92)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .center)

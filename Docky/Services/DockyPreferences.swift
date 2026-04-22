@@ -147,14 +147,14 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
         folderDisplayMode ?? .contents
     }
 
-    nonisolated static func folder(sourceTileID: String) -> Self {
+    nonisolated static func folder(sourceTileID: String, displayMode: FolderTileDisplayMode = .contents) -> Self {
         Self(
             id: "folder:\(sourceTileID)",
             kind: .folder,
             sourceTileID: sourceTileID,
             folderURL: nil,
             folderDisplayName: nil,
-            folderDisplayMode: .contents,
+            folderDisplayMode: displayMode,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,

@@ -186,11 +186,17 @@ struct TileContainerView: View {
 
         var result: [Tile] = [finderTile]
         result.append(contentsOf: previewPinnedTiles)
+        var appendedTrailingSection = false
 
         for tile in store.tiles.dropFirst() {
+            if appendedTrailingSection {
+                continue
+            }
+
             if tile.id == "divider:trailing" {
                 result.append(tile)
-                result.append(contentsOf: previewTrailingTiles)
+                result.append(contentsOf: previewTrailingSectionTiles)
+                appendedTrailingSection = true
                 continue
             }
 
@@ -233,23 +239,10 @@ struct TileContainerView: View {
         let clampedDestinationIndex = min(max(destinationIndex, 0), remainingPinnedTiles.count)
         if let draggedTile, (isDraggingPinnedTile || store.makePinnedItem(from: draggedTile) != nil) {
             remainingPinnedTiles.insert(draggedTile, at: clampedDestinationIndex)
-        } else if let externalAppPreviewTile {
-            remainingPinnedTiles.insert(externalAppPreviewTile, at: clampedDestinationIndex)
         } else if let palettePreviewTile {
             remainingPinnedTiles.insert(palettePreviewTile, at: clampedDestinationIndex)
         }
         return remainingPinnedTiles
-    }
-
-    private var externalAppPreviewTile: Tile? {
-        guard externalAppDropDestinationIndex != nil else {
-            return nil
-        }
-
-        return Tile(
-            id: "editor-preview:app",
-            content: .app(AppTile(bundleIdentifier: "com.apple.finder", displayName: "App"))
-        )
     }
 
     private var palettePreviewTile: Tile? {
@@ -302,6 +295,36 @@ struct TileContainerView: View {
             remainingTrailingTiles.insert(palettePreviewTile, at: clampedDestinationIndex)
         }
         return remainingTrailingTiles
+    }
+
+    private var previewTrailingSectionTiles: [Tile] {
+        let minimizedWindowTiles = store.tiles.compactMap { tile in
+            if case .minimizedWindow = tile.content {
+                return tile
+            }
+            return nil
+        }
+
+        guard !minimizedWindowTiles.isEmpty else {
+            return previewTrailingTiles
+        }
+
+        var result: [Tile] = []
+        var insertedMinimizedWindows = false
+
+        for tile in previewTrailingTiles {
+            if !insertedMinimizedWindows, case .trash = tile.content {
+                result.append(contentsOf: minimizedWindowTiles)
+                insertedMinimizedWindows = true
+            }
+            result.append(tile)
+        }
+
+        if !insertedMinimizedWindows {
+            result.append(contentsOf: minimizedWindowTiles)
+        }
+
+        return result
     }
 
     private var draggedTile: Tile? {
@@ -387,6 +410,8 @@ struct TileContainerView: View {
         switch tile.content {
         case .app(let app):
             return !app.bundleIdentifier.isEmpty && app.bundleIdentifier != "com.apple.finder"
+        case .minimizedWindow:
+            return false
         case .appFolder, .widget, .smartStack, .spacer, .divider:
             return editMode.isActive && (isPinnedReorderable(tileID: tile.id) || isTrailingReorderable(tileID: tile.id))
         case .folder, .trash:
@@ -648,7 +673,7 @@ struct TileContainerView: View {
         let positionValue = projected(point: location)
 
         if isPointInPinnedDropRegion(positionValue) {
-            let visibleTiles = previewPinnedTiles.filter { $0.id != "editor-preview:app" }
+            let visibleTiles = previewPinnedTiles
             let destinationIndex = visibleTiles.enumerated().first { _, tile in
                 guard let frame = tileFrames[tile.id] else {
                     return false
@@ -884,6 +909,8 @@ struct TileContainerView: View {
                 guard app.bundleIdentifier != bundleIdentifier else {
                     continue
                 }
+            case .minimizedWindow:
+                continue
             case .appFolder(let folder):
                 guard !folder.bundleIdentifiers.contains(bundleIdentifier) else {
                     continue

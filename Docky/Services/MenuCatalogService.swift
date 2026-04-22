@@ -41,7 +41,7 @@ final class MenuCatalogService: ObservableObject {
         switch tile.content {
         case .app, .folder, .trash:
             break
-        case .appFolder, .widget, .smartStack, .spacer, .divider:
+        case .minimizedWindow, .appFolder, .widget, .smartStack, .spacer, .divider:
             return nil
         }
 
@@ -312,7 +312,7 @@ final class MenuCatalogService: ObservableObject {
                 canTogglePin: false,
                 isFinder: false
             )
-        case .widget, .smartStack, .spacer, .divider:
+        case .minimizedWindow, .widget, .smartStack, .spacer, .divider:
             return CatalogActionContext(
                 tile: tile,
                 modifierFlags: modifierFlags,
@@ -332,6 +332,8 @@ final class MenuCatalogService: ObservableObject {
     private func tileType(for tile: Tile) -> MenuTileType {
         switch tile.content {
         case .app: return .app
+        case .minimizedWindow:
+            fatalError("Unsupported tile type for context menu catalog")
         case .appFolder:
             fatalError("Unsupported tile type for context menu catalog")
         case .folder: return .folder

@@ -40,7 +40,7 @@ struct TileView: View {
                     })
                 }
                 return actions
-            case .appFolder, .widget, .smartStack, .spacer, .divider:
+            case .minimizedWindow, .appFolder, .widget, .smartStack, .spacer, .divider:
                 break
             }
         }
@@ -48,6 +48,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             return appContextActions(for: app, modifierFlags: modifierFlags)
+        case .minimizedWindow(let window):
+            return minimizedWindowContextActions(for: window, modifierFlags: modifierFlags)
         case .appFolder(let folder):
             return appFolderContextActions(for: folder)
         case .widget(let widget):
@@ -96,13 +98,17 @@ struct TileView: View {
     }
 
     private var folderDisplayContextActions: [ContextAction] {
-        [
+        guard case .folder(let folder) = tile.content else {
+            return []
+        }
+
+        return [
             .submenu("Display as", children: [
                 .action("Folder", isOn: folderDisplayMode == .folder) {
-                    TileStore.shared.setFolderDisplayMode(tileID: tile.id, mode: .folder)
+                    TileStore.shared.setFolderDisplayMode(tileID: tile.id, folderURL: folder.url, mode: .folder)
                 },
                 .action("Contents", isOn: folderDisplayMode == .contents) {
-                    TileStore.shared.setFolderDisplayMode(tileID: tile.id, mode: .contents)
+                    TileStore.shared.setFolderDisplayMode(tileID: tile.id, folderURL: folder.url, mode: .contents)
                 }
             ])
         ]
@@ -112,7 +118,7 @@ struct TileView: View {
         guard case .folder(let folder) = tile.content else {
             return .contents
         }
-        return folder.displayMode
+        return TileStore.shared.folderDisplayMode(tileID: tile.id, folderURL: folder.url)
     }
 
     private var customDockyTileActions: [ContextAction] {
@@ -189,6 +195,7 @@ struct TileView: View {
             .overlay(alignment: runningIndicatorAlignment) {
                 runningIndicator
                     .padding(runningIndicatorEdge, runningIndicatorInset)
+                    .offset(y: -2)
             }
             .contentShape(Rectangle())
             .onHover(perform: updateHoverState)
@@ -256,7 +263,7 @@ struct TileView: View {
                 content
                     .padding(contentPaddingEdges, contentPadding)
             }
-        case .app, .spacer, .divider:
+        case .app, .minimizedWindow, .spacer, .divider:
             content
                 .padding(contentPaddingEdges, contentPadding)
         }
@@ -275,6 +282,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             workspace.isRunning(bundleIdentifier: app.bundleIdentifier)
+        case .minimizedWindow:
+            false
         case .appFolder(let folder):
             folder.apps.contains { app in
                 workspace.isRunning(bundleIdentifier: app.bundleIdentifier)
@@ -340,7 +349,7 @@ struct TileView: View {
         switch tile.content {
         case .appFolder, .widget, .smartStack, .folder, .trash:
             floor(effectiveTileSize * 3 / 32)
-        case .app, .spacer, .divider:
+        case .app, .minimizedWindow, .spacer, .divider:
             0
         }
     }
@@ -416,6 +425,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             AppTileView(tile: app)
+        case .minimizedWindow(let window):
+            MinimizedWindowTileView(tile: window)
         case .appFolder(let folder):
             AppFolderTileView(
                 tile: folder,
@@ -436,7 +447,11 @@ struct TileView: View {
             )
         case .folder(let folder):
             FolderTileView(
-                tile: folder,
+                tile: FolderTile(
+                    url: folder.url,
+                    displayName: folder.displayName,
+                    displayMode: folderDisplayMode
+                ),
                 isOpen: isFolderPopoverPresented,
             )
         case .spacer:
@@ -452,6 +467,8 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             app.displayName
+        case .minimizedWindow(let window):
+            window.windowTitle
         case .appFolder(let folder):
             folder.displayName
         case .widget(let widget):
@@ -490,6 +507,9 @@ struct TileView: View {
         case .app(let app):
             isTooltipPresented = false
             WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
+        case .minimizedWindow(let window):
+            isTooltipPresented = false
+            _ = WorkspaceService.shared.restoreMinimizedWindow(window)
         case .appFolder:
             isTooltipPresented = false
 
@@ -610,6 +630,43 @@ struct TileView: View {
                 isDestructive: useForceQuit
             ) {
                 workspace.quit(bundleIdentifier: app.bundleIdentifier, force: useForceQuit)
+            })
+        }
+
+        return actions
+    }
+
+    private func minimizedWindowContextActions(
+        for window: MinimizedWindowTile,
+        modifierFlags: NSEvent.ModifierFlags
+    ) -> [ContextAction] {
+        let workspace = WorkspaceService.shared
+        let app = AppTile(bundleIdentifier: window.bundleIdentifier, displayName: window.appDisplayName)
+        let isPinned = TileStore.shared.isPinned(bundleIdentifier: window.bundleIdentifier)
+        let canTogglePinned = window.bundleIdentifier != Self.finderBundleIdentifier
+        let useForceQuit = modifierFlags.contains(.option)
+        var actions: [ContextAction] = [
+            .action("Restore Window") {
+                _ = workspace.restoreMinimizedWindow(window)
+            },
+            .action("Show All Windows") {
+                workspace.showAllWindows(bundleIdentifier: window.bundleIdentifier)
+            },
+            .divider,
+            .submenu("Options", children: appOptionsActions(for: app, isPinned: isPinned, canTogglePinned: canTogglePinned))
+        ]
+
+        if workspace.isRunning(bundleIdentifier: window.bundleIdentifier)
+            && window.bundleIdentifier != Self.finderBundleIdentifier {
+            actions.append(.divider)
+            actions.append(.action("Hide") {
+                workspace.hide(bundleIdentifier: window.bundleIdentifier)
+            })
+            actions.append(.action(
+                useForceQuit ? "Force Quit" : "Quit",
+                isDestructive: useForceQuit
+            ) {
+                workspace.quit(bundleIdentifier: window.bundleIdentifier, force: useForceQuit)
             })
         }
 
