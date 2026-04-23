@@ -1305,7 +1305,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
 
         private func menuItem(for itemURL: URL) -> NSMenuItem {
             let item = NSMenuItem(title: displayName(for: itemURL), action: nil, keyEquivalent: "")
-            item.image = IconCacheService.shared.icon(forFileURL: itemURL)
+            item.image = listMenuIcon(for: itemURL)
 
             if isNavigableFolder(itemURL) {
                 let submenu = NSMenu(title: item.title)
@@ -1319,6 +1319,13 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
             }
 
             return item
+        }
+
+        private func listMenuIcon(for itemURL: URL) -> NSImage {
+            let icon = IconCacheService.shared.icon(forFileURL: itemURL).copy() as? NSImage
+                ?? IconCacheService.shared.icon(forFileURL: itemURL)
+            icon.size = NSSize(width: 16, height: 16)
+            return icon
         }
 
         @objc private func openFile(_ sender: NSMenuItem) {
