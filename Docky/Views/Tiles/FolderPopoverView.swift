@@ -20,10 +20,10 @@ struct FolderPopoverView: View {
     @State private var selectedItemID: String?
     @State private var isDropTargeted = false
 
-    private let maxColumnCount = 6
-    private let itemWidth: CGFloat = 144
-    private let itemHeight: CGFloat = 158
-    private let itemSpacing: CGFloat = 8
+    private let maxGridColumnCount = 6
+    private let gridItemWidth: CGFloat = 144
+    private let gridItemHeight: CGFloat = 158
+    private let gridItemSpacing: CGFloat = 8
     private let contentPadding: CGFloat = 20
     private let minGridWidth: CGFloat = 320
     private let minGridHeight: CGFloat = 240
@@ -88,48 +88,7 @@ struct FolderPopoverView: View {
             } else if items.isEmpty {
                 emptyState
             } else {
-                ScrollView(showsIndicators: false) {
-                    LazyVGrid(columns: columns, spacing: itemSpacing) {
-                        ForEach(gridItems) { item in
-                            switch item {
-                            case .url(let itemURL):
-                                Button {
-                                    selectedItemID = item.id
-                                    handleSelection(of: itemURL)
-                                } label: {
-                                    FolderPopoverItemView(url: itemURL, isSelected: selectedItemID == item.id)
-                                }
-                                .buttonStyle(.plain)
-                                .onHover { isHovering in
-                                    guard isHovering else { return }
-                                    selectedItemID = item.id
-                                }
-                                .background {
-                                    ContextActionMenuPresenter { _ in
-                                        [
-                                            .action("Reveal in Finder") {
-                                                revealInFinder(itemURL)
-                                            },
-                                            .action("Open in Finder") {
-                                                openInFinder(itemURL)
-                                            }
-                                        ]
-                                    }
-                                }
-                            case .action(let action):
-                                Button(action: action.handler) {
-                                    FolderPopoverActionItemView(action: action, isSelected: selectedItemID == item.id)
-                                }
-                                .buttonStyle(.plain)
-                                .onHover { isHovering in
-                                    guard isHovering else { return }
-                                    selectedItemID = item.id
-                                }
-                            }
-                        }
-                    }
-                    .padding(contentPadding)
-                }
+                gridContentsView
             }
         }
         .frame(width: popoverWidth, height: popoverHeight)
@@ -150,8 +109,8 @@ struct FolderPopoverView: View {
         return []
     }
 
-    private var gridItems: [FolderPopoverGridItem] {
-        items.map(FolderPopoverGridItem.url) + [.action(openInFinderItem)]
+    private var popoverItems: [FolderPopoverItem] {
+        items.map(FolderPopoverItem.url) + [.action(openInFinderItem)]
     }
 
     private var openInFinderItem: FolderPopoverAction {
@@ -161,6 +120,63 @@ struct FolderPopoverView: View {
             systemImageName: "arrowshape.turn.up.right.circle"
         ) {
             openCurrentFolderInFinder()
+        }
+    }
+
+    private var gridContentsView: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVGrid(columns: gridColumns, spacing: gridItemSpacing) {
+                ForEach(popoverItems) { item in
+                    cardButton(for: item) {
+                        switch item {
+                        case .url(let itemURL):
+                            FolderPopoverItemView(url: itemURL, isSelected: selectedItemID == item.id)
+                        case .action(let action):
+                            FolderPopoverActionItemView(action: action, isSelected: selectedItemID == item.id)
+                        }
+                    }
+                }
+            }
+            .padding(contentPadding)
+        }
+    }
+
+    @ViewBuilder
+    private func cardButton<Label: View>(for item: FolderPopoverItem, @ViewBuilder label: () -> Label) -> some View {
+        switch item {
+        case .url(let itemURL):
+            Button {
+                selectedItemID = item.id
+                handleSelection(of: itemURL)
+            } label: {
+                label()
+            }
+            .buttonStyle(.plain)
+            .onHover { isHovering in
+                guard isHovering else { return }
+                selectedItemID = item.id
+            }
+            .background {
+                ContextActionMenuPresenter { _ in
+                    [
+                        .action("Reveal in Finder") {
+                            revealInFinder(itemURL)
+                        },
+                        .action("Open in Finder") {
+                            openInFinder(itemURL)
+                        }
+                    ]
+                }
+            }
+        case .action(let action):
+            Button(action: action.handler) {
+                label()
+            }
+            .buttonStyle(.plain)
+            .onHover { isHovering in
+                guard isHovering else { return }
+                selectedItemID = item.id
+            }
         }
     }
 
@@ -236,19 +252,19 @@ struct FolderPopoverView: View {
         .frame(height: headerHeight, alignment: .center)
     }
 
-    private var columns: [GridItem] {
+    private var gridColumns: [GridItem] {
         Array(
-            repeating: GridItem(.fixed(itemWidth), spacing: itemSpacing, alignment: .top),
-            count: columnCount
+            repeating: GridItem(.fixed(gridItemWidth), spacing: gridItemSpacing, alignment: .top),
+            count: gridColumnCount
         )
     }
 
-    private var columnCount: Int {
-        min(max(gridItems.count, 1), maxColumnCount)
+    private var gridColumnCount: Int {
+        min(max(popoverItems.count, 1), maxGridColumnCount)
     }
 
-    private var rowCount: Int {
-        max(Int(ceil(Double(gridItems.count) / Double(columnCount))), 1)
+    private var gridRowCount: Int {
+        max(Int(ceil(Double(popoverItems.count) / Double(gridColumnCount))), 1)
     }
 
     private var popoverWidth: CGFloat {
@@ -260,7 +276,7 @@ struct FolderPopoverView: View {
             return 320
         }
 
-        let gridWidth = CGFloat(columnCount) * itemWidth + CGFloat(max(columnCount - 1, 0)) * itemSpacing
+        let gridWidth = CGFloat(gridColumnCount) * gridItemWidth + CGFloat(max(gridColumnCount - 1, 0)) * gridItemSpacing
         return max(minGridWidth, gridWidth + contentPadding * 2)
     }
 
@@ -273,7 +289,7 @@ struct FolderPopoverView: View {
             return 218
         }
 
-        let gridHeight = CGFloat(rowCount) * itemHeight + CGFloat(max(rowCount - 1, 0)) * itemSpacing
+        let gridHeight = CGFloat(gridRowCount) * gridItemHeight + CGFloat(max(gridRowCount - 1, 0)) * gridItemSpacing
         let totalHeight = gridHeight + contentPadding * 2 + headerHeight + 16
         return min(max(totalHeight, minGridHeight), maxGridHeight)
     }
@@ -344,16 +360,16 @@ struct FolderPopoverView: View {
     }
 
     private func selectDefaultItemIfNeeded() {
-        if let selectedItemID, gridItems.contains(where: { $0.id == selectedItemID }) {
+        if let selectedItemID, popoverItems.contains(where: { $0.id == selectedItemID }) {
             return
         }
 
-        selectedItemID = gridItems.first(where: { item in
+        selectedItemID = popoverItems.first(where: { item in
             if case .url = item {
                 return true
             }
             return false
-        })?.id ?? gridItems.first?.id
+        })?.id ?? popoverItems.first?.id
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
@@ -369,7 +385,7 @@ struct FolderPopoverView: View {
     private var selectedItemURL: URL? {
         guard let selectedItemID else { return nil }
 
-        for item in gridItems {
+        for item in popoverItems {
             guard item.id == selectedItemID else { continue }
             if case .url(let url) = item {
                 return url
@@ -525,7 +541,7 @@ private struct FolderPopoverEntry: Equatable {
     let snapshot: FolderContentsSnapshot
 }
 
-private enum FolderPopoverGridItem: Identifiable {
+private enum FolderPopoverItem: Identifiable {
     case url(URL)
     case action(FolderPopoverAction)
 

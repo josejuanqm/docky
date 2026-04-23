@@ -139,6 +139,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
     let folderURL: URL?
     let folderDisplayName: String?
     let folderDisplayMode: FolderTileDisplayMode?
+    let folderContentViewMode: FolderTileContentViewMode?
     let widgetKind: WidgetKind?
     let widgetOwnerBundleIdentifier: String?
     let widgetSpan: TileSpan?
@@ -148,7 +149,15 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
         folderDisplayMode ?? .contents
     }
 
-    nonisolated static func folder(sourceTileID: String, displayMode: FolderTileDisplayMode = .contents) -> Self {
+    var effectiveFolderContentViewMode: FolderTileContentViewMode {
+        folderContentViewMode ?? .grid
+    }
+
+    nonisolated static func folder(
+        sourceTileID: String,
+        displayMode: FolderTileDisplayMode = .contents,
+        contentViewMode: FolderTileContentViewMode = .grid
+    ) -> Self {
         Self(
             id: "folder:\(sourceTileID)",
             kind: .folder,
@@ -156,6 +165,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderURL: nil,
             folderDisplayName: nil,
             folderDisplayMode: displayMode,
+            folderContentViewMode: contentViewMode,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -167,7 +177,8 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
         id: String = "custom-folder:\(UUID().uuidString)",
         url: URL,
         displayName: String,
-        displayMode: FolderTileDisplayMode = .contents
+        displayMode: FolderTileDisplayMode = .contents,
+        contentViewMode: FolderTileContentViewMode = .grid
     ) -> Self {
         Self(
             id: id,
@@ -176,6 +187,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderURL: url,
             folderDisplayName: displayName,
             folderDisplayMode: displayMode,
+            folderContentViewMode: contentViewMode,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -191,6 +203,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderURL: nil,
             folderDisplayName: nil,
             folderDisplayMode: nil,
+            folderContentViewMode: nil,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -206,6 +219,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderURL: nil,
             folderDisplayName: nil,
             folderDisplayMode: nil,
+            folderContentViewMode: nil,
             widgetKind: kind,
             widgetOwnerBundleIdentifier: ownerBundleIdentifier,
             widgetSpan: span,
@@ -221,6 +235,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderURL: nil,
             folderDisplayName: nil,
             folderDisplayMode: nil,
+            folderContentViewMode: nil,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -236,6 +251,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderURL: nil,
             folderDisplayName: nil,
             folderDisplayMode: nil,
+            folderContentViewMode: nil,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -251,6 +267,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderURL: nil,
             folderDisplayName: nil,
             folderDisplayMode: nil,
+            folderContentViewMode: nil,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -367,6 +384,39 @@ enum FolderTileDisplayMode: String, CaseIterable, Codable, Identifiable {
         case .folder: "Folder"
         case .contents: "Contents"
         }
+    }
+}
+
+enum FolderTileContentViewMode: String, CaseIterable, Codable, Identifiable {
+    case grid
+    case list
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .grid: "Grid"
+        case .list: "List"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = (try? container.decode(String.self)) ?? Self.grid.rawValue
+
+        switch rawValue {
+        case Self.list.rawValue:
+            self = .list
+        case Self.grid.rawValue, "fan":
+            self = .grid
+        default:
+            self = .grid
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 

@@ -546,6 +546,7 @@ final class TileStore: ObservableObject {
                     folderURL: nil,
                     folderDisplayName: nil,
                     folderDisplayMode: nil,
+                    folderContentViewMode: nil,
                     widgetKind: widgetKind,
                     widgetOwnerBundleIdentifier: ownerBundleIdentifier,
                     widgetSpan: item.widgetSpan,
@@ -559,6 +560,7 @@ final class TileStore: ObservableObject {
                     folderURL: nil,
                     folderDisplayName: nil,
                     folderDisplayMode: nil,
+                    folderContentViewMode: nil,
                     widgetKind: nil,
                     widgetOwnerBundleIdentifier: nil,
                     widgetSpan: nil,
@@ -572,6 +574,7 @@ final class TileStore: ObservableObject {
                     folderURL: nil,
                     folderDisplayName: nil,
                     folderDisplayMode: nil,
+                    folderContentViewMode: nil,
                     widgetKind: nil,
                     widgetOwnerBundleIdentifier: nil,
                     widgetSpan: nil,
@@ -585,6 +588,7 @@ final class TileStore: ObservableObject {
                     folderURL: nil,
                     folderDisplayName: nil,
                     folderDisplayMode: nil,
+                    folderContentViewMode: nil,
                     widgetKind: nil,
                     widgetOwnerBundleIdentifier: nil,
                     widgetSpan: nil,
@@ -696,6 +700,7 @@ final class TileStore: ObservableObject {
             folderURL: existingItem.folderURL,
             folderDisplayName: existingItem.folderDisplayName,
             folderDisplayMode: existingItem.folderDisplayMode,
+            folderContentViewMode: existingItem.folderContentViewMode,
             widgetKind: existingItem.widgetKind,
             widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
             widgetSpan: existingItem.widgetSpan,
@@ -753,6 +758,7 @@ final class TileStore: ObservableObject {
             folderURL: existingItem.folderURL,
             folderDisplayName: existingItem.folderDisplayName,
             folderDisplayMode: existingItem.folderDisplayMode,
+            folderContentViewMode: existingItem.folderContentViewMode,
             widgetKind: existingItem.widgetKind,
             widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
             widgetSpan: span,
@@ -773,12 +779,16 @@ final class TileStore: ObservableObject {
             return
         }
 
-        if let sourceTileID = systemOtherTiles.first(where: {
-            guard case .folder(let folder) = $0.content else { return false }
-            return folder.url.standardizedFileURL == normalizedFolderURL
-        })?.id {
+        if let systemFolder = systemFolderEntry(normalizedFolderURL: normalizedFolderURL) {
             var trailingItems = preferences.trailingItems
-            trailingItems.insert(.folder(sourceTileID: sourceTileID, displayMode: mode), at: trailingItems.firstIndex(where: { $0.kind == .trash }) ?? trailingItems.count)
+            trailingItems.insert(
+                .folder(
+                    sourceTileID: systemFolder.tileID,
+                    displayMode: mode,
+                    contentViewMode: systemFolder.folder.contentViewMode
+                ),
+                at: trailingItems.firstIndex(where: { $0.kind == .trash }) ?? trailingItems.count
+            )
             preferences.trailingItems = trailingItems
             refreshTrailingTilesFromPreferences()
             rebuildTiles()
@@ -787,17 +797,55 @@ final class TileStore: ObservableObject {
 
     func folderDisplayMode(tileID: String, folderURL: URL) -> FolderTileDisplayMode {
         let normalizedFolderURL = folderURL.standardizedFileURL
-        guard let item = preferences.trailingItems.first(where: {
+        if let item = preferences.trailingItems.first(where: {
             matchesFolderItem($0, tileID: tileID, normalizedFolderURL: normalizedFolderURL)
-        }) else {
-            return .contents
+        }) {
+            return resolvedFolderDisplayMode(for: item)
         }
-        return item.effectiveFolderDisplayMode
+
+        return systemFolderEntry(normalizedFolderURL: normalizedFolderURL)?.folder.displayMode ?? .contents
+    }
+
+    func setFolderContentViewMode(tileID: String, folderURL: URL, mode: FolderTileContentViewMode) {
+        let normalizedFolderURL = folderURL.standardizedFileURL
+
+        if let itemIndex = preferences.trailingItems.firstIndex(where: {
+            matchesFolderItem($0, tileID: tileID, normalizedFolderURL: normalizedFolderURL)
+        }) {
+            updateFolderContentViewMode(at: itemIndex, mode: mode)
+            return
+        }
+
+        if let systemFolder = systemFolderEntry(normalizedFolderURL: normalizedFolderURL) {
+            var trailingItems = preferences.trailingItems
+            trailingItems.insert(
+                .folder(
+                    sourceTileID: systemFolder.tileID,
+                    displayMode: systemFolder.folder.displayMode,
+                    contentViewMode: mode
+                ),
+                at: trailingItems.firstIndex(where: { $0.kind == .trash }) ?? trailingItems.count
+            )
+            preferences.trailingItems = trailingItems
+            refreshTrailingTilesFromPreferences()
+            rebuildTiles()
+        }
+    }
+
+    func folderContentViewMode(tileID: String, folderURL: URL) -> FolderTileContentViewMode {
+        let normalizedFolderURL = folderURL.standardizedFileURL
+        if let item = preferences.trailingItems.first(where: {
+            matchesFolderItem($0, tileID: tileID, normalizedFolderURL: normalizedFolderURL)
+        }) {
+            return resolvedFolderContentViewMode(for: item)
+        }
+
+        return systemFolderEntry(normalizedFolderURL: normalizedFolderURL)?.folder.contentViewMode ?? .grid
     }
 
     private func updateFolderDisplayMode(at itemIndex: Int, mode: FolderTileDisplayMode) {
         let existingItem = preferences.trailingItems[itemIndex]
-        guard existingItem.effectiveFolderDisplayMode != mode else {
+        guard resolvedFolderDisplayMode(for: existingItem) != mode else {
             return
         }
 
@@ -809,6 +857,7 @@ final class TileStore: ObservableObject {
             folderURL: existingItem.folderURL,
             folderDisplayName: existingItem.folderDisplayName,
             folderDisplayMode: mode,
+            folderContentViewMode: existingItem.folderContentViewMode,
             widgetKind: existingItem.widgetKind,
             widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
             widgetSpan: existingItem.widgetSpan,
@@ -817,6 +866,70 @@ final class TileStore: ObservableObject {
         preferences.trailingItems = trailingItems
         refreshTrailingTilesFromPreferences()
         rebuildTiles()
+    }
+
+    private func updateFolderContentViewMode(at itemIndex: Int, mode: FolderTileContentViewMode) {
+        let existingItem = preferences.trailingItems[itemIndex]
+        guard resolvedFolderContentViewMode(for: existingItem) != mode else {
+            return
+        }
+
+        var trailingItems = preferences.trailingItems
+        trailingItems[itemIndex] = TrailingTileItem(
+            id: existingItem.id,
+            kind: existingItem.kind,
+            sourceTileID: existingItem.sourceTileID,
+            folderURL: existingItem.folderURL,
+            folderDisplayName: existingItem.folderDisplayName,
+            folderDisplayMode: existingItem.folderDisplayMode,
+            folderContentViewMode: mode,
+            widgetKind: existingItem.widgetKind,
+            widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
+            widgetSpan: existingItem.widgetSpan,
+            hiddenWidgetOwnerBundleIdentifiers: existingItem.hiddenWidgetOwnerBundleIdentifiers
+        )
+        preferences.trailingItems = trailingItems
+        refreshTrailingTilesFromPreferences()
+        rebuildTiles()
+    }
+
+    private func resolvedFolderDisplayMode(for item: TrailingTileItem) -> FolderTileDisplayMode {
+        if let mode = item.folderDisplayMode {
+            return mode
+        }
+
+        return systemFolder(for: item)?.displayMode ?? .contents
+    }
+
+    private func resolvedFolderContentViewMode(for item: TrailingTileItem) -> FolderTileContentViewMode {
+        if let mode = item.folderContentViewMode {
+            return mode
+        }
+
+        return systemFolder(for: item)?.contentViewMode ?? .grid
+    }
+
+    private func systemFolder(for item: TrailingTileItem) -> FolderTile? {
+        guard let sourceTileID = item.sourceTileID,
+              let tile = systemOtherTilesByID[sourceTileID],
+              case .folder(let folder) = tile.content else {
+            return nil
+        }
+
+        return folder
+    }
+
+    private func systemFolderEntry(normalizedFolderURL: URL) -> (tileID: String, folder: FolderTile)? {
+        for tile in systemOtherTiles {
+            guard case .folder(let folder) = tile.content,
+                  folder.url.standardizedFileURL == normalizedFolderURL else {
+                continue
+            }
+
+            return (tile.id, folder)
+        }
+
+        return nil
     }
 
     private func matchesFolderItem(_ item: TrailingTileItem, tileID: String, normalizedFolderURL: URL) -> Bool {
@@ -1073,7 +1186,8 @@ final class TileStore: ObservableObject {
                     content: .folder(FolderTile(
                         url: folder.url,
                         displayName: folder.displayName,
-                        displayMode: item.effectiveFolderDisplayMode
+                        displayMode: resolvedFolderDisplayMode(for: item),
+                        contentViewMode: resolvedFolderContentViewMode(for: item)
                     ))
                 )
             }
@@ -1086,7 +1200,8 @@ final class TileStore: ObservableObject {
                 content: .folder(FolderTile(
                     url: folderURL,
                     displayName: item.folderDisplayName ?? FileManager.default.displayName(atPath: folderURL.path),
-                    displayMode: item.effectiveFolderDisplayMode
+                    displayMode: resolvedFolderDisplayMode(for: item),
+                    contentViewMode: resolvedFolderContentViewMode(for: item)
                 ))
             )
         case .trash:
@@ -1404,8 +1519,12 @@ final class TileStore: ObservableObject {
 
     nonisolated private static func trailingItem(from tile: Tile) -> TrailingTileItem? {
         switch tile.content {
-        case .folder:
-            return .folder(sourceTileID: tile.id)
+        case .folder(let folder):
+            return .folder(
+                sourceTileID: tile.id,
+                displayMode: folder.displayMode,
+                contentViewMode: folder.contentViewMode
+            )
         case .trash:
             return .trash()
         case .widget, .smartStack, .app, .appFolder, .spacer, .divider, .minimizedWindow:
@@ -1509,7 +1628,37 @@ final class TileStore: ObservableObject {
               let url = URL(string: urlString) else {
             return nil
         }
-        return Tile(id: id, content: .folder(FolderTile(url: url, displayName: label, displayMode: .contents)))
+
+        let displayMode = parseFolderDisplayMode(from: data["displayas"])
+        let contentViewMode = parseFolderContentViewMode(from: data["showas"])
+        return Tile(
+            id: id,
+            content: .folder(FolderTile(
+                url: url,
+                displayName: label,
+                displayMode: displayMode,
+                contentViewMode: contentViewMode
+            ))
+        )
+    }
+
+    private static func parseFolderDisplayMode(from rawValue: Any?) -> FolderTileDisplayMode {
+        guard (rawValue as? NSNumber)?.intValue == 1 else {
+            return .contents
+        }
+
+        return .folder
+    }
+
+    private static func parseFolderContentViewMode(from rawValue: Any?) -> FolderTileContentViewMode {
+        switch (rawValue as? NSNumber)?.intValue {
+        case 3:
+            return .list
+        case 1, 2, nil:
+            return .grid
+        default:
+            return .grid
+        }
     }
 
     private static func inferBundleIdentifier(from url: URL?) -> String? {

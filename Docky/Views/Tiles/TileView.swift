@@ -19,6 +19,7 @@ struct TileView: View {
     @State private var isHovering = false
     @State private var isTooltipPresented = false
     @State private var isFolderPopoverPresented = false
+    @State private var isFolderListMenuPresented = false
     @State private var isAppFolderPopoverPresented = false
     @State private var isContextMenuPresented = false
     @State private var folderSnapshot: FolderContentsSnapshot = .loaded([])
@@ -44,7 +45,7 @@ struct TileView: View {
             case .trash:
                 return catalogActions
             case .folder:
-                var actions = folderDisplayContextActions + [.divider] + catalogActions
+                var actions = folderPresentationContextActions + [.divider] + catalogActions
                 if isDockyTrailingTile {
                     actions.append(.divider)
                     actions.append(.action("Remove from Dock") {
@@ -69,7 +70,7 @@ struct TileView: View {
         case .smartStack(let stack):
             return smartStackContextActions(for: stack)
         case .folder(let folder):
-            var actions = folderDisplayContextActions + [.divider,
+            var actions = folderPresentationContextActions + [.divider,
                 .action("Open in Finder") {
                     Task {
                         _ = await AppleScriptService.shared.openFinderWindow(for: folder.url)
@@ -109,7 +110,7 @@ struct TileView: View {
         }
     }
 
-    private var folderDisplayContextActions: [ContextAction] {
+    private var folderPresentationContextActions: [ContextAction] {
         guard case .folder(let folder) = tile.content else {
             return []
         }
@@ -122,6 +123,14 @@ struct TileView: View {
                 .action("Contents", isOn: folderDisplayMode == .contents) {
                     TileStore.shared.setFolderDisplayMode(tileID: tile.id, folderURL: folder.url, mode: .contents)
                 }
+            ]),
+            .submenu("View Content as", children: [
+                .action("Grid", isOn: folderContentViewMode == .grid) {
+                    TileStore.shared.setFolderContentViewMode(tileID: tile.id, folderURL: folder.url, mode: .grid)
+                },
+                .action("List", isOn: folderContentViewMode == .list) {
+                    TileStore.shared.setFolderContentViewMode(tileID: tile.id, folderURL: folder.url, mode: .list)
+                }
             ])
         ]
     }
@@ -131,6 +140,14 @@ struct TileView: View {
             return .contents
         }
         return TileStore.shared.folderDisplayMode(tileID: tile.id, folderURL: folder.url)
+    }
+
+    private var folderContentViewMode: FolderTileContentViewMode {
+        guard case .folder(let folder) = tile.content else {
+            return .grid
+        }
+
+        return TileStore.shared.folderContentViewMode(tileID: tile.id, folderURL: folder.url)
     }
 
     private var customDockyTileActions: [ContextAction] {
@@ -216,12 +233,17 @@ struct TileView: View {
                 isHovering = false
                 isTooltipPresented = false
                 isFolderPopoverPresented = false
+                isFolderListMenuPresented = false
                 isAppFolderPopoverPresented = false
                 isContextMenuPresented = false
             }
             .onChange(of: isFolderPopoverPresented) { _, isPresented in
+                updateTooltipPresentation()
                 guard !isPresented else { return }
                 lastFolderPopoverDismissedAt = Date.timeIntervalSinceReferenceDate
+            }
+            .onChange(of: isFolderListMenuPresented) { _, _ in
+                updateTooltipPresentation()
             }
             .background {
                 ContextActionMenuPresenter(
@@ -240,12 +262,30 @@ struct TileView: View {
                 }
 
                 if case .folder(let folder) = tile.content {
-                    FolderPopoverPresenter(
-                        tile: folder,
-                        initialSnapshot: folderSnapshot,
-                        isPresented: $isFolderPopoverPresented,
-                        preferredEdge: inwardPopoverEdge
-                    )
+                    if folderContentViewMode == .list {
+                        FolderListMenuPresenter(
+                            tile: FolderTile(
+                                url: folder.url,
+                                displayName: folder.displayName,
+                                displayMode: folderDisplayMode,
+                                contentViewMode: folderContentViewMode
+                            ),
+                            isPresented: $isFolderListMenuPresented,
+                            preferredEdge: inwardPopoverEdge
+                        )
+                    } else {
+                        FolderPopoverPresenter(
+                            tile: FolderTile(
+                                url: folder.url,
+                                displayName: folder.displayName,
+                                displayMode: folderDisplayMode,
+                                contentViewMode: folderContentViewMode
+                            ),
+                            initialSnapshot: folderSnapshot,
+                            isPresented: $isFolderPopoverPresented,
+                            preferredEdge: inwardPopoverEdge
+                        )
+                    }
                 }
 
                 if case .appFolder(let folder) = tile.content {
@@ -512,7 +552,8 @@ struct TileView: View {
                 tile: FolderTile(
                     url: folder.url,
                     displayName: folder.displayName,
-                    displayMode: folderDisplayMode
+                    displayMode: folderDisplayMode,
+                    contentViewMode: folderContentViewMode
                 ),
                 isOpen: isFolderPopoverPresented,
             )
@@ -560,6 +601,7 @@ struct TileView: View {
         isTooltipPresented = isHovering
             && tooltipTitle != nil
             && !isFolderPopoverPresented
+            && !isFolderListMenuPresented
             && !isAppFolderPopoverPresented
             && !isContextMenuPresented
     }
@@ -589,6 +631,13 @@ struct TileView: View {
             return
         case .folder(let folder):
             isTooltipPresented = false
+
+            if folderContentViewMode == .list {
+                isFolderPopoverPresented = false
+                guard !isFolderListMenuPresented else { return }
+                isFolderListMenuPresented = true
+                return
+            }
 
             if isFolderPopoverPresented {
                 isFolderPopoverPresented = false
@@ -1143,6 +1192,210 @@ private final class TooltipAnchorView: NSView {
     }
 }
 
+private struct FolderListMenuPresenter: NSViewRepresentable {
+    let tile: FolderTile
+    @Binding var isPresented: Bool
+    let preferredEdge: NSRectEdge
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(tile: tile, isPresented: $isPresented, preferredEdge: preferredEdge)
+    }
+
+    func makeNSView(context: Context) -> FolderListMenuAnchorView {
+        FolderListMenuAnchorView()
+    }
+
+    func updateNSView(_ nsView: FolderListMenuAnchorView, context: Context) {
+        context.coordinator.update(tile: tile, isPresented: $isPresented, preferredEdge: preferredEdge)
+
+        if isPresented {
+            DispatchQueue.main.async {
+                context.coordinator.show(relativeTo: nsView)
+            }
+        } else {
+            context.coordinator.close()
+        }
+    }
+
+    static func dismantleNSView(_ nsView: FolderListMenuAnchorView, coordinator: Coordinator) {
+        coordinator.close()
+    }
+
+    final class Coordinator: NSObject, NSMenuDelegate {
+        private var tile: FolderTile
+        private var isPresented: Binding<Bool>
+        private var preferredEdge: NSRectEdge
+        private weak var anchorView: NSView?
+        private var isShowing = false
+        private var isInterruptingAutohide = false
+        private var folderURLByMenuID: [ObjectIdentifier: URL] = [:]
+
+        init(tile: FolderTile, isPresented: Binding<Bool>, preferredEdge: NSRectEdge) {
+            self.tile = tile
+            self.isPresented = isPresented
+            self.preferredEdge = preferredEdge
+            super.init()
+        }
+
+        func update(tile: FolderTile, isPresented: Binding<Bool>, preferredEdge: NSRectEdge) {
+            self.tile = tile
+            self.isPresented = isPresented
+            self.preferredEdge = preferredEdge
+        }
+
+        func show(relativeTo view: NSView) {
+            guard view.window != nil, !isShowing else { return }
+
+            anchorView = view
+            isShowing = true
+            beginAutohideInterruption(for: view)
+            folderURLByMenuID.removeAll()
+            let menu = buildMenu(for: tile.url, title: tile.displayName)
+            popUp(menu: menu, in: view)
+            endAutohideInterruption()
+            isShowing = false
+
+            DispatchQueue.main.async { [isPresented] in
+                guard isPresented.wrappedValue else { return }
+                isPresented.wrappedValue = false
+            }
+        }
+
+        func close() {
+            endAutohideInterruption()
+            isShowing = false
+            folderURLByMenuID.removeAll()
+        }
+
+        private func buildMenu(for folderURL: URL, title: String) -> NSMenu {
+            let menu = NSMenu(title: title)
+            populate(menu: menu, for: folderURL)
+            return menu
+        }
+
+        private func populate(menu: NSMenu, for folderURL: URL) {
+            menu.removeAllItems()
+
+            switch FolderAccessService.shared.snapshot(of: folderURL) {
+            case .loaded(let itemURLs):
+                if itemURLs.isEmpty {
+                    let emptyItem = NSMenuItem(title: "No visible items", action: nil, keyEquivalent: "")
+                    emptyItem.isEnabled = false
+                    menu.addItem(emptyItem)
+                } else {
+                    for itemURL in itemURLs {
+                        menu.addItem(menuItem(for: itemURL))
+                    }
+                }
+            case .unreadable:
+                let unreadableItem = NSMenuItem(title: "Can't read folder contents", action: nil, keyEquivalent: "")
+                unreadableItem.isEnabled = false
+                menu.addItem(unreadableItem)
+            }
+
+            if !menu.items.isEmpty {
+                menu.addItem(.separator())
+            }
+
+            let openInFinderItem = NSMenuItem(title: "Open in Finder", action: #selector(openInFinder(_:)), keyEquivalent: "")
+            openInFinderItem.target = self
+            openInFinderItem.representedObject = folderURL
+            menu.addItem(openInFinderItem)
+        }
+
+        private func menuItem(for itemURL: URL) -> NSMenuItem {
+            let item = NSMenuItem(title: displayName(for: itemURL), action: nil, keyEquivalent: "")
+            item.image = IconCacheService.shared.icon(forFileURL: itemURL)
+
+            if isNavigableFolder(itemURL) {
+                let submenu = NSMenu(title: item.title)
+                submenu.delegate = self
+                folderURLByMenuID[ObjectIdentifier(submenu)] = itemURL
+                item.submenu = submenu
+            } else {
+                item.action = #selector(openFile(_:))
+                item.target = self
+                item.representedObject = itemURL
+            }
+
+            return item
+        }
+
+        @objc private func openFile(_ sender: NSMenuItem) {
+            guard let url = sender.representedObject as? URL else { return }
+            _ = NSWorkspace.shared.open(url)
+        }
+
+        @objc private func openInFinder(_ sender: NSMenuItem) {
+            guard let url = sender.representedObject as? URL else { return }
+            Task {
+                _ = await AppleScriptService.shared.openFinderWindow(for: url)
+            }
+        }
+
+        private func displayName(for itemURL: URL) -> String {
+            (try? itemURL.resourceValues(forKeys: [.localizedNameKey]).localizedName) ?? itemURL.lastPathComponent
+        }
+
+        private func isNavigableFolder(_ itemURL: URL) -> Bool {
+            let values = try? itemURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+            return values?.isDirectory == true && values?.isPackage != true
+        }
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            guard let folderURL = folderURLByMenuID[ObjectIdentifier(menu)] else { return }
+            populate(menu: menu, for: folderURL)
+        }
+
+        private func popUp(menu: NSMenu, in view: NSView) {
+            let selector = NSSelectorFromString("_popUpMenuRelativeToRect:inView:preferredEdge:")
+            if menu.responds(to: selector) {
+                typealias Fn = @convention(c) (NSMenu, Selector, NSRect, NSView?, NSRectEdge) -> Void
+                let imp = menu.method(for: selector)
+                let fn = unsafeBitCast(imp, to: Fn.self)
+                fn(menu, selector, view.bounds, view, preferredEdge)
+                return
+            }
+
+            menu.update()
+            let anchorRect = view.bounds
+            let anchor: NSPoint
+            switch preferredEdge {
+            case .minX:
+                anchor = NSPoint(x: anchorRect.minX, y: anchorRect.midY)
+            case .maxX:
+                anchor = NSPoint(x: anchorRect.maxX, y: anchorRect.midY)
+            case .minY:
+                anchor = NSPoint(x: anchorRect.midX - menu.size.width / 2, y: anchorRect.minY)
+            case .maxY:
+                anchor = NSPoint(x: anchorRect.midX - menu.size.width / 2, y: anchorRect.maxY)
+            @unknown default:
+                anchor = NSPoint(x: anchorRect.midX - menu.size.width / 2, y: anchorRect.maxY)
+            }
+
+            menu.popUp(positioning: nil, at: anchor, in: view)
+        }
+
+        private func beginAutohideInterruption(for view: NSView) {
+            guard !isInterruptingAutohide else { return }
+            (view.window as? MainWindow)?.beginInteraction()
+            isInterruptingAutohide = true
+        }
+
+        private func endAutohideInterruption() {
+            guard isInterruptingAutohide else { return }
+            (anchorView?.window as? MainWindow)?.endInteraction()
+            isInterruptingAutohide = false
+        }
+    }
+}
+
+private final class FolderListMenuAnchorView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
 private struct FolderPopoverPresenter: NSViewRepresentable {
     let tile: FolderTile
     let initialSnapshot: FolderContentsSnapshot
@@ -1185,7 +1438,12 @@ private struct FolderPopoverPresenter: NSViewRepresentable {
         private let popover = NSPopover()
         private let hostingController = NSHostingController(
             rootView: FolderPopoverView(
-                tile: FolderTile(url: URL(fileURLWithPath: "/"), displayName: "", displayMode: .contents),
+                tile: FolderTile(
+                    url: URL(fileURLWithPath: "/"),
+                    displayName: "",
+                    displayMode: .contents,
+                    contentViewMode: .grid
+                ),
                 initialSnapshot: .loaded([]),
                 isPresented: .constant(false)
             )

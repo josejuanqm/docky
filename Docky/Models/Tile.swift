@@ -116,4 +116,17 @@ struct FolderTile: Equatable {
     let url: URL
     let displayName: String
     let displayMode: FolderTileDisplayMode
+    let contentViewMode: FolderTileContentViewMode
+
+    nonisolated init(
+        url: URL,
+        displayName: String,
+        displayMode: FolderTileDisplayMode,
+        contentViewMode: FolderTileContentViewMode = .grid
+    ) {
+        self.url = url
+        self.displayName = displayName
+        self.displayMode = displayMode
+        self.contentViewMode = contentViewMode
+    }
 }
