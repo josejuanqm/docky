@@ -40,6 +40,16 @@ struct GeneralSettingsView: View {
                 .padding(.vertical, 4)
 
                 VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Shows Grouped Opened Apps In Dock", isOn: $preferences.showsGroupedOpenedAppsInDock)
+                        .font(.headline)
+
+                    Text("Shows running apps from an app folder immediately to the right of that folder, and lets the folder reflect how many grouped apps are open.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Active Indicator Shape")
                         .font(.headline)
 

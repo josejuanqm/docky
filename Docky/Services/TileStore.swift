@@ -75,6 +75,13 @@ final class TileStore: ObservableObject {
                 self?.rebuildTiles()
             }
             .store(in: &cancellables)
+        preferences.$showsGroupedOpenedAppsInDock
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.rebuildTiles()
+            }
+            .store(in: &cancellables)
         mediaPlayback.$statesByBundleIdentifier
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -1166,10 +1173,31 @@ final class TileStore: ObservableObject {
 
         for tile in baseTiles {
             result.append(tile)
-            guard let bundleIdentifier = bundleIdentifier(of: tile) else {
-                continue
+            if let bundleIdentifier = bundleIdentifier(of: tile) {
+                result.append(contentsOf: widgetTiles(for: bundleIdentifier))
+            } else if case .appFolder(let folder) = tile.content {
+                result.append(contentsOf: openedAppTiles(for: folder))
             }
-            result.append(contentsOf: widgetTiles(for: bundleIdentifier))
+        }
+
+        return result
+    }
+
+    private func openedAppTiles(for folder: AppFolderTile) -> [Tile] {
+        guard preferences.showsGroupedOpenedAppsInDock else {
+            return []
+        }
+
+        let runningBundleIdentifiers = WorkspaceService.shared.runningBundleIdentifiers
+        var result: [Tile] = []
+
+        for app in folder.apps where runningBundleIdentifiers.contains(app.bundleIdentifier) {
+            let tile = Tile(
+                id: "folder-running:\(folder.identifier):\(app.bundleIdentifier)",
+                content: .app(app)
+            )
+            result.append(tile)
+            result.append(contentsOf: widgetTiles(for: app.bundleIdentifier))
         }
 
         return result

@@ -389,6 +389,14 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Whether opened apps from an app folder should appear grouped beside that folder.
+    @Published var showsGroupedOpenedAppsInDock: Bool {
+        didSet {
+            guard showsGroupedOpenedAppsInDock != oldValue else { return }
+            defaults.set(showsGroupedOpenedAppsInDock, forKey: Keys.showsGroupedOpenedAppsInDock)
+        }
+    }
+
     /// Docky-owned ordered pinned app bundle identifiers.
     @Published var pinnedAppBundleIdentifiers: [String] {
         didSet {
@@ -439,6 +447,7 @@ final class DockyPreferences: ObservableObject {
         static let windowPosition = "docky.windowPosition"
         static let autohidesWindow = "docky.autohidesWindow"
         static let activeIndicatorShape = "docky.activeIndicatorShape"
+        static let showsGroupedOpenedAppsInDock = "docky.showsGroupedOpenedAppsInDock"
         static let pinnedAppBundleIdentifiers = "docky.pinnedAppBundleIdentifiers"
         static let pinnedItems = "docky.pinnedItems"
         static let widgetPlacements = "docky.widgetPlacements"
@@ -452,6 +461,7 @@ final class DockyPreferences: ObservableObject {
         static let windowPosition: DockWindowPosition = .system
         static let autohidesWindow = false
         static let activeIndicatorShape: DockTileIndicatorShape = .dot
+        static let showsGroupedOpenedAppsInDock = true
         static let pinnedAppBundleIdentifiers: [String] = []
         static let pinnedItems: [PinnedTileItem] = []
         static let widgetPlacements: [WidgetPlacement] = []
@@ -466,6 +476,7 @@ final class DockyPreferences: ObservableObject {
         let storedWindowPosition = defaults.string(forKey: Keys.windowPosition)
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
         let storedActiveIndicatorShape = defaults.string(forKey: Keys.activeIndicatorShape)
+        let storedShowsGroupedOpenedAppsInDock = defaults.object(forKey: Keys.showsGroupedOpenedAppsInDock) as? Bool
         let storedPinnedAppBundleIdentifiers = defaults.stringArray(forKey: Keys.pinnedAppBundleIdentifiers)
         let storedPinnedItems = defaults.data(forKey: Keys.pinnedItems)
         let storedWidgetPlacements = defaults.data(forKey: Keys.widgetPlacements)
@@ -479,6 +490,7 @@ final class DockyPreferences: ObservableObject {
         self.windowPosition = (storedWindowPosition.flatMap(DockWindowPosition.init(rawValue:)) ?? DefaultValues.windowPosition)
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
         self.activeIndicatorShape = (storedActiveIndicatorShape.flatMap(DockTileIndicatorShape.init(rawValue:)) ?? DefaultValues.activeIndicatorShape)
+        self.showsGroupedOpenedAppsInDock = storedShowsGroupedOpenedAppsInDock ?? DefaultValues.showsGroupedOpenedAppsInDock
         self.pinnedAppBundleIdentifiers = initialPinnedAppBundleIdentifiers
         self.pinnedItems = initialPinnedItems
         self.widgetPlacements = Self.decodeWidgetPlacements(from: storedWidgetPlacements) ?? DefaultValues.widgetPlacements
@@ -492,6 +504,7 @@ final class DockyPreferences: ObservableObject {
         windowPosition = DefaultValues.windowPosition
         autohidesWindow = DefaultValues.autohidesWindow
         activeIndicatorShape = DefaultValues.activeIndicatorShape
+        showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         pinnedAppBundleIdentifiers = DefaultValues.pinnedAppBundleIdentifiers
         pinnedItems = DefaultValues.pinnedItems
         widgetPlacements = DefaultValues.widgetPlacements

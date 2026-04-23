@@ -9,6 +9,22 @@ import SwiftUI
 struct AppFolderTileView: View {
     let tile: AppFolderTile
     let cornerRadius: CGFloat
+    @ObservedObject private var preferences = DockyPreferences.shared
+    @ObservedObject private var workspace = WorkspaceService.shared
+
+    var openedAppCount: Int {
+        guard preferences.showsGroupedOpenedAppsInDock else {
+            return 0
+        }
+
+        return tile.apps.count { app in
+            workspace.isRunning(bundleIdentifier: app.bundleIdentifier)
+        }
+    }
+
+    private var groupedOpenedAppSpan: Int {
+        max(openedAppCount, 0) + 1
+    }
 
     var body: some View {
         content
@@ -19,6 +35,20 @@ struct AppFolderTileView: View {
     private var content: some View {
         GeometryReader { geo in
             iconGrid(in: geo.size)
+                .background(
+                    Color.primary.opacity(openedAppCount > 0 ? 0.2 : 0)
+                        .clipShape(.rect(cornerRadius: cornerRadius, style: .continuous))
+                        .padding(.top, -4)
+                        .padding(.bottom, -3)
+                        .frame(
+                            width: (CGFloat(groupedOpenedAppSpan) * DockSettingsService.shared.tileSize) - 4
+                        )
+                        .offset(
+                            x: (
+                                (CGFloat(groupedOpenedAppSpan) * DockSettingsService.shared.tileSize) / 2
+                            ) - DockSettingsService.shared.tileSize / 2
+                        )
+                )
         }
     }
 
