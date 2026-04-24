@@ -67,7 +67,7 @@ struct FolderTileView: View {
         let centeredBaseOffset = CGFloat(preview.count - 1) / 2
 
         return ZStack {
-            ForEach(Array(preview.enumerated().reversed()), id: \.element) { pair in
+            ForEach(Array(preview.enumerated()).reversed(), id: \.element) { pair in
                 let depth = CGFloat(pair.offset)
 
                 Image(nsImage: IconCacheService.shared.icon(forFileURL: pair.element))
@@ -75,7 +75,7 @@ struct FolderTileView: View {
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
                     .frame(width: side, height: side)
-                    .opacity(1 - (depth * 0.12))
+                    .opacity(1.0 - (depth * 0.12))
                     .offset(y: (centeredBaseOffset - CGFloat(pair.offset)) * verticalStep)
             }
         }
