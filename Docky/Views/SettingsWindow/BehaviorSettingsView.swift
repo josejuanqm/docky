@@ -39,6 +39,16 @@ struct BehaviorSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Show Active/Pinned Separator", isOn: $preferences.showsActivePinnedSeparator)
+                        .font(.headline)
+
+                    Text("Shows the divider between pinned apps and unpinned running apps.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
             }
 
             Section("App Folders") {

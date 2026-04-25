@@ -559,6 +559,14 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Whether Docky shows the divider between pinned apps and unpinned running apps.
+    @Published var showsActivePinnedSeparator: Bool {
+        didSet {
+            guard showsActivePinnedSeparator != oldValue else { return }
+            defaults.set(showsActivePinnedSeparator, forKey: Keys.showsActivePinnedSeparator)
+        }
+    }
+
     /// Shape used for the active app indicator.
     @Published var activeIndicatorShape: DockTileIndicatorShape {
         didSet {
@@ -727,6 +735,7 @@ final class DockyPreferences: ObservableObject {
         static let windowBackgroundImagePath = "docky.windowBackgroundImagePath"
         static let windowPosition = "docky.windowPosition"
         static let autohidesWindow = "docky.autohidesWindow"
+        static let showsActivePinnedSeparator = "docky.showsActivePinnedSeparator"
         static let activeIndicatorShape = "docky.activeIndicatorShape"
         static let activeIndicatorImagePath = "docky.activeIndicatorImagePath"
         static let activeIndicatorColor = "docky.activeIndicatorColor"
@@ -749,6 +758,7 @@ final class DockyPreferences: ObservableObject {
         static let windowBackgroundImagePath: String? = nil
         static let windowPosition: DockWindowPosition = .system
         static let autohidesWindow = false
+        static let showsActivePinnedSeparator = true
         static let activeIndicatorShape: DockTileIndicatorShape = .dot
         static let activeIndicatorImagePath: String? = nil
         static let activeIndicatorColor: DockColor? = nil
@@ -772,6 +782,7 @@ final class DockyPreferences: ObservableObject {
         let storedWindowBackgroundImagePath = defaults.string(forKey: Keys.windowBackgroundImagePath)
         let storedWindowPosition = defaults.string(forKey: Keys.windowPosition)
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
+        let storedShowsActivePinnedSeparator = defaults.object(forKey: Keys.showsActivePinnedSeparator) as? Bool
         let storedActiveIndicatorShape = defaults.string(forKey: Keys.activeIndicatorShape)
         let storedActiveIndicatorImagePath = defaults.string(forKey: Keys.activeIndicatorImagePath)
         let storedActiveIndicatorColor = defaults.data(forKey: Keys.activeIndicatorColor)
@@ -794,6 +805,7 @@ final class DockyPreferences: ObservableObject {
         self.windowBackgroundImagePath = storedWindowBackgroundImagePath ?? DefaultValues.windowBackgroundImagePath
         self.windowPosition = (storedWindowPosition.flatMap(DockWindowPosition.init(rawValue:)) ?? DefaultValues.windowPosition)
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
+        self.showsActivePinnedSeparator = storedShowsActivePinnedSeparator ?? DefaultValues.showsActivePinnedSeparator
         self.activeIndicatorShape = (storedActiveIndicatorShape.flatMap(DockTileIndicatorShape.init(rawValue:)) ?? DefaultValues.activeIndicatorShape)
         self.activeIndicatorImagePath = storedActiveIndicatorImagePath ?? DefaultValues.activeIndicatorImagePath
         self.activeIndicatorColor = Self.decodeColor(from: storedActiveIndicatorColor) ?? DefaultValues.activeIndicatorColor
@@ -816,6 +828,7 @@ final class DockyPreferences: ObservableObject {
         windowBackgroundImagePath = DefaultValues.windowBackgroundImagePath
         windowPosition = DefaultValues.windowPosition
         autohidesWindow = DefaultValues.autohidesWindow
+        showsActivePinnedSeparator = DefaultValues.showsActivePinnedSeparator
         activeIndicatorShape = DefaultValues.activeIndicatorShape
         activeIndicatorImagePath = DefaultValues.activeIndicatorImagePath
         activeIndicatorColor = DefaultValues.activeIndicatorColor

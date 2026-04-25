@@ -83,6 +83,13 @@ final class TileStore: ObservableObject {
                 self?.rebuildTiles()
             }
             .store(in: &cancellables)
+        preferences.$showsActivePinnedSeparator
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.rebuildTiles()
+            }
+            .store(in: &cancellables)
         mediaPlayback.$statesByBundleIdentifier
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -1326,7 +1333,7 @@ final class TileStore: ObservableObject {
 
         var result: [Tile] = tilesWithWidgets(appendedTo: [Self.finderTile()])
         result.append(contentsOf: tilesWithWidgets(appendedTo: pinnedWithoutFinder))
-        if !runningTiles.isEmpty {
+        if preferences.showsActivePinnedSeparator, !runningTiles.isEmpty {
             result.append(Tile(id: "divider:running", content: .divider))
         }
         result.append(contentsOf: tilesWithWidgets(appendedTo: runningTiles))
