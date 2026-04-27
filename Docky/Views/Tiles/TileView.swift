@@ -816,11 +816,6 @@ struct TileView: View {
             dockyOptions.append(showAsWidgetAction)
         }
 
-        let widgetActions = widgetManagementActions(for: app.bundleIdentifier)
-        if !widgetActions.isEmpty {
-            dockyOptions.append(.submenu("Widgets", children: widgetActions))
-        }
-
         guard !dockyOptions.isEmpty else {
             return actions
         }
@@ -986,11 +981,6 @@ struct TileView: View {
             WorkspaceService.shared.revealApplicationInFinder(bundleIdentifier: app.bundleIdentifier)
         })
 
-        let widgetActions = widgetManagementActions(for: app.bundleIdentifier)
-        if !widgetActions.isEmpty {
-            actions.append(.submenu("Widgets", children: widgetActions))
-        }
-
         return actions
     }
 
@@ -1041,42 +1031,6 @@ struct TileView: View {
         }
 
         return .submenu("Show as Widget", children: actions)
-    }
-
-    private func widgetManagementActions(for ownerBundleIdentifier: String) -> [ContextAction] {
-        guard MediaPlaybackService.shared.supportsWidget(bundleIdentifier: ownerBundleIdentifier) else {
-            return []
-        }
-
-        let existingPlacement = TileStore.shared.widgetPlacement(
-            kind: .nowPlaying,
-            ownerBundleIdentifier: ownerBundleIdentifier
-        )
-
-        if existingPlacement != nil {
-            let actions: [ContextAction] = [
-                .action("Now Playing Stack", isOn: true) {},
-                .divider,
-                .action("Remove Now Playing Stack") {
-                    TileStore.shared.removeWidget(
-                        kind: .nowPlaying,
-                        ownerBundleIdentifier: ownerBundleIdentifier
-                    )
-                },
-            ]
-
-            return actions
-        }
-
-        return [
-            .action("Add Now Playing Stack") {
-                TileStore.shared.setWidget(
-                    kind: .nowPlaying,
-                    ownerBundleIdentifier: ownerBundleIdentifier,
-                    span: .three
-                )
-            }
-        ]
     }
 
     private func widgetContextActions(for widget: WidgetTile) -> [ContextAction] {
