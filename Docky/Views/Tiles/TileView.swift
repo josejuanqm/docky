@@ -13,6 +13,7 @@ struct TileView: View {
     let tile: Tile
     let isDragging: Bool
     @ObservedObject private var dockSettings = DockSettingsService.shared
+    @ObservedObject private var layout = DockLayoutService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
     @ObservedObject private var workspace = WorkspaceService.shared
     @ObservedObject private var mediaPlayback = MediaPlaybackService.shared
@@ -33,6 +34,7 @@ struct TileView: View {
         self.tile = tile
         self.isDragging = isDragging
         self._dockSettings = ObservedObject(wrappedValue: DockSettingsService.shared)
+        self._layout = ObservedObject(wrappedValue: DockLayoutService.shared)
         self._preferences = ObservedObject(wrappedValue: DockyPreferences.shared)
         self._workspace = ObservedObject(wrappedValue: WorkspaceService.shared)
         self._mediaPlayback = ObservedObject(wrappedValue: MediaPlaybackService.shared)
@@ -245,7 +247,7 @@ struct TileView: View {
             .overlay(alignment: runningIndicatorAlignment) {
                 runningIndicator
                     .padding(runningIndicatorEdge, runningIndicatorInset)
-                    .offset(y: -max((preferences.tileVerticalPadding / 2), 2))
+                    .offset(y: -max((layout.scaled(preferences.tileVerticalPadding) / 2), 2))
             }
             .contentShape(Rectangle())
             .onHover(perform: updateHoverState)
@@ -341,6 +343,15 @@ struct TileView: View {
     @ViewBuilder
     private var laidOutContent: some View {
         switch tile.content {
+        case .app(let app) where app.displayedWidget != nil:
+            GeometryReader { proxy in
+                content
+                    .frame(
+                        width: max(0, proxy.size.width - contentInsets.width * 2),
+                        height: max(0, proxy.size.height - contentInsets.height * 2)
+                    )
+                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            }
         case .appFolder, .widget, .smartStack:
             GeometryReader { proxy in
                 content
@@ -470,7 +481,7 @@ struct TileView: View {
         case .divider:
             0
         default:
-            preferences.tileVerticalPadding
+            layout.scaled(preferences.tileVerticalPadding)
         }
     }
 
@@ -480,6 +491,8 @@ struct TileView: View {
 
     private var nonAppContentPadding: CGFloat {
         switch tile.content {
+        case .app(let app) where app.displayedWidget != nil:
+            tileChromeInset
         case .appFolder, .widget, .smartStack, .folder, .trash:
             tileChromeInset
         case .app, .minimizedWindow, .spacer, .divider:
@@ -499,11 +512,11 @@ struct TileView: View {
     }
 
     private var effectiveTileSize: CGFloat {
-        dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
+        layout.scaled(dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize)
     }
 
     private func renderedWidgetSpan(for span: TileSpan) -> TileSpan {
-        if position.isVertical || effectiveTileSize < 50 {
+        if layout.compactsWidgetsForOverflow || position.isVertical || effectiveTileSize < 50 {
             return .one
         }
 
@@ -573,11 +586,20 @@ struct TileView: View {
     private var content: some View {
         switch tile.content {
         case .app(let app):
-            AppTileView(
-                tile: app,
-                clipShape: preferences.tileClipShape,
-                transparencyCompensationInset: tileChromeInset
-            )
+            if let displayedWidget = app.displayedWidget {
+                WidgetTileView(
+                    tile: displayedWidget,
+                    cornerRadius: nonAppTileCornerRadius,
+                    renderedSpan: renderedWidgetSpan(for: displayedWidget.effectiveSpan),
+                    isWithinStack: false
+                )
+            } else {
+                AppTileView(
+                    tile: app,
+                    clipShape: preferences.tileClipShape,
+                    transparencyCompensationInset: tileChromeInset
+                )
+            }
         case .minimizedWindow(let window):
             MinimizedWindowTileView(tile: window)
         case .appFolder(let folder):
@@ -590,7 +612,7 @@ struct TileView: View {
             WidgetTileView(
                 tile: widget,
                 cornerRadius: nonAppTileCornerRadius,
-                renderedSpan: renderedWidgetSpan(for: widget.span),
+                renderedSpan: renderedWidgetSpan(for: widget.effectiveSpan),
                 isWithinStack: false
             )
         case .smartStack(let stack):
@@ -621,7 +643,7 @@ struct TileView: View {
     private var tooltipTitle: String? {
         switch tile.content {
         case .app(let app):
-            app.displayName
+            app.displayedWidget?.title ?? app.displayName
         case .minimizedWindow(let window):
             window.windowTitle
         case .appFolder(let folder):
@@ -663,7 +685,11 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             isTooltipPresented = false
-            WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
+            if let displayedWidget = app.displayedWidget {
+                handleWidgetTap(displayedWidget)
+            } else {
+                WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
+            }
         case .minimizedWindow(let window):
             isTooltipPresented = false
             _ = WorkspaceService.shared.restoreMinimizedWindow(window)
@@ -775,8 +801,43 @@ struct TileView: View {
 
         let workspace = WorkspaceService.shared
         let windows = workspace.appWindows(bundleIdentifier: app.bundleIdentifier)
-        let actions = baseActions ?? fallbackAppContextActions(for: app, modifierFlags: modifierFlags)
+        let actions = if let baseActions {
+            injectingDockyAppOptions(into: baseActions, for: app)
+        } else {
+            fallbackAppContextActions(for: app, modifierFlags: modifierFlags)
+        }
         return injectingAppWindowActions(windows, into: actions)
+    }
+
+    private func injectingDockyAppOptions(into actions: [ContextAction], for app: AppTile) -> [ContextAction] {
+        var dockyOptions: [ContextAction] = []
+
+        if let showAsWidgetAction = showAsWidgetAction(for: app) {
+            dockyOptions.append(showAsWidgetAction)
+        }
+
+        guard !dockyOptions.isEmpty else {
+            return actions
+        }
+
+        var result = actions
+        if let optionsIndex = result.firstIndex(where: {
+            $0.kind == .submenu && $0.title == "Options"
+        }) {
+            var children = result[optionsIndex].children
+            if !children.isEmpty, children.last?.kind != .divider {
+                children.append(.divider)
+            }
+            children.append(contentsOf: dockyOptions)
+            result[optionsIndex] = .submenu("Options", children: children)
+            return result
+        }
+
+        if !result.isEmpty, result.last?.kind != .divider {
+            result.append(.divider)
+        }
+        result.append(.submenu("Options", children: dockyOptions))
+        return result
     }
 
     private func fallbackAppContextActions(
@@ -912,52 +973,64 @@ struct TileView: View {
             })
         }
 
+        if let showAsWidgetAction = showAsWidgetAction(for: app) {
+            actions.append(showAsWidgetAction)
+        }
+
         actions.append(.action("Show in Finder") {
             WorkspaceService.shared.revealApplicationInFinder(bundleIdentifier: app.bundleIdentifier)
         })
 
-        let widgetActions = widgetManagementActions(for: app.bundleIdentifier)
-        if !widgetActions.isEmpty {
-            actions.append(.submenu("Widgets", children: widgetActions))
-        }
-
         return actions
     }
 
-    private func widgetManagementActions(for ownerBundleIdentifier: String) -> [ContextAction] {
-        guard MediaPlaybackService.shared.supportsWidget(bundleIdentifier: ownerBundleIdentifier) else {
-            return []
+    private func showAsWidgetAction(for app: AppTile) -> ContextAction? {
+        guard !TileStore.shared.isAppInFolder(bundleIdentifier: app.bundleIdentifier) else {
+            return nil
         }
 
-        let existingPlacement = TileStore.shared.widgetPlacement(
-            kind: .nowPlaying,
-            ownerBundleIdentifier: ownerBundleIdentifier
-        )
+        let candidates = TileStore.shared.appWidgetCandidates(bundleIdentifier: app.bundleIdentifier)
+        let configuredDisplay = TileStore.shared.appWidgetDisplay(bundleIdentifier: app.bundleIdentifier)
+        let currentKind = configuredDisplay?.kind
 
-        if existingPlacement != nil {
-            let actions: [ContextAction] = [
-                .action("Now Playing Stack", isOn: true) {},
-                .divider,
-                .action("Remove Now Playing Stack") {
-                    TileStore.shared.removeWidget(
-                        kind: .nowPlaying,
-                        ownerBundleIdentifier: ownerBundleIdentifier
-                    )
-                },
-            ]
-
-            return actions
+        guard !candidates.isEmpty || currentKind != nil else {
+            return nil
         }
 
-        return [
-            .action("Add Now Playing Stack") {
-                TileStore.shared.setWidget(
-                    kind: .nowPlaying,
-                    ownerBundleIdentifier: ownerBundleIdentifier,
-                    span: .three
-                )
+        var actions: [ContextAction] = [
+            .action("App Icon", isOn: currentKind == nil) {
+                TileStore.shared.removeAppWidgetDisplay(bundleIdentifier: app.bundleIdentifier)
             }
         ]
+
+        if !candidates.isEmpty {
+            actions.append(.divider)
+            actions.append(contentsOf: candidates.map { widget in
+                .action(widget.title, isOn: currentKind == widget.kind) {
+                    TileStore.shared.setAppWidgetDisplay(
+                        bundleIdentifier: app.bundleIdentifier,
+                        kind: widget.kind
+                    )
+                }
+            })
+        }
+
+        if let configuredDisplay {
+            let availableSpans = availableAppWidgetSpans(for: configuredDisplay.kind)
+            if availableSpans.count > 1 {
+                actions.append(.divider)
+                actions.append(.submenu("Span", children: availableSpans.map { span in
+                    .action(spanTitle(for: span), isOn: configuredDisplay.span == span) {
+                        TileStore.shared.setAppWidgetDisplaySpan(
+                            bundleIdentifier: app.bundleIdentifier,
+                            span: span
+                        )
+                    }
+                }))
+            }
+        }
+
+        return .submenu("Show as Widget", children: actions)
     }
 
     private func widgetContextActions(for widget: WidgetTile) -> [ContextAction] {
@@ -969,33 +1042,100 @@ struct TileView: View {
                 actions.append(.action("Quick Join") {
                     NSWorkspace.shared.open(quickJoinURL)
                 })
-                actions.append(.divider)
             }
 
-            if isDockyPinnedTile || isDockyTrailingTile {
-                actions.append(.submenu("Span", children: TileSpan.allCases.map { span in
-                    ContextAction.action(spanTitle(for: span), isOn: widget.span == span) {
-                        if isDockyPinnedTile {
-                            TileStore.shared.setPinnedWidgetSpan(tileID: tile.id, span: span)
-                        } else if isDockyTrailingTile {
-                            TileStore.shared.setTrailingWidgetSpan(tileID: tile.id, span: span)
-                        }
-                    }
-                }))
-                actions.append(.divider)
+            if let spanMenuAction = widgetSpanMenuAction(for: widget) {
+                appendDividerIfNeeded(to: &actions)
+                actions.append(spanMenuAction)
             }
 
+            appendDividerIfNeeded(to: &actions)
             actions.append(.action("Refresh Calendar") {
                 CalendarService.shared.refresh(force: true)
             })
             actions.append(.divider)
             actions.append(.action("Open Calendar") {
-                WorkspaceService.shared.activateOrOpen(bundleIdentifier: CalendarWidgetSupport.ownerBundleIdentifier)
+                WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.calendar)
             })
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
-                removeDockyTile()
+            actions.append(widgetRemovalAction(for: widget))
+            return actions
+        case .calendarDate:
+            return [
+                .action("Open Calendar") {
+                    WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.calendar)
+                },
+                .divider,
+                widgetRemovalAction(for: widget)
+            ]
+        case .reminders:
+            var actions: [ContextAction] = []
+
+            let completionActions = RemindersService.shared.snapshot?.completionCandidates.map { item in
+                ContextAction.action(reminderCompletionTitle(for: item, now: Date())) {
+                    Task {
+                        _ = await RemindersService.shared.completeReminder(identifier: item.identifier)
+                    }
+                }
+            } ?? []
+
+            if !completionActions.isEmpty {
+                actions.append(.submenu("Complete", children: completionActions))
+            }
+
+            if let spanMenuAction = widgetSpanMenuAction(for: widget) {
+                appendDividerIfNeeded(to: &actions)
+                actions.append(spanMenuAction)
+            }
+
+            appendDividerIfNeeded(to: &actions)
+            actions.append(.action("Refresh Reminders") {
+                RemindersService.shared.refresh(force: true)
             })
+            actions.append(.divider)
+            actions.append(.action("Open Reminders") {
+                WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.reminders)
+            })
+            actions.append(.divider)
+            actions.append(widgetRemovalAction(for: widget))
+            return actions
+        case .batteries:
+            var actions: [ContextAction] = [
+                .action("Refresh Batteries") {
+                    BatteriesService.shared.refresh(force: true)
+                }
+            ]
+
+            if let spanMenuAction = widgetSpanMenuAction(for: widget) {
+                actions.append(.divider)
+                actions.append(spanMenuAction)
+            }
+
+            actions.append(.divider)
+            actions.append(.action("Open Battery Settings") {
+                BatteriesService.shared.openInBatterySettings()
+            })
+            actions.append(.divider)
+            actions.append(widgetRemovalAction(for: widget))
+            return actions
+        case .systemStatus:
+            var actions: [ContextAction] = [
+                .action("Refresh Status") {
+                    SystemStatusService.shared.refresh(force: true)
+                }
+            ]
+
+            if let spanMenuAction = widgetSpanMenuAction(for: widget) {
+                actions.append(.divider)
+                actions.append(spanMenuAction)
+            }
+
+            actions.append(.divider)
+            actions.append(.action("Open Activity Monitor") {
+                SystemStatusService.shared.openInActivityMonitor()
+            })
+            actions.append(.divider)
+            actions.append(widgetRemovalAction(for: widget))
             return actions
         case .nowPlaying:
             var actions: [ContextAction] = []
@@ -1033,32 +1173,13 @@ struct TileView: View {
                 })
             }
 
-            if isDockyPinnedTile || isDockyTrailingTile {
+            if let spanMenuAction = widgetSpanMenuAction(for: widget) {
                 actions.append(.divider)
-                actions.append(.submenu("Span", children: availableWidgetSpans.map { span in
-                    ContextAction.action(spanTitle(for: span), isOn: widget.span == span) {
-                        if isDockyPinnedTile {
-                            TileStore.shared.setPinnedWidgetSpan(tileID: tile.id, span: span)
-                        } else if isDockyTrailingTile {
-                            TileStore.shared.setTrailingWidgetSpan(tileID: tile.id, span: span)
-                        }
-                    }
-                }))
+                actions.append(spanMenuAction)
             }
 
             actions.append(.divider)
-            if isDockyPinnedTile || isDockyTrailingTile {
-                actions.append(.action("Remove from Dock") {
-                    removeDockyTile()
-                })
-            } else {
-                actions.append(.action("Remove Stack") {
-                    TileStore.shared.removeWidget(
-                        kind: widget.kind,
-                        ownerBundleIdentifier: widget.ownerBundleIdentifier
-                    )
-                })
-            }
+            actions.append(widgetRemovalAction(for: widget, nonDockyTitle: "Remove Stack"))
             return actions
         case .weather:
             var actions: [ContextAction] = [
@@ -1067,17 +1188,9 @@ struct TileView: View {
                 }
             ]
 
-            if isDockyPinnedTile || isDockyTrailingTile {
+            if let spanMenuAction = widgetSpanMenuAction(for: widget) {
                 actions.append(.divider)
-                actions.append(.submenu("Span", children: availableWidgetSpans.map { span in
-                    ContextAction.action(spanTitle(for: span), isOn: widget.span == span) {
-                        if isDockyPinnedTile {
-                            TileStore.shared.setPinnedWidgetSpan(tileID: tile.id, span: span)
-                        } else if isDockyTrailingTile {
-                            TileStore.shared.setTrailingWidgetSpan(tileID: tile.id, span: span)
-                        }
-                    }
-                }))
+                actions.append(spanMenuAction)
             }
 
             actions.append(.divider)
@@ -1085,10 +1198,90 @@ struct TileView: View {
                 WeatherService.shared.openInWeatherApp()
             })
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
-                removeDockyTile()
-            })
+            actions.append(widgetRemovalAction(for: widget))
             return actions
+        }
+    }
+
+    private func widgetSpanMenuAction(for widget: WidgetTile) -> ContextAction? {
+        guard isDockyPinnedTile || isDockyTrailingTile else {
+            return nil
+        }
+
+        let availableSpans = availableWidgetSpans(for: widget)
+        guard availableSpans.count > 1 else {
+            return nil
+        }
+
+        return .submenu("Span", children: availableSpans.map { span in
+            ContextAction.action(spanTitle(for: span), isOn: widget.span == span) {
+                applyWidgetSpan(span)
+            }
+        })
+    }
+
+    private func availableWidgetSpans(for widget: WidgetTile) -> [TileSpan] {
+        if position.isVertical {
+            return [.one]
+        }
+
+        return widget.kind.supportedSpans
+    }
+
+    private func availableAppWidgetSpans(for kind: WidgetKind) -> [TileSpan] {
+        if position.isVertical {
+            return [.one]
+        }
+
+        return kind.supportedSpans
+    }
+
+    private func applyWidgetSpan(_ span: TileSpan) {
+        if isDockyPinnedTile {
+            TileStore.shared.setPinnedWidgetSpan(tileID: tile.id, span: span)
+        } else if isDockyTrailingTile {
+            TileStore.shared.setTrailingWidgetSpan(tileID: tile.id, span: span)
+        }
+    }
+
+    private func widgetRemovalAction(for widget: WidgetTile, nonDockyTitle: String = "Remove Widget") -> ContextAction {
+        if isDockyPinnedTile || isDockyTrailingTile {
+            return .action("Remove from Dock") {
+                removeDockyTile()
+            }
+        }
+
+        return .action(nonDockyTitle) {
+            TileStore.shared.removeWidget(
+                kind: widget.kind,
+                ownerBundleIdentifier: widget.ownerBundleIdentifier
+            )
+        }
+    }
+
+    private func appendDividerIfNeeded(to actions: inout [ContextAction]) {
+        guard !actions.isEmpty, actions.last?.kind != .divider else {
+            return
+        }
+
+        actions.append(.divider)
+    }
+
+    private func reminderCompletionTitle(for item: ReminderItemSnapshot, now: Date) -> String {
+        let detail = reminderCompletionDetail(for: item, now: now)
+        return detail.isEmpty ? item.title : "\(item.title) - \(detail)"
+    }
+
+    private func reminderCompletionDetail(for item: ReminderItemSnapshot, now: Date) -> String {
+        switch item.timingCategory(relativeTo: now) {
+        case .overdue:
+            return "overdue"
+        case .today:
+            return "today"
+        case .upcoming:
+            return "upcoming"
+        case .unscheduled:
+            return item.listTitle
         }
     }
 
@@ -1135,7 +1328,15 @@ struct TileView: View {
     private func handleWidgetTap(_ widget: WidgetTile) {
         switch widget.kind {
         case .calendar:
-            WorkspaceService.shared.activateOrOpen(bundleIdentifier: CalendarWidgetSupport.ownerBundleIdentifier)
+            WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.calendar)
+        case .calendarDate:
+            WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.calendar)
+        case .reminders:
+            WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.reminders)
+        case .batteries:
+            BatteriesService.shared.openInBatterySettings()
+        case .systemStatus:
+            SystemStatusService.shared.openInActivityMonitor()
         case .nowPlaying:
             Task {
                 await mediaPlayback.togglePlayPause(for: widget.ownerBundleIdentifier)

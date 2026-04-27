@@ -8,6 +8,7 @@ import SwiftUI
 struct DividerTileView: View {
     let tileID: String
     @ObservedObject private var dockSettings = DockSettingsService.shared
+    @ObservedObject private var layout = DockLayoutService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
 
     var body: some View {
@@ -67,7 +68,7 @@ struct DividerTileView: View {
     }
 
     private var lineInset: CGFloat {
-        dockSettings.tileSize * 0.25
+        layout.scaled(dockSettings.tileSize) * 0.25
     }
 
     private var position: ResolvedDockWindowPosition {

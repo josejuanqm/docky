@@ -7,11 +7,12 @@
 
 import AppKit
 import Combine
+import SwiftUI
 
 final class MainWindowContainerView: NSView {
     static let contentPadding: CGFloat = 2
 
-    private let contentView = MainWindowView()
+    private let contentView = ClickThroughHostingView(rootView: MainWindowView())
     private var trackingArea: NSTrackingArea?
 
     override init(frame frameRect: NSRect) {
@@ -25,8 +26,6 @@ final class MainWindowContainerView: NSView {
     }
 
     private func setup() {
-        wantsLayer = true
-
         contentView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(contentView)
 
@@ -83,6 +82,7 @@ final class MainWindow: NSWindow {
     private let tileMutationAnimationDuration: TimeInterval = 0.18
     private let dockSettings = DockSettingsService.shared
     private let preferences = DockyPreferences.shared
+    private let layout = DockLayoutService.shared
     private let tileStore = TileStore.shared
     private let editMode = DockEditModeService.shared
     private let minimumWidth: CGFloat = 120
@@ -124,6 +124,8 @@ final class MainWindow: NSWindow {
             dockSettings.$magnification.map { _ in () }.eraseToAnyPublisher(),
             preferences.$tileVerticalPadding.map { _ in () }.eraseToAnyPublisher(),
             preferences.$tileSpacing.map { _ in () }.eraseToAnyPublisher(),
+            preferences.$overflowBehavior.map { _ in () }.eraseToAnyPublisher(),
+            preferences.$windowAxisSizing.map { _ in () }.eraseToAnyPublisher(),
             preferences.$windowPosition.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(layoutSignals)
@@ -232,20 +234,84 @@ final class MainWindow: NSWindow {
 
     private func applyCurrentFrame(animated: Bool, duration: TimeInterval?) {
         let screenBounds = screen?.frame ?? NSScreen.main?.frame ?? .zero
-        let iconHeight = dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
         let contentPadding = MainWindowContainerView.contentPadding
-        let tileHeight = iconHeight + preferences.tileVerticalPadding * 2
         let position = preferences.windowPosition.resolved(systemOrientation: dockSettings.orientation)
-
-        let contentSize = TileContainerView.contentSize(
+        let baseIconHeight = dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
+        let baseTileHeight = baseIconHeight + preferences.tileVerticalPadding * 2
+        let naturalContentSize = TileContainerView.contentSize(
             tiles: tileStore.tiles,
             tileSize: dockSettings.tileSize,
-            tileHeight: tileHeight,
+            tileHeight: baseTileHeight,
             tileSpacing: preferences.tileSpacing,
             position: position
         )
-        let width = (position.isVertical ? contentSize.width : max(minimumWidth, contentSize.width)) + contentPadding * 2
-        let height = contentSize.height + contentPadding * 2
+        let unreservedAvailableAxisLength = max(
+            0,
+            axisLength(of: screenBounds.size, position: position) - contentPadding * 2
+        )
+        let shouldUseFullAxisSizing = preferences.windowAxisSizing == .fullAxis
+        let contentAvailableAxisLength = max(
+            0,
+            unreservedAvailableAxisLength
+                - (shouldReserveStatusBarLength(
+                    for: naturalContentSize,
+                    availableAxisLength: unreservedAvailableAxisLength,
+                    position: position
+                ) ? reservedStatusBarLength : 0)
+        )
+        let availableAxisLength = shouldUseFullAxisSizing
+            ? unreservedAvailableAxisLength
+            : contentAvailableAxisLength
+        let compactsWidgetsForOverflow = shouldCompactWidgetsForOverflow(
+            contentSize: naturalContentSize,
+            availableAxisLength: availableAxisLength,
+            position: position
+        )
+        let baseContentSize = TileContainerView.contentSize(
+            tiles: tileStore.tiles,
+            tileSize: dockSettings.tileSize,
+            tileHeight: baseTileHeight,
+            tileSpacing: preferences.tileSpacing,
+            position: position,
+            compactWidgets: compactsWidgetsForOverflow
+        )
+        let contentScale = overflowContentScale(
+            for: baseContentSize,
+            availableAxisLength: availableAxisLength,
+            position: position
+        )
+        layout.setContentScale(contentScale)
+        layout.setCompactsWidgetsForOverflow(compactsWidgetsForOverflow)
+
+        let scaledTileSize = dockSettings.tileSize * contentScale
+        let scaledIconHeight = baseIconHeight * contentScale
+        let scaledTileHeight = scaledIconHeight + (preferences.tileVerticalPadding * contentScale * 2)
+        let scaledTileSpacing = preferences.tileSpacing * contentScale
+        let displayedContentSize = TileContainerView.contentSize(
+            tiles: tileStore.tiles,
+            tileSize: scaledTileSize,
+            tileHeight: scaledTileHeight,
+            tileSpacing: scaledTileSpacing,
+            position: position,
+            compactWidgets: compactsWidgetsForOverflow,
+            edgePadding: TileContainerView.edgePadding * contentScale
+        )
+        let displayedAxisLength = shouldUseFullAxisSizing
+            ? availableAxisLength
+            : min(axisLength(of: displayedContentSize, position: position), availableAxisLength)
+        let width = displayedWindowWidth(
+            for: displayedContentSize,
+            displayedAxisLength: displayedAxisLength,
+            availableAxisLength: availableAxisLength,
+            contentPadding: contentPadding,
+            position: position
+        )
+        let height = displayedWindowHeight(
+            for: displayedContentSize,
+            displayedAxisLength: displayedAxisLength,
+            contentPadding: contentPadding,
+            position: position
+        )
         let size = CGSize(width: width, height: height)
         let origin = frameOrigin(
             in: screenBounds,
@@ -273,6 +339,78 @@ final class MainWindow: NSWindow {
 
     private var autohideAnimationDuration: TimeInterval {
         max(0.08, min(0.4, baseAutohideAnimationDuration * max(dockSettings.autohideTimeModifier, 0.01)))
+    }
+
+    private func overflowContentScale(
+        for contentSize: CGSize,
+        availableAxisLength: CGFloat,
+        position: ResolvedDockWindowPosition
+    ) -> CGFloat {
+        guard preferences.overflowBehavior == .rescale, availableAxisLength > 0 else {
+            return 1
+        }
+
+        let contentAxisLength = axisLength(of: contentSize, position: position)
+        guard contentAxisLength > 0 else { return 1 }
+        return min(1, availableAxisLength / contentAxisLength)
+    }
+
+    private func shouldCompactWidgetsForOverflow(
+        contentSize: CGSize,
+        availableAxisLength: CGFloat,
+        position: ResolvedDockWindowPosition
+    ) -> Bool {
+        guard preferences.overflowBehavior == .rescale, availableAxisLength > 0 else {
+            return false
+        }
+
+        return axisLength(of: contentSize, position: position) > availableAxisLength
+    }
+
+    private func axisLength(of size: CGSize, position: ResolvedDockWindowPosition) -> CGFloat {
+        position.isVertical ? size.height : size.width
+    }
+
+    private func shouldReserveStatusBarLength(
+        for contentSize: CGSize,
+        availableAxisLength: CGFloat,
+        position: ResolvedDockWindowPosition
+    ) -> Bool {
+        axisLength(of: contentSize, position: position) > availableAxisLength
+    }
+
+    private var reservedStatusBarLength: CGFloat {
+        NSStatusBar.system.thickness * 4
+    }
+
+    private func displayedWindowWidth(
+        for contentSize: CGSize,
+        displayedAxisLength: CGFloat,
+        availableAxisLength: CGFloat,
+        contentPadding: CGFloat,
+        position: ResolvedDockWindowPosition
+    ) -> CGFloat {
+        if position.isVertical {
+            return contentSize.width + contentPadding * 2
+        }
+
+        let visibleAxisLength = availableAxisLength > 0
+            ? min(max(minimumWidth, displayedAxisLength), availableAxisLength)
+            : max(minimumWidth, displayedAxisLength)
+        return visibleAxisLength + contentPadding * 2
+    }
+
+    private func displayedWindowHeight(
+        for contentSize: CGSize,
+        displayedAxisLength: CGFloat,
+        contentPadding: CGFloat,
+        position: ResolvedDockWindowPosition
+    ) -> CGFloat {
+        if position.isVertical {
+            return displayedAxisLength + contentPadding * 2
+        }
+
+        return contentSize.height + contentPadding * 2
     }
 
     private func frameOrigin(

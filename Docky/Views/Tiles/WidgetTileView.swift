@@ -13,8 +13,29 @@ struct WidgetTileView: View {
 
     var body: some View {
         switch tile.kind {
-        case .calendar:
+        case .calendar, .calendarDate:
             CalendarWidgetTileView(
+                tile: tile,
+                cornerRadius: cornerRadius,
+                renderedSpan: renderedSpan,
+                isWithinStack: isWithinStack
+            )
+        case .reminders:
+            RemindersWidgetTileView(
+                tile: tile,
+                cornerRadius: cornerRadius,
+                renderedSpan: renderedSpan,
+                isWithinStack: isWithinStack
+            )
+        case .batteries:
+            BatteriesWidgetTileView(
+                tile: tile,
+                cornerRadius: cornerRadius,
+                renderedSpan: renderedSpan,
+                isWithinStack: isWithinStack
+            )
+        case .systemStatus:
+            SystemStatusWidgetTileView(
                 tile: tile,
                 cornerRadius: cornerRadius,
                 renderedSpan: renderedSpan,

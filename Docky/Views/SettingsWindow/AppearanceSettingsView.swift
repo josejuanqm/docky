@@ -154,6 +154,16 @@ struct AppearanceSettingsView: View {
                 }
                 .padding(.vertical, 4)
                 .disabled(preferences.windowClipShape == .circle)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Disable Glass Look", isOn: $preferences.disablesGlassLook)
+                        .font(.headline)
+
+                    Text("Removes the main window's glossy gradient border while keeping the existing blur and background tinting.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
             }
 
             Section("Window Background") {

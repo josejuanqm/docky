@@ -57,6 +57,7 @@ struct NowPlayingWidgetTileView: View {
                         Image(systemName: playbackState?.isPlaying == true ? "pause.fill" : "play.fill")
                             .font(.system(size: layout.largeGlyphSize, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.95))
+                            .offset(x: playbackState?.isPlaying == true ? 0 : -layout.largeGlyphSize * 0.06)
                     }
                     .transition(.opacity)
                 }

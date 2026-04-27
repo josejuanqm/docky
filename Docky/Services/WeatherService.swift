@@ -11,7 +11,7 @@ import MapKit
 
 final class WeatherService: NSObject, ObservableObject {
     static let shared = WeatherService()
-    static let widgetOwnerBundleIdentifier = "gt.quintero.Docky.weather"
+    static let widgetOwnerBundleIdentifier = WidgetOwnerBundleIdentifiers.weather
 
     @Published private(set) var snapshot: WeatherSnapshot?
     @Published private(set) var authorizationStatus: CLAuthorizationStatus

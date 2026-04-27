@@ -12,6 +12,7 @@ struct TileContainerView: View {
 
     @ObservedObject private var store = TileStore.shared
     @ObservedObject private var dockSettings = DockSettingsService.shared
+    @ObservedObject private var layout = DockLayoutService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
     @ObservedObject private var editMode = DockEditModeService.shared
 
@@ -27,24 +28,7 @@ struct TileContainerView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .topLeading) {
-                Group {
-                    if position.isVertical {
-                        VStack(spacing: preferences.tileSpacing) {
-                            tileViews
-                        }
-                        .padding(.vertical, Self.edgePadding)
-                    } else {
-                        HStack(spacing: preferences.tileSpacing) {
-                            tileViews
-                        }
-                        .padding(.horizontal, Self.edgePadding)
-                    }
-                }
-
-                draggedTileOverlay
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            overflowWrappedContent(in: proxy)
             .onPreferenceChange(TileFramePreferenceKey.self) { tileFrames = $0 }
             .onChange(of: editMode.paletteDrag) { _, paletteDrag in
                 guard paletteDrag != nil else {
@@ -135,29 +119,118 @@ struct TileContainerView: View {
     }
 
     @ViewBuilder
-    private var tileViews: some View {
-        ForEach(displayTiles) { tile in
-            let size = Self.size(
-                for: tile,
-                tileSize: dockSettings.tileSize,
-                tileHeight: tileHeight,
-                tileSpacing: preferences.tileSpacing,
-                position: position
-            )
-            TileView(tile: tile)
-                .frame(width: size.width, height: size.height)
-                .opacity(tile.id == draggedTileID ? 0 : 1)
-                .background(alignment: .topLeading) {
-                    GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: TileFramePreferenceKey.self,
-                            value: [tile.id: proxy.frame(in: .global)]
-                        )
+    private func overflowWrappedContent(in proxy: GeometryProxy) -> some View {
+        tileCanvas(in: proxy)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func tileCanvas(in proxy: GeometryProxy) -> some View {
+        let scrollableSectionLayout = scrollableSectionLayout(in: proxy)
+
+        return ZStack(alignment: .topLeading) {
+            Group {
+                if position.isVertical {
+                    VStack(spacing: effectiveTileSpacing) {
+                        contentComponents(scrollableSectionLayout: scrollableSectionLayout)
                     }
+                    .padding(.vertical, effectiveEdgePadding)
+                } else {
+                    HStack(spacing: effectiveTileSpacing) {
+                        contentComponents(scrollableSectionLayout: scrollableSectionLayout)
+                    }
+                    .padding(.horizontal, effectiveEdgePadding)
                 }
-                .gesture(reorderGesture(for: tile), including: isTileDraggable(tile) ? .gesture : .subviews)
-                .transition(tileTransition)
+            }
+
+            draggedTileOverlay
         }
+    }
+
+    @ViewBuilder
+    private func contentComponents(scrollableSectionLayout: ScrollableSectionLayout?) -> some View {
+        ForEach(layoutComponents) { component in
+            componentView(component, scrollableSectionLayout: scrollableSectionLayout)
+        }
+    }
+
+    @ViewBuilder
+    private func componentView(_ component: TileLayoutComponent, scrollableSectionLayout: ScrollableSectionLayout?) -> some View {
+        switch component {
+        case .divider(let tile):
+            tileView(for: tile)
+        case .section(let section):
+            if let scrollableSectionLayout, scrollableSectionLayout.id == section.id {
+                scrollableSectionView(section, axisLength: scrollableSectionLayout.axisLength)
+            } else {
+                sectionTilesView(section.tiles)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func scrollableSectionView(_ section: TileLayoutSection, axisLength: CGFloat) -> some View {
+        ScrollViewReader { scrollProxy in
+            ScrollView(scrollAxes, showsIndicators: false) {
+                if position.isVertical {
+                    sectionTilesView(section.tiles)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                } else {
+                    sectionTilesView(section.tiles)
+                }
+            }
+            .frame(
+                width: position.isVertical ? nil : axisLength,
+                height: position.isVertical ? axisLength : nil
+            )
+            .onAppear {
+                scrollSectionToEnd(section, using: scrollProxy)
+            }
+            .onChange(of: section.tiles.map(\.id)) { _, _ in
+                scrollSectionToEnd(section, using: scrollProxy)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionTilesView(_ tiles: [Tile]) -> some View {
+        if position.isVertical {
+            VStack(spacing: effectiveTileSpacing) {
+                ForEach(tiles) { tile in
+                    tileView(for: tile)
+                }
+            }
+        } else {
+            HStack(spacing: effectiveTileSpacing) {
+                ForEach(tiles) { tile in
+                    tileView(for: tile)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tileView(for tile: Tile) -> some View {
+        let size = Self.size(
+            for: tile,
+            tileSize: effectiveTileSize,
+            tileHeight: tileHeight,
+            tileSpacing: effectiveTileSpacing,
+            position: position,
+            compactWidgets: layout.compactsWidgetsForOverflow
+        )
+        TileView(tile: tile)
+            .frame(width: size.width, height: size.height)
+            .opacity(tile.id == draggedTileID ? 0 : 1)
+            .background(alignment: .topLeading) {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: TileFramePreferenceKey.self,
+                        value: [tile.id: proxy.frame(in: .global)]
+                    )
+                }
+            }
+            .gesture(reorderGesture(for: tile), including: isTileDraggable(tile) ? .gesture : .subviews)
+            .transition(tileTransition)
     }
 
     @ViewBuilder
@@ -165,10 +238,11 @@ struct TileContainerView: View {
         if let draggedTile {
             let size = Self.size(
                 for: draggedTile,
-                tileSize: dockSettings.tileSize,
+                tileSize: effectiveTileSize,
                 tileHeight: tileHeight,
-                tileSpacing: preferences.tileSpacing,
-                position: position
+                tileSpacing: effectiveTileSpacing,
+                position: position,
+                compactWidgets: layout.compactsWidgetsForOverflow
             )
             TileView(tile: draggedTile, isDragging: true)
                 .frame(width: size.width, height: size.height)
@@ -440,9 +514,156 @@ struct TileContainerView: View {
         }
     }
 
+    private var scrollAxes: Axis.Set {
+        position.isVertical ? .vertical : .horizontal
+    }
+
+    private var layoutComponents: [TileLayoutComponent] {
+        var components: [TileLayoutComponent] = []
+        var currentSectionID = "primary"
+        var currentTiles: [Tile] = []
+
+        func appendCurrentSection() {
+            guard !currentTiles.isEmpty else { return }
+            components.append(.section(TileLayoutSection(id: currentSectionID, tiles: currentTiles)))
+            currentTiles = []
+        }
+
+        for tile in displayTiles {
+            if tile.id == "divider:running" || tile.id == "divider:trailing" {
+                appendCurrentSection()
+                components.append(.divider(tile))
+                currentSectionID = tile.id == "divider:running" ? "running" : "trailing"
+                continue
+            }
+
+            currentTiles.append(tile)
+        }
+
+        appendCurrentSection()
+        return components
+    }
+
+    private func scrollableSectionLayout(in proxy: GeometryProxy) -> ScrollableSectionLayout? {
+        guard preferences.overflowBehavior == .scroll else {
+            return nil
+        }
+
+        let components = layoutComponents
+        let availableAxisLength = projected(size: proxy.size)
+        guard totalAxisLength(for: components) > availableAxisLength else {
+            return nil
+        }
+
+        let sections = components.compactMap { component -> TileLayoutSection? in
+            if case .section(let section) = component {
+                return section
+            }
+            return nil
+        }
+        guard let largestSection = sections.max(by: { axisLength(of: $0.tiles) < axisLength(of: $1.tiles) }) else {
+            return nil
+        }
+
+        let viewportAxisLength = scrollableSectionAxisLength(
+            for: largestSection.id,
+            in: components,
+            availableAxisLength: availableAxisLength
+        )
+        guard viewportAxisLength > 0 else {
+            return nil
+        }
+
+        return ScrollableSectionLayout(id: largestSection.id, axisLength: viewportAxisLength)
+    }
+
+    private func totalAxisLength(for components: [TileLayoutComponent]) -> CGFloat {
+        let componentLengths = components.reduce(CGFloat(0)) { partialResult, component in
+            partialResult + axisLength(of: component)
+        }
+        let spacings = CGFloat(max(0, components.count - 1)) * effectiveTileSpacing
+        return componentLengths + spacings + effectiveEdgePadding * 2
+    }
+
+    private func scrollableSectionAxisLength(
+        for sectionID: String,
+        in components: [TileLayoutComponent],
+        availableAxisLength: CGFloat
+    ) -> CGFloat {
+        let innerAvailableAxisLength = max(0, availableAxisLength - effectiveEdgePadding * 2)
+        let spacings = CGFloat(max(0, components.count - 1)) * effectiveTileSpacing
+        let fixedAxisLength = components.reduce(CGFloat(0)) { partialResult, component in
+            switch component {
+            case .section(let section) where section.id == sectionID:
+                partialResult
+            default:
+                partialResult + axisLength(of: component)
+            }
+        }
+        return max(0, innerAvailableAxisLength - fixedAxisLength - spacings)
+    }
+
+    private func axisLength(of component: TileLayoutComponent) -> CGFloat {
+        switch component {
+        case .divider(let tile):
+            let size = Self.size(
+                for: tile,
+                tileSize: effectiveTileSize,
+                tileHeight: tileHeight,
+                tileSpacing: effectiveTileSpacing,
+                position: position,
+                compactWidgets: layout.compactsWidgetsForOverflow
+            )
+            return projected(size: size)
+        case .section(let section):
+            return axisLength(of: section.tiles)
+        }
+    }
+
+    private func axisLength(of tiles: [Tile]) -> CGFloat {
+        let size = Self.contentSize(
+            tiles: tiles,
+            tileSize: effectiveTileSize,
+            tileHeight: tileHeight,
+            tileSpacing: effectiveTileSpacing,
+            position: position,
+            compactWidgets: layout.compactsWidgetsForOverflow,
+            edgePadding: 0
+        )
+        return projected(size: size)
+    }
+
+    private func scrollSectionToEnd(_ section: TileLayoutSection, using scrollProxy: ScrollViewProxy) {
+        guard draggedTileID == nil,
+              editMode.paletteDrag == nil,
+              let lastTileID = section.tiles.last?.id else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            scrollProxy.scrollTo(lastTileID, anchor: sectionScrollAnchor)
+        }
+    }
+
+    private var sectionScrollAnchor: UnitPoint {
+        position.isVertical ? .bottom : .trailing
+    }
+
+    private var effectiveEdgePadding: CGFloat {
+        layout.scaled(Self.edgePadding)
+    }
+
+    private var effectiveTileSize: CGFloat {
+        layout.scaled(dockSettings.tileSize)
+    }
+
+    private var effectiveTileSpacing: CGFloat {
+        layout.scaled(preferences.tileSpacing)
+    }
+
     private var tileHeight: CGFloat {
-        let iconHeight = dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
-        return iconHeight + preferences.tileVerticalPadding * 2
+        let iconHeight = layout.scaled(dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize)
+        return iconHeight + layout.scaled(preferences.tileVerticalPadding) * 2
     }
 
     private var position: ResolvedDockWindowPosition {
@@ -1015,32 +1236,51 @@ struct TileContainerView: View {
         tileSize: CGFloat,
         tileHeight: CGFloat,
         tileSpacing: CGFloat = 0,
-        position: ResolvedDockWindowPosition
+        position: ResolvedDockWindowPosition,
+        compactWidgets: Bool = false
     ) -> CGSize {
         let dividerExtent = tileSize * 0.5
 
         return switch (position.isVertical, tile.content) {
         case (false, .divider):
             CGSize(width: dividerExtent, height: tileHeight)
+        case (false, .app(let app)) where app.displayedWidget != nil:
+            CGSize(
+                width: spanExtent(
+                    for: effectiveWidgetSpan(app.displayedWidget?.span ?? .one, tileSize: tileSize, isVertical: false, compactWidgets: compactWidgets),
+                    baseTileSize: tileSize,
+                    tileSpacing: tileSpacing
+                ),
+                height: tileHeight
+            )
         case (false, .widget(let widget)):
-            CGSize(width: spanExtent(for: effectiveWidgetSpan(widget.span, tileSize: tileSize, isVertical: false), baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
+            CGSize(width: spanExtent(for: effectiveWidgetSpan(widget.span, tileSize: tileSize, isVertical: false, compactWidgets: compactWidgets), baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
         case (false, .smartStack(let stack)):
-            CGSize(width: spanExtent(for: effectiveWidgetSpan(stack.span, tileSize: tileSize, isVertical: false), baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
+            CGSize(width: spanExtent(for: effectiveWidgetSpan(stack.span, tileSize: tileSize, isVertical: false, compactWidgets: compactWidgets), baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
         case (false, _):
             CGSize(width: tileSize, height: tileHeight)
         case (true, .divider):
             CGSize(width: tileHeight / 2, height: dividerExtent)
+        case (true, .app(let app)) where app.displayedWidget != nil:
+            CGSize(
+                width: tileHeight,
+                height: spanExtent(
+                    for: effectiveWidgetSpan(app.displayedWidget?.span ?? .one, tileSize: tileSize, isVertical: true, compactWidgets: compactWidgets),
+                    baseTileSize: tileSize,
+                    tileSpacing: tileSpacing
+                )
+            )
         case (true, .widget(let widget)):
-            CGSize(width: tileHeight, height: spanExtent(for: effectiveWidgetSpan(widget.span, tileSize: tileSize, isVertical: true), baseTileSize: tileSize, tileSpacing: tileSpacing))
+            CGSize(width: tileHeight, height: spanExtent(for: effectiveWidgetSpan(widget.span, tileSize: tileSize, isVertical: true, compactWidgets: compactWidgets), baseTileSize: tileSize, tileSpacing: tileSpacing))
         case (true, .smartStack(let stack)):
-            CGSize(width: tileHeight, height: spanExtent(for: effectiveWidgetSpan(stack.span, tileSize: tileSize, isVertical: true), baseTileSize: tileSize, tileSpacing: tileSpacing))
+            CGSize(width: tileHeight, height: spanExtent(for: effectiveWidgetSpan(stack.span, tileSize: tileSize, isVertical: true, compactWidgets: compactWidgets), baseTileSize: tileSize, tileSpacing: tileSpacing))
         case (true, _):
             CGSize(width: tileHeight, height: tileSize)
         }
     }
 
-    private static func effectiveWidgetSpan(_ span: TileSpan, tileSize: CGFloat, isVertical: Bool) -> TileSpan {
-        if isVertical || tileSize < 50 {
+    private static func effectiveWidgetSpan(_ span: TileSpan, tileSize: CGFloat, isVertical: Bool, compactWidgets: Bool) -> TileSpan {
+        if compactWidgets || isVertical || tileSize < 50 {
             return .one
         }
 
@@ -1059,10 +1299,12 @@ struct TileContainerView: View {
         tileSize: CGFloat,
         tileHeight: CGFloat,
         tileSpacing: CGFloat,
-        position: ResolvedDockWindowPosition
+        position: ResolvedDockWindowPosition,
+        compactWidgets: Bool = false,
+        edgePadding: CGFloat = Self.edgePadding
     ) -> CGSize {
         let sizes = tiles.map {
-            size(for: $0, tileSize: tileSize, tileHeight: tileHeight, tileSpacing: tileSpacing, position: position)
+            size(for: $0, tileSize: tileSize, tileHeight: tileHeight, tileSpacing: tileSpacing, position: position, compactWidgets: compactWidgets)
         }
         let spacings = max(0, CGFloat(tiles.count) - 1) * tileSpacing
 
@@ -1076,6 +1318,30 @@ struct TileContainerView: View {
         let height = sizes.map(\.height).max() ?? tileHeight
         return CGSize(width: width, height: height)
     }
+}
+
+private struct TileLayoutSection: Identifiable {
+    let id: String
+    let tiles: [Tile]
+}
+
+private enum TileLayoutComponent: Identifiable {
+    case section(TileLayoutSection)
+    case divider(Tile)
+
+    var id: String {
+        switch self {
+        case .section(let section):
+            "section:\(section.id)"
+        case .divider(let tile):
+            tile.id
+        }
+    }
+}
+
+private struct ScrollableSectionLayout {
+    let id: String
+    let axisLength: CGFloat
 }
 
 private struct PaletteInsertDropDelegate: DropDelegate {

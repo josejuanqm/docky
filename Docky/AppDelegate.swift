@@ -159,6 +159,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    @objc private func pinDefaultDockAppsForLoadTest(_ sender: Any?) {
+        let pinnedCount = TileStore.shared.replacePinnedAppsWithDefaultDockAppsForLoadTest()
+        NSLog("[Docky] Debug load test pinned \(pinnedCount) default Dock apps")
+    }
+
+    @objc private func pinEveryAppForLoadTest(_ sender: Any?) {
+        let pinnedCount = TileStore.shared.replacePinnedAppsWithEveryInstalledAppForLoadTest()
+        NSLog("[Docky] Debug load test pinned \(pinnedCount) installed apps")
+    }
+
+    @objc private func resetPinnedItemsToSystemDock(_ sender: Any?) {
+        let pinnedCount = TileStore.shared.resetPinnedItemsToSystemDock()
+        NSLog("[Docky] Reset pinned items to \(pinnedCount) system Dock entries")
+    }
+
+    @objc private func seedDummyDebugLayout(_ sender: Any?) {
+        TileStore.shared.seedDummyDebugLayout()
+        NSLog("[Docky] Seeded dummy debug layout")
+    }
+
     private func installDebugStatusItem() {
         guard debugStatusItem == nil else {
             return
@@ -174,6 +194,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         snapshotItem.target = self
+
+        let loadTestItem = NSMenuItem(
+            title: "Pin Default Dock Apps",
+            action: #selector(pinDefaultDockAppsForLoadTest(_:)),
+            keyEquivalent: ""
+        )
+        loadTestItem.target = self
+
+        let pinEveryAppItem = NSMenuItem(
+            title: "Pin Every App",
+            action: #selector(pinEveryAppForLoadTest(_:)),
+            keyEquivalent: ""
+        )
+        pinEveryAppItem.target = self
+
+        let resetPinnedItemsItem = NSMenuItem(
+            title: "Reset Pinned Items to System Dock",
+            action: #selector(resetPinnedItemsToSystemDock(_:)),
+            keyEquivalent: ""
+        )
+        resetPinnedItemsItem.target = self
+
+        let seedDummyLayoutItem = NSMenuItem(
+            title: "Seed Dummy Layout",
+            action: #selector(seedDummyDebugLayout(_:)),
+            keyEquivalent: ""
+        )
+        seedDummyLayoutItem.target = self
 
         let settingsItem = NSMenuItem(
             title: "Settings…",
@@ -191,6 +239,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         debugMenu.addItem(settingsItem)
         debugMenu.addItem(snapshotItem)
+        debugMenu.addItem(loadTestItem)
+        debugMenu.addItem(pinEveryAppItem)
+        debugMenu.addItem(resetPinnedItemsItem)
+        debugMenu.addItem(seedDummyLayoutItem)
         debugMenu.addItem(.separator())
         debugMenu.addItem(quitItem)
 
@@ -213,6 +265,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "windowBackgroundImagePath: \(preferences.windowBackgroundImagePath ?? "none")",
             "windowPosition: \(preferences.windowPosition.rawValue)",
             "autohidesWindow: \(preferences.autohidesWindow)",
+            "showsActivePinnedSeparator: \(preferences.showsActivePinnedSeparator)",
             "activeIndicatorShape: \(preferences.activeIndicatorShape.rawValue)",
             "pinnedAppBundleIdentifiers: \(formattedJSON(preferences.pinnedAppBundleIdentifiers))",
             "pinnedItems: \(formattedJSON(preferences.pinnedItems))",

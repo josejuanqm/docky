@@ -195,14 +195,11 @@ private struct DockEditorOverlayView: View {
     }
 
     private var paletteItems: [DockEditPaletteItem] {
-        [
-            .spacer,
-            .divider,
-            .widget(ownerBundleIdentifier: CalendarWidgetSupport.ownerBundleIdentifier, kind: .calendar),
-            .widget(ownerBundleIdentifier: WeatherService.widgetOwnerBundleIdentifier, kind: .weather),
-            .widget(ownerBundleIdentifier: MediaPlaybackService.genericNowPlayingOwnerBundleIdentifier, kind: .nowPlaying),
-            .smartStack
-        ]
+        [.spacer, .divider]
+            + WidgetCatalog.paletteRegistrations.map {
+                .widget(ownerBundleIdentifier: $0.ownerBundleIdentifier, kind: $0.kind)
+            }
+            + [.smartStack]
     }
 
     private var position: ResolvedDockWindowPosition {
@@ -327,6 +324,14 @@ private struct PaletteItemView: View {
             switch kind {
             case .calendar:
                 "calendar"
+            case .calendarDate:
+                "calendar"
+            case .reminders:
+                "checklist"
+            case .batteries:
+                "battery.100percent"
+            case .systemStatus:
+                "gauge.with.needle"
             case .nowPlaying:
                 "waveform"
             case .weather:
@@ -360,6 +365,14 @@ private struct PaletteItemView: View {
             switch kind {
             case .calendar:
                 "Shows the current date and month at a glance"
+            case .calendarDate:
+                "Shows the weekday and date number at a glance"
+            case .reminders:
+                "Shows your open tasks and what needs attention next"
+            case .batteries:
+                "Shows Mac and accessory battery levels at a glance"
+            case .systemStatus:
+                "Shows CPU, memory, and network activity at a glance"
             case .nowPlaying:
                 "Adds a now playing widget inline"
             case .weather:

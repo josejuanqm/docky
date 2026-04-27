@@ -45,14 +45,14 @@ struct AppTileView: View {
 
     private func baseIconView(in size: CGSize) -> some View {
         let inset = shouldApplyCircleClip ? transparencyCompensationInset + 2 : 0
-        let edgeInsets: CGFloat = preferences.effectiveAppIconOverrideURL(forBundleIdentifier: tile.bundleIdentifier) != nil ? 0 : inset
+        let edgeInsets: CGFloat = preferences.effectiveAppIconOverrideURL(forBundleIdentifier: tile.bundleIdentifier) != nil ? -transparencyCompensationInset*4 : inset
 
         return Image(nsImage: icon)
             .resizable()
             .interpolation(.high)
             .aspectRatio(contentMode: shouldApplyCircleClip ? .fill : .fit)
             .frame(width: size.width + edgeInsets / 2, height: size.height + edgeInsets / 2)
-            .frame(width: size.width - inset * 2, height: size.height - inset * 2)
+            .frame(width: size.width - edgeInsets * 2, height: size.height - edgeInsets * 2)
             .opacity(isHidden ? 0.5 : 1)
     }
 

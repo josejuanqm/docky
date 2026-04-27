@@ -39,6 +39,50 @@ struct BehaviorSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Overflow Behavior")
+                        .font(.headline)
+
+                    Picker("Overflow Behavior", selection: $preferences.overflowBehavior) {
+                        ForEach(DockOverflowBehavior.allCases) { behavior in
+                            Text(behavior.title).tag(behavior)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Text("Choose whether Docky shrinks to fit the screen or keeps its size and scrolls when it runs out of room on the current dock axis.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Window Axis Size")
+                        .font(.headline)
+
+                    Picker("Window Axis Size", selection: $preferences.windowAxisSizing) {
+                        ForEach(DockWindowAxisSizing.allCases) { sizing in
+                            Text(sizing.title).tag(sizing)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Text("Choose whether Docky hugs its tiles or stretches across the full screen width or height of the current dock axis.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Show Active/Pinned Separator", isOn: $preferences.showsActivePinnedSeparator)
+                        .font(.headline)
+
+                    Text("When turned off, unpinned running apps are merged into the pinned section so the dock behaves like a single app strip.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
             }
 
             Section("System Dock") {

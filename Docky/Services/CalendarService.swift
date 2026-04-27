@@ -124,7 +124,7 @@ final class CalendarService: ObservableObject {
         let now = Date()
         let searchEnd = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 30, to: now) ?? now.addingTimeInterval(2_592_000)
         let predicate = eventStore.predicateForEvents(withStart: now, end: searchEnd, calendars: nil)
-        let nextEvent = eventStore.events(matching: predicate)
+        let upcomingEvents = eventStore.events(matching: predicate)
             .filter { $0.endDate > now }
             .sorted {
                 if $0.startDate == $1.startDate {
@@ -132,7 +132,8 @@ final class CalendarService: ObservableObject {
                 }
                 return $0.startDate < $1.startDate
             }
-            .first
+
+        let nextEvent = upcomingEvents.first(where: { !$0.isAllDay }) ?? upcomingEvents.first
 
         self.nextEvent = nextEvent.map(CalendarEventSnapshot.init(event:))
         self.lastRefreshDate = now

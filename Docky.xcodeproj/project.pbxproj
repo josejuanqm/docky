@@ -305,11 +305,14 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Docky needs automation access to control Finder, System Events, and supported apps for file, menu, and window actions.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Docky uses calendar access to show your next upcoming event in the calendar widget.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Docky uses calendar access to show your next upcoming event in the calendar widget.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Docky uses your location to show local weather in the weather widget.";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Docky uses reminders access to show your open tasks in the reminders widget.";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Docky uses reminders access to show your open tasks in the reminders widget.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -365,11 +368,14 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Docky needs automation access to control Finder, System Events, and supported apps for file, menu, and window actions.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Docky uses calendar access to show your next upcoming event in the calendar widget.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Docky uses calendar access to show your next upcoming event in the calendar widget.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Docky uses your location to show local weather in the weather widget.";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Docky uses reminders access to show your open tasks in the reminders widget.";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "Docky uses reminders access to show your open tasks in the reminders widget.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

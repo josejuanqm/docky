@@ -10,6 +10,8 @@ struct AppFolderTileView: View {
     let tile: AppFolderTile
     let cornerRadius: CGFloat
     let suppressesGroupedOpenedBackdrop: Bool
+    @ObservedObject private var dockSettings = DockSettingsService.shared
+    @ObservedObject private var layout = DockLayoutService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
     @ObservedObject private var store = TileStore.shared
     @ObservedObject private var workspace = WorkspaceService.shared
@@ -22,6 +24,8 @@ struct AppFolderTileView: View {
         self.tile = tile
         self.cornerRadius = cornerRadius
         self.suppressesGroupedOpenedBackdrop = suppressesGroupedOpenedBackdrop
+        self._dockSettings = ObservedObject(wrappedValue: DockSettingsService.shared)
+        self._layout = ObservedObject(wrappedValue: DockLayoutService.shared)
         self._preferences = ObservedObject(wrappedValue: DockyPreferences.shared)
         self._store = ObservedObject(wrappedValue: TileStore.shared)
         self._workspace = ObservedObject(wrappedValue: WorkspaceService.shared)
@@ -49,6 +53,38 @@ struct AppFolderTileView: View {
         max(openedAppCount, 0) + 1
     }
 
+    private var tileSize: CGFloat {
+        layout.scaled(dockSettings.tileSize)
+    }
+
+    private var position: ResolvedDockWindowPosition {
+        preferences.windowPosition.resolved(systemOrientation: dockSettings.orientation)
+    }
+
+    private var groupedOpenedBackdropExtent: CGFloat {
+        (CGFloat(groupedOpenedAppSpan) * tileSize) - 4
+    }
+
+    private var groupedOpenedBackdropOffset: CGFloat {
+        (groupedOpenedBackdropExtent / 2) - (tileSize / 2) - 2
+    }
+
+    private var groupedOpenedBackdropHorizontalXOffset: CGFloat {
+        groupedOpenedBackdropOffset + (position == .bottom ? 2 : 0)
+    }
+
+    private func groupedOpenedBackdropCrossAxisExtent(in size: CGSize) -> CGFloat? {
+        guard position.isVertical else {
+            return nil
+        }
+
+        return size.width + 8
+    }
+
+    private var groupedOpenedBackdropVerticalYOffset: CGFloat {
+        position.isVertical ? 3 : 0
+    }
+
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -61,15 +97,15 @@ struct AppFolderTileView: View {
                 .background(
                     Color.primary.opacity(openedAppCount > 0 ? 0.2 : 0)
                         .clipShape(.rect(cornerRadius: cornerRadius, style: .continuous))
-                        .padding(.top, -4)
-                        .padding(.bottom, -3)
+                        .padding(.top, position.isVertical ? 0 : -4)
+                        .padding(.bottom, position.isVertical ? 0 : -3)
                         .frame(
-                            width: (CGFloat(groupedOpenedAppSpan) * DockSettingsService.shared.tileSize) - 4
+                            width: position.isVertical ? groupedOpenedBackdropCrossAxisExtent(in: geo.size) : groupedOpenedBackdropExtent,
+                            height: position.isVertical ? groupedOpenedBackdropExtent : nil
                         )
                         .offset(
-                            x: (
-                                (CGFloat(groupedOpenedAppSpan) * DockSettingsService.shared.tileSize) / 2
-                            ) - (DockSettingsService.shared.tileSize / 2) - 2
+                            x: position.isVertical ? 0 : groupedOpenedBackdropHorizontalXOffset,
+                            y: position.isVertical ? groupedOpenedBackdropOffset + groupedOpenedBackdropVerticalYOffset : 0
                         )
                 )
         }

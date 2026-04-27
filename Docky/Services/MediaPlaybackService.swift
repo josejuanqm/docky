@@ -23,7 +23,7 @@ struct MediaPlaybackState: Equatable {
     var artworkData: Data?
     var lastUpdated: Date
     var isPresentable: Bool {
-        isAvailable && hasContent && (title != artist && !album.isEmpty)
+        isAvailable && hasContent && title != artist
     }
 
     var hasContent: Bool {
@@ -42,7 +42,7 @@ struct MediaPlaybackState: Equatable {
 
 final class MediaPlaybackService: ObservableObject {
     static let shared = MediaPlaybackService()
-    static let genericNowPlayingOwnerBundleIdentifier = "gt.quintero.Docky.now-playing"
+    static let genericNowPlayingOwnerBundleIdentifier = WidgetOwnerBundleIdentifiers.genericNowPlaying
 
     @Published private(set) var statesByBundleIdentifier: [String: MediaPlaybackState] = [:]
 

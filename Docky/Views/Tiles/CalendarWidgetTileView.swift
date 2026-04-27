@@ -6,10 +6,6 @@
 import AppKit
 import SwiftUI
 
-enum CalendarWidgetSupport {
-    static let ownerBundleIdentifier = "com.apple.iCal"
-}
-
 struct CalendarWidgetTileView: View {
     let tile: WidgetTile
     let cornerRadius: CGFloat
@@ -17,6 +13,10 @@ struct CalendarWidgetTileView: View {
     let isWithinStack: Bool
 
     @ObservedObject private var calendar = CalendarService.shared
+
+    private var showsDateVariant: Bool {
+        tile.kind == .calendarDate
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -38,13 +38,19 @@ struct CalendarWidgetTileView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .task {
+            guard !showsDateVariant else {
+                return
+            }
+
             calendar.ensureFreshEvent()
         }
     }
 
     @ViewBuilder
     private func content(layout: LayoutMetrics, now: Date) -> some View {
-        if let event = calendar.nextEvent {
+        if showsDateVariant {
+            dateOneUp(layout: layout, now: now)
+        } else if let event = calendar.nextEvent {
             switch renderedSpan {
             case .one:
                 oneUp(event: event, layout: layout, now: now)
@@ -58,6 +64,26 @@ struct CalendarWidgetTileView: View {
         }
     }
 
+    private func dateOneUp(layout: LayoutMetrics, now: Date) -> some View {
+        VStack(spacing: layout.stackSpacing * 0) {
+            Text(shortWeekdayText(for: now))
+                .font(.system(size: layout.captionFontSize * 1.25, weight: .semibold))
+                .foregroundStyle(Color.red)
+                .tracking(0.6)
+                .offset(y: 2)
+
+            Text(dayNumberText(for: now))
+                .font(.system(size: layout.prominentFontSize * 2.5, weight: .medium, design: .default))
+                .foregroundStyle(Color.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .offset(y: -1)
+        }
+        .padding(layout.contentPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityLabel(fullDateText(for: now))
+    }
+
     private func oneUp(event: CalendarEventSnapshot, layout: LayoutMetrics, now: Date) -> some View {
         VStack(spacing: layout.stackSpacing) {
             Text("UP NEXT")
@@ -65,7 +91,7 @@ struct CalendarWidgetTileView: View {
                 .foregroundStyle(Color.primary.opacity(0.72))
 
             Text(shortTimeText(for: event, now: now))
-                .font(.system(size: layout.prominentFontSize, weight: .bold, design: .rounded))
+                .font(.system(size: layout.prominentFontSize * 0.75, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.primary.opacity(0.98))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -74,7 +100,7 @@ struct CalendarWidgetTileView: View {
                 .fill(Color(nsColor: event.color).opacity(0.92))
                 .frame(width: 6, height: 6)
         }
-        .padding(layout.contentPadding)
+        .padding(layout.contentPadding / 2)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -331,6 +357,51 @@ struct CalendarWidgetTileView: View {
         let formatter = DateFormatter()
         formatter.locale = .autoupdatingCurrent
         formatter.setLocalizedDateFormatFromTemplate("EEE MMM d")
+        return formatter
+    }
+
+    private func shortWeekdayText(for date: Date) -> String {
+        shortWeekdayFormatter.string(from: date).localizedUppercase
+    }
+
+    private func dayNumberText(for date: Date) -> String {
+        dayNumberFormatter.string(from: date)
+    }
+
+    private func shortMonthText(for date: Date) -> String {
+        shortMonthFormatter.string(from: date).localizedUppercase
+    }
+
+    private func fullDateText(for date: Date) -> String {
+        fullDateFormatter.string(from: date)
+    }
+
+    private var shortWeekdayFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("EEE")
+        return formatter
+    }
+
+    private var dayNumberFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("d")
+        return formatter
+    }
+
+    private var shortMonthFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("MMM")
+        return formatter
+    }
+
+    private var fullDateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
         return formatter
     }
 }
