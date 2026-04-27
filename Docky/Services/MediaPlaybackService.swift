@@ -23,7 +23,7 @@ struct MediaPlaybackState: Equatable {
     var artworkData: Data?
     var lastUpdated: Date
     var isPresentable: Bool {
-        isAvailable && hasContent && (title != artist && !album.isEmpty)
+        isAvailable && hasContent && title != artist
     }
 
     var hasContent: Bool {
