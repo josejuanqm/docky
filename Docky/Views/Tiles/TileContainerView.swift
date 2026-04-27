@@ -1244,6 +1244,15 @@ struct TileContainerView: View {
         return switch (position.isVertical, tile.content) {
         case (false, .divider):
             CGSize(width: dividerExtent, height: tileHeight)
+        case (false, .app(let app)) where app.displayedWidget != nil:
+            CGSize(
+                width: spanExtent(
+                    for: effectiveWidgetSpan(app.displayedWidget?.span ?? .one, tileSize: tileSize, isVertical: false, compactWidgets: compactWidgets),
+                    baseTileSize: tileSize,
+                    tileSpacing: tileSpacing
+                ),
+                height: tileHeight
+            )
         case (false, .widget(let widget)):
             CGSize(width: spanExtent(for: effectiveWidgetSpan(widget.span, tileSize: tileSize, isVertical: false, compactWidgets: compactWidgets), baseTileSize: tileSize, tileSpacing: tileSpacing), height: tileHeight)
         case (false, .smartStack(let stack)):
@@ -1252,6 +1261,15 @@ struct TileContainerView: View {
             CGSize(width: tileSize, height: tileHeight)
         case (true, .divider):
             CGSize(width: tileHeight / 2, height: dividerExtent)
+        case (true, .app(let app)) where app.displayedWidget != nil:
+            CGSize(
+                width: tileHeight,
+                height: spanExtent(
+                    for: effectiveWidgetSpan(app.displayedWidget?.span ?? .one, tileSize: tileSize, isVertical: true, compactWidgets: compactWidgets),
+                    baseTileSize: tileSize,
+                    tileSpacing: tileSpacing
+                )
+            )
         case (true, .widget(let widget)):
             CGSize(width: tileHeight, height: spanExtent(for: effectiveWidgetSpan(widget.span, tileSize: tileSize, isVertical: true, compactWidgets: compactWidgets), baseTileSize: tileSize, tileSpacing: tileSpacing))
         case (true, .smartStack(let stack)):

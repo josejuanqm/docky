@@ -695,6 +695,14 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Optional widget substitutions for app tiles.
+    @Published var appWidgetDisplays: [AppWidgetDisplay] {
+        didSet {
+            guard appWidgetDisplays != oldValue else { return }
+            persistAppWidgetDisplays(appWidgetDisplays)
+        }
+    }
+
     /// Docky-owned ordered folder/trash section items.
     @Published var trailingItems: [TrailingTileItem] {
         didSet {
@@ -799,6 +807,7 @@ final class DockyPreferences: ObservableObject {
         static let pinnedAppBundleIdentifiers = "docky.pinnedAppBundleIdentifiers"
         static let pinnedItems = "docky.pinnedItems"
         static let widgetPlacements = "docky.widgetPlacements"
+        static let appWidgetDisplays = "docky.appWidgetDisplays"
         static let trailingItems = "docky.trailingItems"
     }
 
@@ -825,6 +834,7 @@ final class DockyPreferences: ObservableObject {
         static let pinnedAppBundleIdentifiers: [String] = []
         static let pinnedItems: [PinnedTileItem] = []
         static let widgetPlacements: [WidgetPlacement] = []
+        static let appWidgetDisplays: [AppWidgetDisplay] = []
         static let trailingItems: [TrailingTileItem] = []
     }
 
@@ -852,6 +862,7 @@ final class DockyPreferences: ObservableObject {
         let storedPinnedAppBundleIdentifiers = defaults.stringArray(forKey: Keys.pinnedAppBundleIdentifiers)
         let storedPinnedItems = defaults.data(forKey: Keys.pinnedItems)
         let storedWidgetPlacements = defaults.data(forKey: Keys.widgetPlacements)
+        let storedAppWidgetDisplays = defaults.data(forKey: Keys.appWidgetDisplays)
         let storedTrailingItems = defaults.data(forKey: Keys.trailingItems)
         let initialPinnedAppBundleIdentifiers = storedPinnedAppBundleIdentifiers ?? DefaultValues.pinnedAppBundleIdentifiers
         let initialPinnedItems = Self.decodePinnedItems(from: storedPinnedItems)
@@ -878,6 +889,7 @@ final class DockyPreferences: ObservableObject {
         self.pinnedAppBundleIdentifiers = initialPinnedAppBundleIdentifiers
         self.pinnedItems = initialPinnedItems
         self.widgetPlacements = Self.decodeWidgetPlacements(from: storedWidgetPlacements) ?? DefaultValues.widgetPlacements
+        self.appWidgetDisplays = Self.decodeAppWidgetDisplays(from: storedAppWidgetDisplays) ?? DefaultValues.appWidgetDisplays
         self.trailingItems = Self.decodeTrailingItems(from: storedTrailingItems) ?? DefaultValues.trailingItems
     }
 
@@ -901,6 +913,7 @@ final class DockyPreferences: ObservableObject {
         activeIndicatorColor = DefaultValues.activeIndicatorColor
         appIconOverrides = DefaultValues.appIconOverrides
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
+        appWidgetDisplays = DefaultValues.appWidgetDisplays
     }
 
     private func persistPinnedItems(_ items: [PinnedTileItem]) {
@@ -919,6 +932,15 @@ final class DockyPreferences: ObservableObject {
         }
 
         defaults.set(data, forKey: Keys.widgetPlacements)
+    }
+
+    private func persistAppWidgetDisplays(_ displays: [AppWidgetDisplay]) {
+        guard let data = try? encoder.encode(displays) else {
+            defaults.removeObject(forKey: Keys.appWidgetDisplays)
+            return
+        }
+
+        defaults.set(data, forKey: Keys.appWidgetDisplays)
     }
 
     private func persistTrailingItems(_ items: [TrailingTileItem]) {
@@ -981,6 +1003,14 @@ final class DockyPreferences: ObservableObject {
         }
 
         return try? JSONDecoder().decode([WidgetPlacement].self, from: data)
+    }
+
+    private static func decodeAppWidgetDisplays(from data: Data?) -> [AppWidgetDisplay]? {
+        guard let data else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode([AppWidgetDisplay].self, from: data)
     }
 
     private static func decodeAppIconOverrides(from data: Data?) -> [AppIconOverride]? {
