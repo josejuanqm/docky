@@ -132,6 +132,7 @@ final class TileStore: ObservableObject {
             bundleIdentifier(of: tile).map { ($0, tile) }
         })
         seedPinnedPreferencesIfNeeded(from: refreshedPinnedTiles)
+        mergePinnedPreferencesAdditionsIfNeeded(from: refreshedPinnedTiles)
         synchronizeAppWidgetDisplaysWithFolders()
         refreshPinnedTilesFromPreferences()
         systemOtherTiles = others.enumerated().compactMap { index, entry in
@@ -1351,6 +1352,33 @@ final class TileStore: ObservableObject {
         pinnedTiles = preferences.pinnedItems.compactMap(tile(for:))
     }
 
+    private func mergePinnedPreferencesAdditionsIfNeeded(from refreshed: [Tile]) {
+        guard !preferences.pinnedItems.isEmpty else {
+            return
+        }
+
+        let importedItems = refreshed
+            .compactMap(Self.pinnedItem(from:))
+            .filter { item in
+                item.kind != .app || item.bundleIdentifier != Self.finderBundleID
+            }
+        guard !importedItems.isEmpty else {
+            return
+        }
+
+        let existingItems = preferences.pinnedItems
+        let additions = importedItems.filter { importedItem in
+            !existingItems.contains { existingItem in
+                Self.matchesImportedPinnedItem(existingItem, importedItem)
+            }
+        }
+        guard !additions.isEmpty else {
+            return
+        }
+
+        preferences.pinnedItems = existingItems + additions
+    }
+
     private func synchronizeAppWidgetDisplaysWithFolders() {
         let folderBundleIdentifiers = Set(preferences.pinnedItems.flatMap { item in
             item.kind == .appFolder ? item.folderBundleIdentifiers : []
@@ -1398,6 +1426,18 @@ final class TileStore: ObservableObject {
 
         if !mergedItems.contains(where: { $0.kind == .trash }) {
             mergedItems.append(.trash())
+        }
+
+        let existingSystemSourceIDs = Set(mergedItems.compactMap(\.sourceTileID))
+        let additions = systemItems.filter { item in
+            guard let sourceTileID = item.sourceTileID else {
+                return item.kind == .trash && !mergedItems.contains(where: { $0.kind == .trash })
+            }
+
+            return !existingSystemSourceIDs.contains(sourceTileID)
+        }
+        if !additions.isEmpty {
+            mergedItems.append(contentsOf: additions)
         }
 
         guard mergedItems != preferences.trailingItems else {
@@ -1940,6 +1980,23 @@ final class TileStore: ObservableObject {
 
     private static func trailingTileID(for item: TrailingTileItem) -> String {
         "trailing:\(item.id)"
+    }
+
+    private static func matchesImportedPinnedItem(_ existing: PinnedTileItem, _ imported: PinnedTileItem) -> Bool {
+        guard existing.kind == imported.kind else {
+            return false
+        }
+
+        switch imported.kind {
+        case .app:
+            return existing.bundleIdentifier == imported.bundleIdentifier
+        case .spacer, .divider:
+            return existing.id == imported.id
+        case .appFolder:
+            return existing.id == imported.id
+        case .widget, .smartStack:
+            return false
+        }
     }
 
     nonisolated private static func trailingItem(from tile: Tile) -> TrailingTileItem? {

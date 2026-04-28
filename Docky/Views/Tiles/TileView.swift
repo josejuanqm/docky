@@ -643,7 +643,7 @@ struct TileView: View {
     private var tooltipTitle: String? {
         switch tile.content {
         case .app(let app):
-            app.displayedWidget?.title ?? app.displayName
+            app.displayName
         case .minimizedWindow(let window):
             window.windowTitle
         case .appFolder(let folder):
@@ -685,11 +685,7 @@ struct TileView: View {
         switch tile.content {
         case .app(let app):
             isTooltipPresented = false
-            if let displayedWidget = app.displayedWidget {
-                handleWidgetTap(displayedWidget)
-            } else {
-                WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
-            }
+            WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
         case .minimizedWindow(let window):
             isTooltipPresented = false
             _ = WorkspaceService.shared.restoreMinimizedWindow(window)

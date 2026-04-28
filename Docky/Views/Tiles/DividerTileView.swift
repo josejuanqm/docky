@@ -34,6 +34,7 @@ struct DividerTileView: View {
             .action("Edit Dock...") {
                 DockEditModeService.shared.enter()
             },
+            .submenu("Troubleshoot", children: troubleshootActions),
             .divider,
             .action("Settings...") {
                 (NSApp.delegate as? AppDelegate)?.showSettingsWindow(nil)
@@ -51,6 +52,14 @@ struct DividerTileView: View {
                 preferences.windowPosition = position
             }
         }
+    }
+
+    private var troubleshootActions: [ContextAction] {
+        [
+            .action("Sync Dock") {
+                TileStore.shared.refresh()
+            }
+        ]
     }
 
     @ViewBuilder

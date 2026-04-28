@@ -671,27 +671,22 @@ private struct DockEditorBrowserView: View {
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .trailing, spacing: 6) {
-                Text(totalVisibleVariants == 1 ? "1 variant visible" : "\(totalVisibleVariants) variants visible")
-                    .font(.footnote)
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-
-                    TextField("Search widgets and utility items", text: $state.searchText)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(width: 300)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(.white.opacity(0.08), lineWidth: 1)
-                }
+                TextField("Search widgets and utility items", text: $state.searchText)
+                    .textFieldStyle(.plain)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(width: 300)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+            }
+
 
             Button("Done") {
                 editMode.exit()
