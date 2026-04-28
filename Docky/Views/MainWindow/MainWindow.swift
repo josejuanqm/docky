@@ -226,7 +226,7 @@ final class MainWindow: NSWindow {
             self.setVisibility(.hidden, animated: true)
         }
         hideWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + dockSettings.autohideDelay, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + preferences.autohideWindowDelay, execute: workItem)
     }
 
     private var shouldRemainVisible: Bool {

@@ -40,11 +40,33 @@ struct BehaviorSettingsView: View {
                     Toggle("Autohide Window", isOn: $preferences.autohidesWindow)
                         .font(.headline)
 
-                    Text("Slides Docky's window off-screen until the pointer reaches its edge. Reveal and hide timing still follows the system Dock settings.")
+                    Text("Slides Docky's window off-screen until the pointer reaches its edge. Hide timing is controlled by Docky's own delay below, so hiding the system Dock does not stretch it.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Autohide Delay")
+                        .font(.headline)
+
+                    HStack {
+                        Slider(value: $preferences.autohideWindowDelay, in: 0...5, step: 0.05) {
+                            Text("Autohide Delay")
+                        }
+                        .labelsHidden()
+
+                        Text("\(String(format: "%.2f", preferences.autohideWindowDelay)) s")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 56, alignment: .trailing)
+                    }
+
+                    Text("Controls how long Docky waits after the pointer leaves and interactions end before the window hides.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+                .disabled(!preferences.autohidesWindow)
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -106,7 +128,7 @@ struct BehaviorSettingsView: View {
                     Toggle("Hide System Dock", isOn: $preferences.hidesSystemDock)
                         .font(.headline)
 
-                    Text("Forces the macOS Dock to autohide with a long delay, disables bouncing and launch animations, and keeps the system Dock aligned with Docky's explicit edge selection while this stays on. Docky snapshots your current Dock settings first and restores them when you turn this off or quit Docky.")
+                    Text("Forces the macOS Dock to autohide with a long delay, disables bouncing and launch animations, and keeps the system Dock aligned with Docky's explicit edge selection while this stays on. Docky snapshots your current Dock settings first and restores them when you turn this off or quit Docky. This no longer affects Docky's own autohide delay.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 

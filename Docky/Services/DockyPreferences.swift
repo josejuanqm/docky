@@ -612,6 +612,24 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Delay before Docky hides its own window after interaction ends.
+    @Published var autohideWindowDelay: TimeInterval {
+        didSet {
+            let clampedValue = max(0, autohideWindowDelay)
+            guard clampedValue != oldValue else {
+                autohideWindowDelay = clampedValue
+                return
+            }
+
+            if autohideWindowDelay != clampedValue {
+                autohideWindowDelay = clampedValue
+                return
+            }
+
+            defaults.set(clampedValue, forKey: Keys.autohideWindowDelay)
+        }
+    }
+
     /// Whether Docky should hide the macOS system Dock while running.
     /// Turning this on snapshots the user's current Dock preferences and
     /// overwrites autohide/bounce behavior; turning it off restores the
@@ -891,6 +909,7 @@ final class DockyPreferences: ObservableObject {
         static let windowBackgroundImagePath = "docky.windowBackgroundImagePath"
         static let windowPosition = "docky.windowPosition"
         static let autohidesWindow = "docky.autohidesWindow"
+        static let autohideWindowDelay = "docky.autohideWindowDelay"
         static let hidesSystemDock = "docky.hidesSystemDock"
         static let overflowBehavior = "docky.overflowBehavior"
         static let windowAxisSizing = "docky.windowAxisSizing"
@@ -925,6 +944,7 @@ final class DockyPreferences: ObservableObject {
         static let windowBackgroundImagePath: String? = nil
         static let windowPosition: DockWindowPosition = .system
         static let autohidesWindow = false
+        static let autohideWindowDelay: TimeInterval = 0.5
         static let hidesSystemDock = true
         static let overflowBehavior: DockOverflowBehavior = .rescale
         static let windowAxisSizing: DockWindowAxisSizing = .fitContent
@@ -960,6 +980,7 @@ final class DockyPreferences: ObservableObject {
         let storedWindowBackgroundImagePath = defaults.string(forKey: Keys.windowBackgroundImagePath)
         let storedWindowPosition = defaults.string(forKey: Keys.windowPosition)
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
+        let storedAutohideWindowDelay = defaults.object(forKey: Keys.autohideWindowDelay) as? Double
         let storedHidesSystemDock = defaults.object(forKey: Keys.hidesSystemDock) as? Bool
         let storedOverflowBehavior = defaults.string(forKey: Keys.overflowBehavior)
         let storedWindowAxisSizing = defaults.string(forKey: Keys.windowAxisSizing)
@@ -994,6 +1015,7 @@ final class DockyPreferences: ObservableObject {
         self.windowBackgroundImagePath = storedWindowBackgroundImagePath ?? DefaultValues.windowBackgroundImagePath
         self.windowPosition = (storedWindowPosition.flatMap(DockWindowPosition.init(rawValue:)) ?? DefaultValues.windowPosition)
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
+        self.autohideWindowDelay = max(storedAutohideWindowDelay ?? DefaultValues.autohideWindowDelay, 0)
         self.hidesSystemDock = storedHidesSystemDock ?? DefaultValues.hidesSystemDock
         self.overflowBehavior = (storedOverflowBehavior.flatMap(DockOverflowBehavior.init(rawValue:)) ?? DefaultValues.overflowBehavior)
         self.windowAxisSizing = (storedWindowAxisSizing.flatMap(DockWindowAxisSizing.init(rawValue:)) ?? DefaultValues.windowAxisSizing)
@@ -1037,6 +1059,7 @@ final class DockyPreferences: ObservableObject {
         windowBackgroundImagePath = DefaultValues.windowBackgroundImagePath
         windowPosition = DefaultValues.windowPosition
         autohidesWindow = DefaultValues.autohidesWindow
+        autohideWindowDelay = DefaultValues.autohideWindowDelay
         hidesSystemDock = DefaultValues.hidesSystemDock
         overflowBehavior = DefaultValues.overflowBehavior
         windowAxisSizing = DefaultValues.windowAxisSizing

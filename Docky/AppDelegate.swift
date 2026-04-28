@@ -265,6 +265,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "windowBackgroundImagePath: \(preferences.windowBackgroundImagePath ?? "none")",
             "windowPosition: \(preferences.windowPosition.rawValue)",
             "autohidesWindow: \(preferences.autohidesWindow)",
+            "autohideWindowDelay: \(preferences.autohideWindowDelay)",
             "showsActivePinnedSeparator: \(preferences.showsActivePinnedSeparator)",
             "activeIndicatorShape: \(preferences.activeIndicatorShape.rawValue)",
             "pinnedAppBundleIdentifiers: \(formattedJSON(preferences.pinnedAppBundleIdentifiers))",
