@@ -128,22 +128,44 @@ struct TileContainerView: View {
         let scrollableSectionLayout = scrollableSectionLayout(in: proxy)
 
         return ZStack(alignment: .topLeading) {
-            Group {
-                if position.isVertical {
-                    VStack(spacing: effectiveTileSpacing) {
-                        contentComponents(scrollableSectionLayout: scrollableSectionLayout)
-                    }
-                    .padding(.vertical, effectiveEdgePadding)
-                } else {
-                    HStack(spacing: effectiveTileSpacing) {
-                        contentComponents(scrollableSectionLayout: scrollableSectionLayout)
-                    }
-                    .padding(.horizontal, effectiveEdgePadding)
-                }
-            }
+            contentStack(scrollableSectionLayout: scrollableSectionLayout)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: contentAlignment(in: proxy, scrollableSectionLayout: scrollableSectionLayout)
+                )
 
             draggedTileOverlay
         }
+    }
+
+    @ViewBuilder
+    private func contentStack(scrollableSectionLayout: ScrollableSectionLayout?) -> some View {
+        if position.isVertical {
+            VStack(spacing: effectiveTileSpacing) {
+                contentComponents(scrollableSectionLayout: scrollableSectionLayout)
+            }
+            .padding(.vertical, effectiveEdgePadding)
+        } else {
+            HStack(spacing: effectiveTileSpacing) {
+                contentComponents(scrollableSectionLayout: scrollableSectionLayout)
+            }
+            .padding(.horizontal, effectiveEdgePadding)
+        }
+    }
+
+    private func contentAlignment(in proxy: GeometryProxy, scrollableSectionLayout: ScrollableSectionLayout?) -> Alignment {
+        shouldCenterContent(in: proxy, scrollableSectionLayout: scrollableSectionLayout) ? .center : .topLeading
+    }
+
+    private func shouldCenterContent(in proxy: GeometryProxy, scrollableSectionLayout: ScrollableSectionLayout?) -> Bool {
+        guard scrollableSectionLayout == nil,
+              layout.contentScale >= 0.999,
+              !layout.compactsWidgetsForOverflow else {
+            return false
+        }
+
+        return totalAxisLength(for: layoutComponents) <= projected(size: proxy.size) + 0.5
     }
 
     @ViewBuilder

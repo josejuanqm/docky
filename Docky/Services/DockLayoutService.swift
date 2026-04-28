@@ -4,6 +4,7 @@
 //
 
 import Combine
+import CoreGraphics
 import Foundation
 
 final class DockLayoutService: ObservableObject {
@@ -11,6 +12,7 @@ final class DockLayoutService: ObservableObject {
 
     @Published private(set) var contentScale: CGFloat = 1
     @Published private(set) var compactsWidgetsForOverflow = false
+    @Published private(set) var chromeSize: CGSize = .zero
 
     private init() {}
 
@@ -23,6 +25,13 @@ final class DockLayoutService: ObservableObject {
     func setCompactsWidgetsForOverflow(_ compactsWidgetsForOverflow: Bool) {
         guard self.compactsWidgetsForOverflow != compactsWidgetsForOverflow else { return }
         self.compactsWidgetsForOverflow = compactsWidgetsForOverflow
+    }
+
+    func setChromeSize(_ size: CGSize) {
+        guard abs(chromeSize.width - size.width) > 0.0001 || abs(chromeSize.height - size.height) > 0.0001 else {
+            return
+        }
+        chromeSize = size
     }
 
     func scaled(_ value: CGFloat) -> CGFloat {

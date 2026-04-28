@@ -10,6 +10,7 @@ import SwiftUI
 
 struct MainWindowView: View {
     private let borderWidth: CGFloat = 1
+    private let chromeResizeAnimation: Animation = .easeInOut(duration: 0.18)
 
     @ObservedObject private var dockSettings = DockSettingsService.shared
     @ObservedObject private var preferences = DockyPreferences.shared
@@ -17,11 +18,23 @@ struct MainWindowView: View {
 
     var body: some View {
         let cornerRadius = effectiveCornerRadius
+        let chromeFrameSize = resolvedChromeFrameSize
 
-        TileContainerView()
-            .background {
-                backgroundFill(cornerRadius: cornerRadius)
-            }
+        ZStack {
+            chromeBackground(cornerRadius: cornerRadius)
+                .frame(width: chromeFrameSize?.width, height: chromeFrameSize?.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(false)
+                .animation(chromeResizeAnimation, value: chromeFrameSize)
+
+            TileContainerView()
+        }
+        .compositingGroup()
+    }
+
+    @ViewBuilder
+    private func chromeBackground(cornerRadius: CGFloat) -> some View {
+        backgroundFill(cornerRadius: cornerRadius)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
                 if !preferences.disablesGlassLook {
@@ -30,7 +43,6 @@ struct MainWindowView: View {
                         .strokeBorder(borderGradient, lineWidth: borderWidth)
                 }
             }
-            .compositingGroup()
     }
 
     @ViewBuilder
@@ -74,6 +86,15 @@ struct MainWindowView: View {
     private var maximumCornerRadius: CGFloat {
         let iconHeight = layoutService.scaled(dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize)
         return (iconHeight + layoutService.scaled(preferences.tileVerticalPadding) * 2) / 2
+    }
+
+    private var resolvedChromeFrameSize: CGSize? {
+        let chromeSize = layoutService.chromeSize
+        guard chromeSize.width > 0, chromeSize.height > 0 else {
+            return nil
+        }
+
+        return chromeSize
     }
 
     private var resolvedBackgroundImage: NSImage? {

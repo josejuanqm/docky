@@ -249,7 +249,6 @@ final class MainWindow: NSWindow {
             0,
             axisLength(of: screenBounds.size, position: position) - contentPadding * 2
         )
-        let shouldUseFullAxisSizing = preferences.windowAxisSizing == .fullAxis
         let contentAvailableAxisLength = max(
             0,
             unreservedAvailableAxisLength
@@ -259,7 +258,7 @@ final class MainWindow: NSWindow {
                     position: position
                 ) ? reservedStatusBarLength : 0)
         )
-        let availableAxisLength = shouldUseFullAxisSizing
+        let availableAxisLength = preferences.windowAxisSizing == .fullAxis
             ? unreservedAvailableAxisLength
             : contentAvailableAxisLength
         let compactsWidgetsForOverflow = shouldCompactWidgetsForOverflow(
@@ -296,9 +295,15 @@ final class MainWindow: NSWindow {
             compactWidgets: compactsWidgetsForOverflow,
             edgePadding: TileContainerView.edgePadding * contentScale
         )
-        let displayedAxisLength = shouldUseFullAxisSizing
-            ? availableAxisLength
-            : min(axisLength(of: displayedContentSize, position: position), availableAxisLength)
+        let displayedChromeAxisLength = min(axisLength(of: displayedContentSize, position: position), availableAxisLength)
+        layout.setChromeSize(displayedChromeSize(
+            for: displayedContentSize,
+            displayedAxisLength: displayedChromeAxisLength,
+            position: position
+        ))
+        // Keep the chrome stretched across the current dock axis even when the
+        // tile layout itself remains content-sized.
+        let displayedAxisLength = availableAxisLength
         let width = displayedWindowWidth(
             for: displayedContentSize,
             displayedAxisLength: displayedAxisLength,
@@ -411,6 +416,18 @@ final class MainWindow: NSWindow {
         }
 
         return contentSize.height + contentPadding * 2
+    }
+
+    private func displayedChromeSize(
+        for contentSize: CGSize,
+        displayedAxisLength: CGFloat,
+        position: ResolvedDockWindowPosition
+    ) -> CGSize {
+        if position.isVertical {
+            return CGSize(width: contentSize.width, height: displayedAxisLength)
+        }
+
+        return CGSize(width: displayedAxisLength, height: contentSize.height)
     }
 
     private func frameOrigin(
