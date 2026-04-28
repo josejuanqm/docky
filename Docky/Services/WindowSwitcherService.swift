@@ -7,6 +7,12 @@ import AppKit
 import Carbon
 import Combine
 
+struct FocusedWindowPreview {
+    let windowIdentifier: String
+    let image: NSImage
+    let screenBounds: CGRect
+}
+
 final class WindowSwitcherService: ObservableObject {
     static let shared = WindowSwitcherService()
 
@@ -14,6 +20,7 @@ final class WindowSwitcherService: ObservableObject {
     @Published private(set) var windows: [AppWindow] = []
     @Published private(set) var selectedWindowIdentifier: String?
     @Published private(set) var isContextMenuPresented = false
+    @Published private(set) var focusedPreview: FocusedWindowPreview?
 
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandlerRef: EventHandlerRef?
@@ -21,6 +28,7 @@ final class WindowSwitcherService: ObservableObject {
     private var localFlagsMonitor: Any?
     private var globalFlagsMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
+    private var focusedPreviewTask: Task<Void, Never>?
     private let forwardHotKeyID = EventHotKeyID(signature: OSType(0x444B5957), id: 1)
     private let reverseHotKeyID = EventHotKeyID(signature: OSType(0x444B5957), id: 2)
     private var reverseHotKeyRef: EventHotKeyRef?
@@ -96,6 +104,7 @@ final class WindowSwitcherService: ObservableObject {
     }
 
     func dismiss() {
+        cancelFocusedPreview()
         isPresented = false
         isContextMenuPresented = false
         windows = []
@@ -117,10 +126,16 @@ final class WindowSwitcherService: ObservableObject {
         }
 
         selectedWindowIdentifier = identifier
+
+        scheduleFocusedPreview(forWindowIdentifier: identifier)
     }
 
     func setContextMenuPresented(_ isPresented: Bool) {
         isContextMenuPresented = isPresented
+
+        if isPresented {
+            cancelFocusedPreview()
+        }
 
         guard !isPresented else {
             return
@@ -142,7 +157,7 @@ final class WindowSwitcherService: ObservableObject {
         }
 
         let nextIndex = min(removedIndex, windows.count - 1)
-        selectedWindowIdentifier = windows[nextIndex].windowIdentifier
+        selectWindow(withIdentifier: windows[nextIndex].windowIdentifier)
     }
 
     private var selectedWindow: AppWindow? {
@@ -158,6 +173,19 @@ final class WindowSwitcherService: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] shortcut in
                 self?.registerHotKey(shortcut: shortcut)
+            }
+            .store(in: &cancellables)
+
+        DockyPreferences.shared.$showsWindowSwitcherFocusPreview
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                guard let self else { return }
+
+                if isEnabled, let selectedWindowIdentifier {
+                    self.scheduleFocusedPreview(forWindowIdentifier: selectedWindowIdentifier)
+                } else {
+                    self.cancelFocusedPreview()
+                }
             }
             .store(in: &cancellables)
     }
@@ -228,7 +256,90 @@ final class WindowSwitcherService: ObservableObject {
         }
 
         let wrappedIndex = ((index % windows.count) + windows.count) % windows.count
-        selectedWindowIdentifier = windows[wrappedIndex].windowIdentifier
+        selectWindow(withIdentifier: windows[wrappedIndex].windowIdentifier)
+    }
+
+    private func cancelFocusedPreview() {
+        focusedPreviewTask?.cancel()
+        focusedPreviewTask = nil
+        WorkspaceService.shared.stopLiveFocusPreview()
+        focusedPreview = nil
+    }
+
+    private func scheduleFocusedPreview(forWindowIdentifier identifier: String) {
+        let preferences = DockyPreferences.shared
+
+        focusedPreviewTask?.cancel()
+        focusedPreviewTask = nil
+
+        focusedPreview = nil
+
+        guard preferences.showsWindowSwitcherFocusPreview,
+              isPresented,
+              !isContextMenuPresented,
+              windows.contains(where: { $0.windowIdentifier == identifier }) else {
+            return
+        }
+
+        focusedPreviewTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+
+            await self?.runFocusedPreviewLoop(forWindowIdentifier: identifier)
+        }
+    }
+
+    private func runFocusedPreviewLoop(forWindowIdentifier identifier: String) async {
+        guard DockyPreferences.shared.showsWindowSwitcherFocusPreview,
+              isPresented,
+              !isContextMenuPresented,
+              selectedWindowIdentifier == identifier,
+              let window = windows.first(where: { $0.windowIdentifier == identifier }),
+              let screenBounds = window.screenBounds,
+              !screenBounds.isEmpty else {
+            focusedPreview = nil
+            return
+        }
+
+        let startedLivePreview = await WorkspaceService.shared.startLiveFocusPreview(for: window) { [weak self] image in
+            guard let self,
+                  self.isPresented,
+                  !self.isContextMenuPresented,
+                  self.selectedWindowIdentifier == identifier,
+                  let image else {
+                return
+            }
+
+            self.focusedPreview = FocusedWindowPreview(
+                windowIdentifier: identifier,
+                image: image,
+                screenBounds: screenBounds
+            )
+        }
+
+        guard !startedLivePreview else { return }
+
+        while !Task.isCancelled {
+            guard DockyPreferences.shared.showsWindowSwitcherFocusPreview,
+                  isPresented,
+                  !isContextMenuPresented,
+                  selectedWindowIdentifier == identifier,
+                  let currentWindow = windows.first(where: { $0.windowIdentifier == identifier }),
+                  let currentScreenBounds = currentWindow.screenBounds,
+                  !currentScreenBounds.isEmpty else {
+                focusedPreview = nil
+                return
+            }
+
+            if let image = await WorkspaceService.shared.liveFocusPreviewImage(for: currentWindow) {
+                focusedPreview = FocusedWindowPreview(
+                    windowIdentifier: identifier,
+                    image: image,
+                    screenBounds: currentScreenBounds
+                )
+            }
+
+            try? await Task.sleep(for: .milliseconds(120))
+        }
     }
 
     private func installHotKeyHandlerIfNeeded() {

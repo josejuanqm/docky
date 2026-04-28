@@ -109,8 +109,17 @@ private struct WindowSwitcherOverlayView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.black.opacity(0)
+                Color.black.opacity(switcher.focusedPreview == nil ? 0 : 0.6)
                     .ignoresSafeArea()
+
+                if let focusedPreview = switcher.focusedPreview {
+                    FocusedWindowPreviewView(
+                        preview: focusedPreview,
+                        containerSize: proxy.size
+                    )
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                }
 
                 ScrollViewReader { scrollProxy in
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -131,6 +140,7 @@ private struct WindowSwitcherOverlayView: View {
                     .frame(maxWidth: max(0, proxy.size.width - 80))
                     .fixedSize(horizontal: true, vertical: true)
                     .glassEffect(.regular, in: .rect(cornerRadius: containerCornerRadius, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: containerCornerRadius, style: .continuous))
                     .onChange(of: switcher.selectedWindowIdentifier) { _, selection in
                         guard let selection else { return }
                         withAnimation(.easeInOut(duration: 0.14)) {
@@ -139,7 +149,37 @@ private struct WindowSwitcherOverlayView: View {
                     }
                 }
             }
+            .animation(.easeInOut(duration: 0.18), value: switcher.focusedPreview?.windowIdentifier)
         }
+    }
+}
+
+private struct FocusedWindowPreviewView: View {
+    let preview: FocusedWindowPreview
+    let containerSize: CGSize
+
+    var body: some View {
+        Image(nsImage: preview.image)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: previewSize.width, height: previewSize.height)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: .black.opacity(0.35), radius: 28, y: 10)
+            .position(previewCenter)
+    }
+
+    private var previewSize: CGSize {
+        CGSize(
+            width: min(preview.screenBounds.width, containerSize.width),
+            height: min(preview.screenBounds.height, containerSize.height)
+        )
+    }
+
+    private var previewCenter: CGPoint {
+        CGPoint(
+            x: min(max(preview.screenBounds.minX + (previewSize.width / 2), previewSize.width / 2), containerSize.width - (previewSize.width / 2)),
+            y: min(max(preview.screenBounds.minY + (previewSize.height / 2), previewSize.height / 2), containerSize.height - (previewSize.height / 2))
+        )
     }
 }
 
@@ -161,14 +201,14 @@ private struct WindowSwitcherCard: View {
             VStack(spacing: 4) {
                 Text(window.windowTitle)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.96))
+                    .foregroundStyle(.primary.opacity(0.96))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .opacity(isSelected ? 1 : 0.25)
 
                 Text(window.appDisplayName)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(.primary.opacity(0.6))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .opacity(isSelected ? 1 : 0.12)
@@ -193,8 +233,9 @@ private struct WindowSwitcherCard: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         .onHover { isHovering in
-            guard isHovering else { return }
-            switcher.selectWindow(withIdentifier: window.windowIdentifier)
+            if isHovering {
+                switcher.selectWindow(withIdentifier: window.windowIdentifier)
+            }
         }
         .animation(.easeInOut(duration: 0.14), value: isSelected)
     }

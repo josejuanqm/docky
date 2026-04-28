@@ -14,11 +14,14 @@
 import AppKit
 import ApplicationServices
 import Combine
+import CoreImage
+import CoreMedia
 import ScreenCaptureKit
 
 private let axWindowNumberAttribute = "AXWindowNumber" as CFString
 private let axCloseAction = "AXClose" as CFString
 private let axRaiseAction = "AXRaise" as CFString
+private let minimumSwitchableWindowSize = CGSize(width: 100, height: 100)
 
 struct RunningApp: Hashable, Identifiable {
     let bundleIdentifier: String
@@ -40,6 +43,7 @@ struct AppWindow: Equatable, Identifiable {
     let windowTitle: String
     let isMinimized: Bool
     let previewLookupIndex: Int
+    let screenBounds: CGRect?
 
     var id: String { windowIdentifier }
 }
@@ -63,6 +67,7 @@ final class WorkspaceService: ObservableObject {
     private var lastMinimizedWindowsDebugSummary: String?
     private var attemptedMinimizedWindowPreviewIDs: Set<String> = []
     private var attemptedAppWindowPreviewIDs: Set<String> = []
+    private var liveFocusPreviewSession: LiveWindowPreviewSession?
 
     private init() {
         refresh()
@@ -156,6 +161,12 @@ final class WorkspaceService: ObservableObject {
 
             let windowNumber = entry[kCGWindowNumber] as? Int
             let windowName = (entry[kCGWindowName] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let screenBounds = CGRect(
+                x: bounds["X"] ?? 0,
+                y: bounds["Y"] ?? 0,
+                width: bounds["Width"] ?? 0,
+                height: bounds["Height"] ?? 0
+            )
             guard let matchedWindow = bundleWindows.first(where: {
                 if let windowNumber, $0.windowNumber == windowNumber {
                     return true
@@ -166,13 +177,25 @@ final class WorkspaceService: ObservableObject {
                 continue
             }
 
-            guard !matchedWindow.isMinimized,
-                  !seenWindowIdentifiers.contains(matchedWindow.windowIdentifier) else {
+            let visibleWindow = AppWindow(
+                windowIdentifier: matchedWindow.windowIdentifier,
+                windowNumber: matchedWindow.windowNumber,
+                bundleIdentifier: matchedWindow.bundleIdentifier,
+                processIdentifier: matchedWindow.processIdentifier,
+                appDisplayName: matchedWindow.appDisplayName,
+                windowTitle: matchedWindow.windowTitle,
+                isMinimized: matchedWindow.isMinimized,
+                previewLookupIndex: matchedWindow.previewLookupIndex,
+                screenBounds: screenBounds
+            )
+
+            guard !visibleWindow.isMinimized,
+                  !seenWindowIdentifiers.contains(visibleWindow.windowIdentifier) else {
                 continue
             }
 
-            seenWindowIdentifiers.insert(matchedWindow.windowIdentifier)
-            result.append(matchedWindow)
+            seenWindowIdentifiers.insert(visibleWindow.windowIdentifier)
+            result.append(visibleWindow)
         }
 
         refreshAppWindowPreviews(for: result)
@@ -182,6 +205,60 @@ final class WorkspaceService: ObservableObject {
 
     func appWindowPreview(for window: AppWindow) -> NSImage? {
         appWindowPreviews[window.windowIdentifier]
+    }
+
+    func liveFocusPreviewImage(for window: AppWindow) async -> NSImage? {
+        guard PermissionsService.shared.screenCapture == .granted else {
+            return appWindowPreviews[window.windowIdentifier]
+        }
+
+        if let windowNumber = window.windowNumber,
+           let cgImage = CGWindowListCreateImagePrivate(
+               .null,
+               [.optionIncludingWindow],
+               CGWindowID(windowNumber),
+               [.boundsIgnoreFraming, .bestResolution]
+           ) {
+            return makeFullSizeImage(from: cgImage)
+        }
+
+        return await captureFullSizeAppWindowImage(for: window) ?? appWindowPreviews[window.windowIdentifier]
+    }
+
+    func startLiveFocusPreview(
+        for window: AppWindow,
+        onFrame: @escaping @MainActor (NSImage?) -> Void
+    ) async -> Bool {
+        stopLiveFocusPreview()
+
+        guard PermissionsService.shared.screenCapture == .granted else {
+            return false
+        }
+
+        do {
+            let shareableContent = try await shareableContentIncludingOffscreenWindows()
+            guard let shareableWindow = matchingShareableWindow(for: window, in: shareableContent.windows) else {
+                return false
+            }
+
+            let session = LiveWindowPreviewSession(
+                shareableWindow: shareableWindow,
+                captureSize: fullSizeCaptureSize(for: shareableWindow.frame.size, screenBounds: window.screenBounds),
+                onFrame: onFrame
+            )
+            try await session.start()
+            liveFocusPreviewSession = session
+            return true
+        } catch {
+            NSLog("[Docky] Live focus preview stream failed for \(window.windowIdentifier): \(error.localizedDescription)")
+            liveFocusPreviewSession = nil
+            return false
+        }
+    }
+
+    func stopLiveFocusPreview() {
+        liveFocusPreviewSession?.stop()
+        liveFocusPreviewSession = nil
     }
 
     @discardableResult
@@ -541,6 +618,12 @@ final class WorkspaceService: ObservableObject {
         runningApp: RunningApp,
         fallbackIndex: Int
     ) -> AppWindow? {
+        guard let windowSize = cgSizeAttribute(kAXSizeAttribute as CFString, of: windowElement),
+              windowSize.width >= minimumSwitchableWindowSize.width,
+              windowSize.height >= minimumSwitchableWindowSize.height else {
+            return nil
+        }
+
         let title = stringAttribute(kAXTitleAttribute as CFString, of: windowElement)
             ?? runningApp.localizedName
         let windowNumber = intAttribute(axWindowNumberAttribute, of: windowElement)
@@ -554,8 +637,9 @@ final class WorkspaceService: ObservableObject {
             processIdentifier: runningApp.processIdentifier,
             appDisplayName: runningApp.localizedName,
             windowTitle: title.isEmpty ? runningApp.localizedName : title,
-            isMinimized: boolAttribute(kAXMinimizedAttribute as CFString, of: windowElement) == true
-            ,previewLookupIndex: fallbackIndex
+            isMinimized: boolAttribute(kAXMinimizedAttribute as CFString, of: windowElement) == true,
+            previewLookupIndex: fallbackIndex,
+            screenBounds: nil
         )
     }
 
@@ -651,6 +735,24 @@ final class WorkspaceService: ObservableObject {
 
     private func intAttribute(_ attribute: CFString, of element: AXUIElement) -> Int? {
         (valueAttribute(attribute, of: element) as? NSNumber)?.intValue
+    }
+
+    private func cgSizeAttribute(_ attribute: CFString, of element: AXUIElement) -> CGSize? {
+        guard let value = valueAttribute(attribute, of: element) else {
+            return nil
+        }
+
+        let axValue = unsafeBitCast(value, to: AXValue.self)
+        guard AXValueGetType(axValue) == .cgSize else {
+            return nil
+        }
+
+        var size = CGSize.zero
+        guard AXValueGetValue(axValue, .cgSize, &size) else {
+            return nil
+        }
+
+        return size
     }
 
     private func arrayAttribute(_ attribute: CFString, of element: AXUIElement) -> AnyObject? {
@@ -774,6 +876,37 @@ final class WorkspaceService: ObservableObject {
             return makeThumbnail(from: cgImage, maxSize: CGSize(width: 480, height: 300))
         } catch {
             NSLog("[Docky] App window preview capture failed for \(window.windowIdentifier): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func captureFullSizeAppWindowImage(for window: AppWindow) async -> NSImage? {
+        guard PermissionsService.shared.screenCapture == .granted else {
+            return nil
+        }
+
+        do {
+            let shareableContent = try await shareableContentIncludingOffscreenWindows()
+            guard let shareableWindow = matchingShareableWindow(for: window, in: shareableContent.windows) else {
+                return nil
+            }
+
+            let configuration = SCStreamConfiguration()
+            let captureSize = fullSizeCaptureSize(for: shareableWindow.frame.size, screenBounds: window.screenBounds)
+            configuration.width = Int(captureSize.width)
+            configuration.height = Int(captureSize.height)
+            configuration.capturesAudio = false
+            configuration.captureMicrophone = false
+            configuration.showsCursor = false
+            configuration.scalesToFit = false
+            configuration.ignoreShadowsSingleWindow = true
+            configuration.ignoreGlobalClipSingleWindow = true
+
+            let filter = SCContentFilter(desktopIndependentWindow: shareableWindow)
+            let cgImage = try await captureImage(contentFilter: filter, configuration: configuration)
+            return makeFullSizeImage(from: cgImage)
+        } catch {
+            NSLog("[Docky] Live focus preview capture failed for \(window.windowIdentifier): \(error.localizedDescription)")
             return nil
         }
     }
@@ -924,6 +1057,40 @@ final class WorkspaceService: ObservableObject {
         )
     }
 
+    private func fullSizeCaptureSize(for sourceSize: CGSize, screenBounds: CGRect?) -> CGSize {
+        guard sourceSize.width > 0, sourceSize.height > 0 else {
+            return CGSize(width: 1, height: 1)
+        }
+
+        let scaleFactor = backingScaleFactor(for: screenBounds)
+
+        return CGSize(
+            width: max(1, ceil(sourceSize.width * scaleFactor)),
+            height: max(1, ceil(sourceSize.height * scaleFactor))
+        )
+    }
+
+    private func backingScaleFactor(for screenBounds: CGRect?) -> CGFloat {
+        guard let screenBounds else {
+            return NSScreen.main?.backingScaleFactor ?? 2
+        }
+
+        let bestScreen = NSScreen.screens.max { lhs, rhs in
+            intersectionArea(lhs.frame, with: screenBounds) < intersectionArea(rhs.frame, with: screenBounds)
+        }
+
+        return bestScreen?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    }
+
+    private func intersectionArea(_ lhs: CGRect, with rhs: CGRect) -> CGFloat {
+        let intersection = lhs.intersection(rhs)
+        guard !intersection.isNull, !intersection.isEmpty else {
+            return 0
+        }
+
+        return intersection.width * intersection.height
+    }
+
     private func captureImage(
         contentFilter: SCContentFilter,
         configuration: SCStreamConfiguration
@@ -973,6 +1140,19 @@ final class WorkspaceService: ObservableObject {
         return thumbnail
     }
 
+    private func makeFullSizeImage(from cgImage: CGImage) -> NSImage? {
+        guard cgImage.width > 0, cgImage.height > 0 else {
+            return nil
+        }
+
+        let image = NSImage(
+            cgImage: cgImage,
+            size: CGSize(width: cgImage.width, height: cgImage.height)
+        )
+        image.isTemplate = false
+        return image
+    }
+
     private func logMinimizedWindowsDebugSummary(_ summary: String) {
         guard summary != lastMinimizedWindowsDebugSummary else {
             return
@@ -980,5 +1160,79 @@ final class WorkspaceService: ObservableObject {
 
         lastMinimizedWindowsDebugSummary = summary
         NSLog("[Docky] Minimized windows: \(summary)")
+    }
+}
+
+private final class LiveWindowPreviewSession: NSObject, SCStreamOutput {
+    private let stream: SCStream
+    private let outputQueue = DispatchQueue(label: "Docky.LiveWindowPreview", qos: .userInteractive)
+    private let ciContext = CIContext(options: nil)
+    private let onFrame: @MainActor (NSImage?) -> Void
+    private var isStopped = false
+
+    init(
+        shareableWindow: SCWindow,
+        captureSize: CGSize,
+        onFrame: @escaping @MainActor (NSImage?) -> Void
+    ) {
+        let configuration = SCStreamConfiguration()
+        configuration.width = Int(captureSize.width)
+        configuration.height = Int(captureSize.height)
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+        configuration.queueDepth = 3
+        configuration.capturesAudio = false
+        configuration.captureMicrophone = false
+        configuration.showsCursor = false
+        configuration.scalesToFit = false
+        configuration.ignoreShadowsSingleWindow = true
+        configuration.ignoreGlobalClipSingleWindow = true
+
+        self.stream = SCStream(
+            filter: SCContentFilter(desktopIndependentWindow: shareableWindow),
+            configuration: configuration,
+            delegate: nil
+        )
+        self.onFrame = onFrame
+
+        super.init()
+    }
+
+    func start() async throws {
+        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: outputQueue)
+        try await stream.startCapture()
+    }
+
+    func stop() {
+        guard !isStopped else { return }
+        isStopped = true
+
+        try? stream.removeStreamOutput(self, type: .screen)
+        Task {
+            try? await stream.stopCapture()
+        }
+    }
+
+    func stream(
+        _ stream: SCStream,
+        didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
+        of outputType: SCStreamOutputType
+    ) {
+        guard outputType == .screen,
+              let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return
+        }
+
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        let rect = CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer))
+        guard let cgImage = ciContext.createCGImage(ciImage, from: rect) else {
+            return
+        }
+
+        let image = NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
+        image.isTemplate = false
+
+        Task { @MainActor in
+            self.onFrame(image)
+        }
     }
 }

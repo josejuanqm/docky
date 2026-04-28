@@ -125,7 +125,6 @@ private struct LaunchpadOverlayView: View {
             ZStack {
                 Rectangle()
                     .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(0.34))
                     .contentShape(Rectangle())
                     .onTapGesture {
                         overlay.dismiss()
@@ -178,6 +177,9 @@ private struct LaunchpadOverlayView: View {
                 }
             }
             .ignoresSafeArea()
+            .onExitCommand {
+                overlay.dismiss()
+            }
             .background {
                 LaunchpadOverlayKeyMonitor { event in
                     handleKeyDown(event, columnCount: columnCount)
@@ -252,12 +254,12 @@ private struct LaunchpadOverlayView: View {
     private var searchField: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.primary.opacity(0.7))
 
             TextField("Search apps", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(.primary.opacity(0.95))
                 .focused($isSearchFocused)
 
             if !searchText.isEmpty {
@@ -266,18 +268,18 @@ private struct LaunchpadOverlayView: View {
                     isSearchFocused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.white.opacity(0.45), .white.opacity(0.2))
+                        .foregroundStyle(.primary.opacity(0.45), .primary.opacity(0.2))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
-        .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.windowBackground.opacity(0.12), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(.primary.opacity(0.12), lineWidth: 1)
         }
     }
 
@@ -367,7 +369,7 @@ private struct LaunchpadAppCard: View {
 
             Text(app.displayName)
                 .font(.system(size: 7.5 * scale, weight: .medium))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(.primary.opacity(0.95))
                 .multilineTextAlignment(.center)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -379,10 +381,10 @@ private struct LaunchpadAppCard: View {
         .background {
             if isSelected {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.white.opacity(0.12))
+                    .fill(.primary.opacity(0.12))
                     .overlay {
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+                            .strokeBorder(.primary.opacity(0.22), lineWidth: 1)
                     }
             }
         }

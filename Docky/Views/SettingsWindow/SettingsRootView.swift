@@ -8,6 +8,7 @@ import SwiftUI
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case appearance
     case behavior
+    case launchpad
     case windowManagement
     case appIcons
     case permissions
@@ -21,6 +22,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
             "Appearance"
         case .behavior:
             "Behavior"
+        case .launchpad:
+            "Launchpad"
         case .windowManagement:
             "Window Management"
         case .appIcons:
@@ -38,6 +41,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
             "paintbrush"
         case .behavior:
             "switch.2"
+        case .launchpad:
+            "square.grid.3x3.fill"
         case .windowManagement:
             "rectangle.on.rectangle"
         case .appIcons:
@@ -55,6 +60,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
             "Customize Docky’s look, chrome, and window tint."
         case .behavior:
             "Control placement, autohide, and system Dock behavior."
+        case .launchpad:
+            "Configure the Launchpad overlay grid and optional global shortcut."
         case .windowManagement:
             "Configure global window switching and shortcut behavior."
         case .appIcons:
@@ -66,7 +73,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         }
     }
     
-    static var allCases: [SettingsPane] = [.appearance, .behavior, .windowManagement, .appIcons, .permissions]
+    static var allCases: [SettingsPane] = [.appearance, .behavior, .launchpad, .windowManagement, .appIcons, .permissions]
 }
 
 struct SettingsRootView: View {
@@ -104,6 +111,8 @@ private struct SettingsDetailView: View {
             AppearanceSettingsView()
         case .behavior:
             BehaviorSettingsView()
+        case .launchpad:
+            LaunchpadSettingsView()
         case .windowManagement:
             WindowManagementSettingsView()
         case .appIcons:

@@ -129,25 +129,6 @@ struct BehaviorSettingsView: View {
                 .padding(.vertical, 4)
             }
 
-            Section("Launchpad") {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Grid Columns")
-                            .font(.headline)
-
-                        Spacer()
-
-                        Stepper("\(preferences.launchpadGridColumnCount)", value: $preferences.launchpadGridColumnCount, in: 1...10)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text("Controls the default Launchpad grid width. Docky uses this many columns when they fit on screen, starting at 7 by default.")
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.vertical, 4)
-            }
-
             Section {
                 Button("Reset to Defaults") {
                     preferences.resetToDefaults()

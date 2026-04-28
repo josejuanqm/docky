@@ -11,6 +11,8 @@ struct KeyboardShortcut: Codable, Equatable {
     let keyCode: UInt16
     let modifierFlagsRawValue: UInt
 
+    static let empty = KeyboardShortcut(keyCode: 0, modifierFlags: [])
+
     init(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags) {
         self.keyCode = keyCode
         self.modifierFlagsRawValue = modifierFlags.intersection(Self.supportedModifierFlags).rawValue
@@ -44,6 +46,10 @@ struct KeyboardShortcut: Codable, Equatable {
     }
 
     var displayString: String {
+        guard isValid else {
+            return "Not Set"
+        }
+
         let modifierDisplay = Self.modifierDisplayString(for: modifierFlags)
         let keyDisplay = Self.keyDisplayString(for: keyCode)
         return modifierDisplay + keyDisplay

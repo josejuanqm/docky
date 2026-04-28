@@ -1,24 +1,24 @@
 //
-//  WindowManagementSettingsView.swift
+//  LaunchpadSettingsView.swift
 //  Docky
 //
 
 import SwiftUI
 
-struct WindowManagementSettingsView: View {
+struct LaunchpadSettingsView: View {
     @ObservedObject private var preferences = DockyPreferences.shared
     @State private var isRecordingShortcut = false
 
     var body: some View {
         Form {
-            Section("Window Switcher") {
+            Section("Shortcut") {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Shortcut")
+                            Text("Global Shortcut")
                                 .font(.headline)
 
-                            Text("Choose the global shortcut that opens Docky's Cmd-Tab-style window switcher.")
+                            Text("Optionally assign a global shortcut that toggles Docky's Launchpad overlay from anywhere.")
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -26,25 +26,34 @@ struct WindowManagementSettingsView: View {
                         Spacer()
 
                         ShortcutRecorderControl(
-                            shortcut: preferences.windowSwitcherShortcut,
+                            shortcut: preferences.launchpadShortcut,
                             isRecording: $isRecordingShortcut,
-                            resetShortcut: KeyboardShortcut(keyCode: 48, modifierFlags: [.option])
+                            resetShortcut: nil
                         ) { shortcut in
-                            preferences.windowSwitcherShortcut = shortcut
+                            preferences.launchpadShortcut = shortcut
                         }
                     }
 
-                    Text("While the switcher is open, keep the shortcut modifiers held and tap the shortcut again to cycle. Release the modifiers to focus the selected window.")
+                    Text("Leave this unset if you only want to open Launchpad from the Docky tile or context menu.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
+            }
 
+            Section("Layout") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Preview Selected Window In Place", isOn: $preferences.showsWindowSwitcherFocusPreview)
-                        .font(.headline)
+                    HStack {
+                        Text("Grid Columns")
+                            .font(.headline)
 
-                    Text("After the current switcher selection stays put for a moment, darken the backdrop and draw that window at its on-screen position behind the switcher.")
+                        Spacer()
+
+                        Stepper("\(preferences.launchpadGridColumnCount)", value: $preferences.launchpadGridColumnCount, in: 1...10)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("Controls the default Launchpad grid width. Docky uses this many columns when they fit on screen, starting at 7 by default.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
