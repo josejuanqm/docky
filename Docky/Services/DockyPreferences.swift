@@ -600,6 +600,7 @@ final class DockyPreferences: ObservableObject {
         didSet {
             guard windowPosition != oldValue else { return }
             defaults.set(windowPosition.rawValue, forKey: Keys.windowPosition)
+            syncSystemDockPositionIfNeeded()
         }
     }
 
@@ -619,11 +620,7 @@ final class DockyPreferences: ObservableObject {
         didSet {
             guard hidesSystemDock != oldValue else { return }
             defaults.set(hidesSystemDock, forKey: Keys.hidesSystemDock)
-            if hidesSystemDock {
-                SystemDockVisibilityService.shared.hide()
-            } else {
-                SystemDockVisibilityService.shared.restore()
-            }
+            applySystemDockVisibilityPreference()
         }
     }
 
@@ -928,7 +925,7 @@ final class DockyPreferences: ObservableObject {
         static let windowBackgroundImagePath: String? = nil
         static let windowPosition: DockWindowPosition = .system
         static let autohidesWindow = false
-        static let hidesSystemDock = false
+        static let hidesSystemDock = true
         static let overflowBehavior: DockOverflowBehavior = .rescale
         static let windowAxisSizing: DockWindowAxisSizing = .fitContent
         static let showsActivePinnedSeparator = true
@@ -1019,6 +1016,15 @@ final class DockyPreferences: ObservableObject {
         self.trailingItems = Self.decodeTrailingItems(from: storedTrailingItems) ?? DefaultValues.trailingItems
     }
 
+    func applySystemDockVisibilityPreference() {
+        if hidesSystemDock {
+            SystemDockVisibilityService.shared.hide()
+            syncSystemDockPositionIfNeeded()
+        } else {
+            SystemDockVisibilityService.shared.restore()
+        }
+    }
+
     func resetToDefaults() {
         tileVerticalPadding = DefaultValues.tileVerticalPadding
         tileSpacing = DefaultValues.tileSpacing
@@ -1047,6 +1053,24 @@ final class DockyPreferences: ObservableObject {
         windowSwitcherShortcut = DefaultValues.windowSwitcherShortcut
         showsWindowSwitcherFocusPreview = DefaultValues.showsWindowSwitcherFocusPreview
         appWidgetDisplays = DefaultValues.appWidgetDisplays
+    }
+
+    private func syncSystemDockPositionIfNeeded() {
+        guard hidesSystemDock else { return }
+
+        let orientation: DockSettingsService.Orientation
+        switch windowPosition {
+        case .system:
+            return
+        case .left:
+            orientation = .left
+        case .right:
+            orientation = .right
+        case .bottom:
+            orientation = .bottom
+        }
+
+        SystemDockVisibilityService.shared.setOrientation(orientation)
     }
 
     private func persistPinnedItems(_ items: [PinnedTileItem]) {

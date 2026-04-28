@@ -7,7 +7,6 @@ import SwiftUI
 
 struct ProductSettingsView: View {
     @ObservedObject private var product = ProductService.shared
-    @State private var email: String = ""
     @State private var licenseKey: String = ""
 
     var body: some View {
@@ -44,29 +43,30 @@ struct ProductSettingsView: View {
 
             Section("Register Product") {
                 VStack(alignment: .leading, spacing: 12) {
-                    TextField("Email", text: $email)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.emailAddress)
-
                     SecureField(product.hasStoredLicenseKey ? "Replace License Key" : "License Key", text: $licenseKey)
                         .textFieldStyle(.roundedBorder)
+                        .disabled(product.isVerifyingRegistration)
 
-                    Text("License keys are stored locally on this Mac.")
+                    Text("License keys are verified with Gumroad and then stored locally on this Mac. Each license can be activated on up to \(ProductService.maximumActivationCount) Macs.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
+                    if product.isVerifyingRegistration {
+                        ProgressView("Verifying License...")
+                    }
+
                     HStack(spacing: 10) {
-                        Button("Save Registration") {
-                            product.registerProduct(email: email, licenseKey: licenseKey)
+                        Button("Verify License") {
+                            product.registerProduct(licenseKey: licenseKey)
                             licenseKey = ""
                         }
-                        .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || licenseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(licenseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || product.isVerifyingRegistration)
 
                         Button("Clear Registration") {
                             product.clearRegistration()
                             syncFieldsFromService()
                         }
-                        .disabled(product.registeredEmail.isEmpty && !product.hasStoredLicenseKey)
+                        .disabled((!product.hasStoredLicenseKey && product.currentTier == .free) || product.isVerifyingRegistration)
                     }
                 }
                 .padding(.vertical, 4)
@@ -96,7 +96,6 @@ struct ProductSettingsView: View {
     }
 
     private func syncFieldsFromService() {
-        email = product.registeredEmail
         licenseKey = ""
     }
 }

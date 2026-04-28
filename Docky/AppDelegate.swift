@@ -24,11 +24,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window?.orderOut(nil)
         NSApplication.shared.setActivationPolicy(.accessory)
         configureMainMenu()
+        _ = ProductService.shared
         _ = LaunchpadHotKeyService.shared
 
-        if DockyPreferences.shared.hidesSystemDock {
-            SystemDockVisibilityService.shared.hide()
-        }
+        DockyPreferences.shared.applySystemDockVisibilityPreference()
 
         PermissionsService.shared.refresh()
         if PermissionsService.shared.setupComplete {

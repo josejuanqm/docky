@@ -160,17 +160,23 @@ extension DockEditPaletteItem {
 
 enum ProductRegistrationStatus: Equatable {
     case unregistered
-    case savedForVerification
+    case stored
+    case verifying
     case verified(ProductTier)
+    case verificationFailed(String)
 
     var title: String {
         switch self {
         case .unregistered:
             "Not Registered"
-        case .savedForVerification:
+        case .stored:
             "Registration Saved"
+        case .verifying:
+            "Verifying Registration"
         case .verified(let tier):
             "Registered: \(tier.title)"
+        case .verificationFailed:
+            "Unable to Verify"
         }
     }
 
@@ -178,29 +184,50 @@ enum ProductRegistrationStatus: Equatable {
         switch self {
         case .unregistered:
             "Register Docky Pro to unlock premium features."
-        case .savedForVerification:
-            "Your registration details are saved on this Mac."
+        case .stored:
+            "Your license key is saved on this Mac."
+        case .verifying:
+            "Checking your license key with Gumroad."
         case .verified(let tier):
             "This Mac is unlocked for Docky \(tier.title)."
+        case .verificationFailed(let message):
+            message
+        }
+    }
+}
+
+private struct GumroadPurchase {
+    let productID: String
+    let refunded: Bool?
+    let disputed: Bool?
+    let chargebacked: Bool?
+    let subscriptionEndedAt: String?
+    let subscriptionCancelledAt: String?
+    let subscriptionFailedAt: String?
+}
+
+private struct GumroadLicenseVerification {
+    let purchase: GumroadPurchase
+    let uses: Int?
+}
+
+private enum LicenseVerificationError: LocalizedError {
+    case invalid(String)
+    case transport(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalid(let message), .transport(let message):
+            message
         }
     }
 }
 
 final class ProductService: ObservableObject {
+    nonisolated static let gumroadProductID = "bigF0QL8D0STXWDEWKlNIg=="
+    nonisolated static let maximumActivationCount = 3
+    private nonisolated static let gumroadVerifyURL = URL(string: "https://api.gumroad.com/v2/licenses/verify")!
     static let shared = ProductService()
-
-    @Published var registeredEmail: String {
-        didSet {
-            let trimmed = registeredEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed != oldValue else { return }
-            if registeredEmail != trimmed {
-                registeredEmail = trimmed
-                return
-            }
-            defaults.set(trimmed, forKey: Keys.registeredEmail)
-            refreshRegistrationStatus()
-        }
-    }
 
     @Published private(set) var currentTier: ProductTier {
         didSet {
@@ -213,21 +240,38 @@ final class ProductService: ObservableObject {
     @Published private(set) var hasStoredLicenseKey = false
 
     private let defaults: UserDefaults
+    private var verificationTask: Task<Void, Never>?
+
+    var isVerifyingRegistration: Bool {
+        if case .verifying = registrationStatus {
+            return true
+        }
+
+        return false
+    }
 
     private enum Keys {
-        static let registeredEmail = "docky.product.registeredEmail"
         static let currentTier = "docky.product.currentTier"
         static let keychainService = "gt.quintero.Docky.product"
         static let keychainAccount = "gumroad-license-key"
+        static let legacyRegisteredEmail = "docky.product.registeredEmail"
     }
 
     private init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.registeredEmail = defaults.string(forKey: Keys.registeredEmail) ?? ""
         self.currentTier = defaults.string(forKey: Keys.currentTier)
             .flatMap(ProductTier.init(rawValue:)) ?? .free
         self.hasStoredLicenseKey = Self.readLicenseKey() != nil
+        defaults.removeObject(forKey: Keys.legacyRegisteredEmail)
         refreshRegistrationStatus()
+
+        guard hasStoredLicenseKey else {
+            return
+        }
+
+        verificationTask = Task { [weak self] in
+            await self?.revalidateStoredRegistration()
+        }
     }
 
     func availability(
@@ -249,25 +293,33 @@ final class ProductService: ObservableObject {
         availability(for: feature).isUnlocked
     }
 
-    func registerProduct(email: String, licenseKey: String) {
-        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+    func registerProduct(licenseKey: String) {
         let trimmedLicenseKey = licenseKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmedEmail.isEmpty, !trimmedLicenseKey.isEmpty else {
+        guard !trimmedLicenseKey.isEmpty else {
+            registrationStatus = .verificationFailed("Enter a license key to continue.")
             return
         }
 
-        registeredEmail = trimmedEmail
-        Self.writeLicenseKey(trimmedLicenseKey)
-        hasStoredLicenseKey = true
-        refreshRegistrationStatus()
+        verificationTask?.cancel()
+        registrationStatus = .verifying
+
+        let shouldCountActivation = Self.readLicenseKey() != trimmedLicenseKey
+
+        verificationTask = Task { [weak self] in
+            await self?.verifyManualRegistration(
+                licenseKey: trimmedLicenseKey,
+                shouldCountActivation: shouldCountActivation
+            )
+        }
     }
 
     func clearRegistration() {
-        registeredEmail = ""
+        verificationTask?.cancel()
         currentTier = .free
         Self.deleteLicenseKey()
         hasStoredLicenseKey = false
+        defaults.removeObject(forKey: Keys.legacyRegisteredEmail)
         refreshRegistrationStatus()
     }
 
@@ -282,12 +334,180 @@ final class ProductService: ObservableObject {
             return
         }
 
-        if !registeredEmail.isEmpty, hasStoredLicenseKey {
-            registrationStatus = .savedForVerification
+        if hasStoredLicenseKey {
+            registrationStatus = .stored
             return
         }
 
         registrationStatus = .unregistered
+    }
+
+    private func verifyManualRegistration(
+        licenseKey: String,
+        shouldCountActivation: Bool
+    ) async {
+        do {
+            let verification = try await Self.verifyLicense(
+                licenseKey: licenseKey,
+                incrementUsesCount: shouldCountActivation
+            )
+            try validateVerification(
+                verification,
+                enforceActivationLimit: shouldCountActivation
+            )
+
+            guard Self.writeLicenseKey(licenseKey) else {
+                registrationStatus = .verificationFailed("The license is valid, but Docky couldn't store it in Keychain.")
+                return
+            }
+
+            hasStoredLicenseKey = true
+            currentTier = .pro
+            refreshRegistrationStatus()
+        } catch let error as LicenseVerificationError {
+            registrationStatus = .verificationFailed(error.localizedDescription)
+        } catch {
+            registrationStatus = .verificationFailed("Couldn't verify the license right now.")
+        }
+    }
+
+    private func revalidateStoredRegistration() async {
+        guard let storedLicenseKey = Self.readLicenseKey() else {
+            hasStoredLicenseKey = false
+            currentTier = .free
+            refreshRegistrationStatus()
+            return
+        }
+
+        let preservedTier = currentTier
+        if preservedTier != .pro {
+            registrationStatus = .verifying
+        }
+
+        do {
+            let verification = try await Self.verifyLicense(
+                licenseKey: storedLicenseKey,
+                incrementUsesCount: false
+            )
+            try validateVerification(verification, enforceActivationLimit: false)
+
+            hasStoredLicenseKey = true
+            currentTier = .pro
+            refreshRegistrationStatus()
+        } catch let error as LicenseVerificationError {
+            switch error {
+            case .invalid:
+                currentTier = .free
+                registrationStatus = .verificationFailed(error.localizedDescription)
+            case .transport:
+                if preservedTier == .pro {
+                    currentTier = preservedTier
+                    refreshRegistrationStatus()
+                } else {
+                    registrationStatus = .verificationFailed(error.localizedDescription)
+                }
+            }
+        } catch {
+            if preservedTier == .pro {
+                currentTier = preservedTier
+                refreshRegistrationStatus()
+            } else {
+                registrationStatus = .verificationFailed("Couldn't verify the saved license right now.")
+            }
+        }
+    }
+
+    private func validateVerification(
+        _ verification: GumroadLicenseVerification,
+        enforceActivationLimit: Bool
+    ) throws {
+        let purchase = verification.purchase
+
+        guard purchase.productID == Self.gumroadProductID else {
+            throw LicenseVerificationError.invalid("That license belongs to a different Gumroad product.")
+        }
+
+        if purchase.refunded == true || purchase.disputed == true || purchase.chargebacked == true {
+            throw LicenseVerificationError.invalid("This Gumroad purchase is no longer active.")
+        }
+
+        if purchase.subscriptionEndedAt != nil || purchase.subscriptionCancelledAt != nil || purchase.subscriptionFailedAt != nil {
+            throw LicenseVerificationError.invalid("This Gumroad subscription is no longer active.")
+        }
+
+        if enforceActivationLimit,
+           let uses = verification.uses,
+           uses > Self.maximumActivationCount {
+            throw LicenseVerificationError.invalid("This license key has already been activated on \(Self.maximumActivationCount) Macs.")
+        }
+    }
+
+    private nonisolated static func verifyLicense(
+        licenseKey: String,
+        incrementUsesCount: Bool
+    ) async throws -> GumroadLicenseVerification {
+        var request = URLRequest(url: gumroadVerifyURL)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
+
+        let bodyItems = [
+            URLQueryItem(name: "product_id", value: gumroadProductID),
+            URLQueryItem(name: "license_key", value: licenseKey),
+            URLQueryItem(name: "increment_uses_count", value: incrementUsesCount ? "true" : "false")
+        ]
+        request.httpBody = formEncodedData(from: bodyItems)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw LicenseVerificationError.transport("Couldn't reach Gumroad to verify the license.")
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LicenseVerificationError.transport("Gumroad returned an invalid response.")
+        }
+
+        let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let success = payload?["success"] as? Bool
+        let uses = payload?["uses"] as? Int
+        let purchase = (payload?["purchase"] as? [String: Any]).flatMap(parsePurchase(from:))
+
+        if httpResponse.statusCode == 200,
+           success == true,
+           let purchase {
+            return GumroadLicenseVerification(purchase: purchase, uses: uses)
+        }
+
+        let message = (payload?["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if httpResponse.statusCode == 404 || success == false {
+            throw LicenseVerificationError.invalid(message ?? "That license key isn't valid for Docky Pro.")
+        }
+
+        throw LicenseVerificationError.transport(message ?? "Couldn't verify the license right now.")
+    }
+
+    private nonisolated static func parsePurchase(from payload: [String: Any]) -> GumroadPurchase? {
+        guard let productID = payload["product_id"] as? String else {
+            return nil
+        }
+
+        return GumroadPurchase(
+            productID: productID,
+            refunded: payload["refunded"] as? Bool,
+            disputed: payload["disputed"] as? Bool,
+            chargebacked: payload["chargebacked"] as? Bool,
+            subscriptionEndedAt: payload["subscription_ended_at"] as? String,
+            subscriptionCancelledAt: payload["subscription_cancelled_at"] as? String,
+            subscriptionFailedAt: payload["subscription_failed_at"] as? String
+        )
+    }
+
+    private nonisolated static func formEncodedData(from items: [URLQueryItem]) -> Data? {
+        var components = URLComponents()
+        components.queryItems = items
+        return components.percentEncodedQuery?.data(using: .utf8)
     }
 
     @discardableResult

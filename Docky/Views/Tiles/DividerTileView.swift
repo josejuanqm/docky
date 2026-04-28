@@ -12,16 +12,19 @@ struct DividerTileView: View {
     @ObservedObject private var preferences = DockyPreferences.shared
 
     var body: some View {
-        divider
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .background {
-                if !isPinnedCustomDivider {
-                    ContextActionMenuPresenter { _ in
-                        dividerContextActions
+        GeometryReader { proxy in
+            divider
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.black.opacity(0.001))
+                .contentShape(Path(CGRect(origin: .zero, size: proxy.size)))
+                .background {
+                    if !isPinnedCustomDivider {
+                        ContextActionMenuPresenter { _ in
+                            dividerContextActions
+                        }
                     }
                 }
-            }
+        }
     }
 
     private var dividerContextActions: [ContextAction] {

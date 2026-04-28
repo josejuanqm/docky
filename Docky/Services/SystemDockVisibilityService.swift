@@ -20,6 +20,7 @@ final class SystemDockVisibilityService {
     private static let snapshotNullMarker = "__docky_null__"
 
     private static let managedKeys: [String] = [
+        "orientation",
         "autohide",
         "autohide-delay",
         "autohide-time-modifier",
@@ -48,6 +49,12 @@ final class SystemDockVisibilityService {
             captureSnapshot()
         }
         applyHiddenValues()
+        restartDock()
+    }
+
+    func setOrientation(_ orientation: DockSettingsService.Orientation) {
+        CFPreferencesSetAppValue("orientation" as CFString, orientation.rawValue as CFString, Self.dockDomain)
+        CFPreferencesAppSynchronize(Self.dockDomain)
         restartDock()
     }
 

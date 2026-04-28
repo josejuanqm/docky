@@ -106,7 +106,7 @@ struct BehaviorSettingsView: View {
                     Toggle("Hide System Dock", isOn: $preferences.hidesSystemDock)
                         .font(.headline)
 
-                    Text("Forces the macOS Dock to autohide with a long delay and disables bouncing and launch animations. Docky snapshots your current Dock settings first and restores them when you turn this off or quit Docky.")
+                    Text("Forces the macOS Dock to autohide with a long delay, disables bouncing and launch animations, and keeps the system Dock aligned with Docky's explicit edge selection while this stays on. Docky snapshots your current Dock settings first and restores them when you turn this off or quit Docky.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
