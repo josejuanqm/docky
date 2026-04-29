@@ -1054,7 +1054,7 @@ struct TileContainerView: View {
         draggedTileOffset = projected(size: value.translation)
         draggedPickupCandidateTileID = dragPickupCandidateTileID(at: value.location)
 
-        if hasCollectedAdditionalAppsDuringDrag,
+        if draggedBundleIdentifier != nil,
            let groupTargetTileID = appFolderDropTargetTileID(
                 at: value.location,
                 selectedTileIDs: draggedSelectionTileIDs,
@@ -1101,7 +1101,7 @@ struct TileContainerView: View {
         }
 
         if let groupTargetTileID = draggedAppFolderTargetTileID,
-           hasCollectedAdditionalAppsDuringDrag {
+           draggedBundleIdentifier != nil {
             Self.logger.info(
                 "Drag committing group tile=\(tileLogDescription(tile), privacy: .public) targetTileID=\(groupTargetTileID, privacy: .public) selectionCount=\(draggedSelectionBundleIdentifiers.count, privacy: .public)"
             )

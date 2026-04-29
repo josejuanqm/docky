@@ -809,6 +809,13 @@ final class TileStore: ObservableObject {
     }
 
     func insertTrailingItem(_ item: TrailingTileItem, at destinationIndex: Int) {
+        if item.kind == .folder,
+           ProductService.shared.currentTier == .free,
+           preferences.trailingItems.filter({ $0.kind == .folder }).count >= ProductService.maximumFreeFolderCount {
+            NSLog("[Docky] Blocked folder insertion in free tier at folder limit=\(ProductService.maximumFreeFolderCount)")
+            return
+        }
+
         var trailingItems = preferences.trailingItems
         logTrailingItems("Before insertTrailingItem")
         let clampedDestinationIndex = min(max(destinationIndex, 0), trailingItems.count)

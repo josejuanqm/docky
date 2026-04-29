@@ -226,6 +226,7 @@ private enum LicenseVerificationError: LocalizedError {
 final class ProductService: ObservableObject {
     nonisolated static let gumroadProductID = "bigF0QL8D0STXWDEWKlNIg=="
     nonisolated static let maximumActivationCount = 3
+    nonisolated static let maximumFreeFolderCount = 3
     private nonisolated static let gumroadVerifyURL = URL(string: "https://api.gumroad.com/v2/licenses/verify")!
     static let shared = ProductService()
 
