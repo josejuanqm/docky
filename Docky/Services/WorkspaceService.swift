@@ -149,8 +149,10 @@ final class WorkspaceService: ObservableObject {
         }
     }
 
-    func switchableWindows() -> [AppWindow] {
-        if hasFreshSwitchableWindowPrefetch, !prefetchedSwitchableWindows.isEmpty {
+    func switchableWindows(forceRefresh: Bool = false) -> [AppWindow] {
+        if !forceRefresh,
+           hasFreshSwitchableWindowPrefetch,
+           !prefetchedSwitchableWindows.isEmpty {
             return prefetchedSwitchableWindows
         }
 

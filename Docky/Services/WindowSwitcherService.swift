@@ -91,7 +91,7 @@ final class WindowSwitcherService: ObservableObject {
             return
         }
 
-        let latestWindows = WorkspaceService.shared.switchableWindows()
+        let latestWindows = WorkspaceService.shared.switchableWindows(forceRefresh: usesInstantFocusPreview)
         guard !latestWindows.isEmpty else {
             dismiss()
             return
