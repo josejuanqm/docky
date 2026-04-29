@@ -168,6 +168,14 @@ struct TileView: View {
                 .action("List", isOn: folderContentViewMode == .list) {
                     TileStore.shared.setFolderContentViewMode(tileID: tile.id, folderURL: folder.url, mode: .list)
                 }
+            ]),
+            .submenu("Sort By", children: [
+                .action("Name", isOn: folderSortMode == .name) {
+                    TileStore.shared.setFolderSortMode(tileID: tile.id, folderURL: folder.url, mode: .name)
+                },
+                .action("Date Modified", isOn: folderSortMode == .dateModified) {
+                    TileStore.shared.setFolderSortMode(tileID: tile.id, folderURL: folder.url, mode: .dateModified)
+                }
             ])
         ]
     }
@@ -193,6 +201,14 @@ struct TileView: View {
         }
 
         return TileStore.shared.appFolderContentViewMode(tileID: tile.id)
+    }
+
+    private var folderSortMode: FolderTileSortMode {
+        guard case .folder(let folder) = tile.content else {
+            return .dateModified
+        }
+
+        return TileStore.shared.folderSortMode(tileID: tile.id, folderURL: folder.url)
     }
 
     private var customDockyTileActions: [ContextAction] {
@@ -407,7 +423,8 @@ struct TileView: View {
                                 url: folder.url,
                                 displayName: folder.displayName,
                                 displayMode: folderDisplayMode,
-                                contentViewMode: folderContentViewMode
+                                contentViewMode: folderContentViewMode,
+                                sortMode: folderSortMode
                             ),
                             isPresented: $isFolderListMenuPresented,
                             preferredEdge: inwardPopoverEdge
@@ -418,7 +435,8 @@ struct TileView: View {
                                 url: folder.url,
                                 displayName: folder.displayName,
                                 displayMode: folderDisplayMode,
-                                contentViewMode: folderContentViewMode
+                                contentViewMode: folderContentViewMode,
+                                sortMode: folderSortMode
                             ),
                             initialSnapshot: folderSnapshot,
                             isPresented: $isFolderPopoverPresented,
@@ -753,7 +771,8 @@ struct TileView: View {
                     url: folder.url,
                     displayName: folder.displayName,
                     displayMode: folderDisplayMode,
-                    contentViewMode: folderContentViewMode
+                    contentViewMode: folderContentViewMode,
+                    sortMode: folderSortMode
                 ),
                 isOpen: isFolderPopoverPresented,
             )
@@ -1719,12 +1738,13 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
 
             switch FolderAccessService.shared.snapshot(of: folderURL) {
             case .loaded(let itemURLs):
-                if itemURLs.isEmpty {
+                let sortedItemURLs = FolderAccessService.shared.sortedItems(in: itemURLs, sortMode: tile.sortMode)
+                if sortedItemURLs.isEmpty {
                     let emptyItem = NSMenuItem(title: "No visible items", action: nil, keyEquivalent: "")
                     emptyItem.isEnabled = false
                     menu.addItem(emptyItem)
                 } else {
-                    for itemURL in itemURLs {
+                    for itemURL in sortedItemURLs {
                         menu.addItem(menuItem(for: itemURL))
                     }
                 }

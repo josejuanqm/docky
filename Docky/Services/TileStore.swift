@@ -1215,6 +1215,44 @@ final class TileStore: ObservableObject {
         return systemFolderEntry(normalizedFolderURL: normalizedFolderURL)?.folder.contentViewMode ?? .grid
     }
 
+    func setFolderSortMode(tileID: String, folderURL: URL, mode: FolderTileSortMode) {
+        let normalizedFolderURL = folderURL.standardizedFileURL
+
+        if let itemIndex = preferences.trailingItems.firstIndex(where: {
+            matchesFolderItem($0, tileID: tileID, normalizedFolderURL: normalizedFolderURL)
+        }) {
+            updateFolderSortMode(at: itemIndex, mode: mode)
+            return
+        }
+
+        if let systemFolder = systemFolderEntry(normalizedFolderURL: normalizedFolderURL) {
+            var trailingItems = preferences.trailingItems
+            trailingItems.insert(
+                .folder(
+                    sourceTileID: systemFolder.tileID,
+                    displayMode: systemFolder.folder.displayMode,
+                    contentViewMode: systemFolder.folder.contentViewMode,
+                    sortMode: mode
+                ),
+                at: trailingItems.firstIndex(where: { $0.kind == .trash }) ?? trailingItems.count
+            )
+            preferences.trailingItems = trailingItems
+            refreshTrailingTilesFromPreferences()
+            rebuildTiles()
+        }
+    }
+
+    func folderSortMode(tileID: String, folderURL: URL) -> FolderTileSortMode {
+        let normalizedFolderURL = folderURL.standardizedFileURL
+        if let item = preferences.trailingItems.first(where: {
+            matchesFolderItem($0, tileID: tileID, normalizedFolderURL: normalizedFolderURL)
+        }) {
+            return resolvedFolderSortMode(for: item)
+        }
+
+        return systemFolderEntry(normalizedFolderURL: normalizedFolderURL)?.folder.sortMode ?? .dateModified
+    }
+
     private func updateFolderDisplayMode(at itemIndex: Int, mode: FolderTileDisplayMode) {
         let existingItem = preferences.trailingItems[itemIndex]
         guard resolvedFolderDisplayMode(for: existingItem) != mode else {
@@ -1230,6 +1268,7 @@ final class TileStore: ObservableObject {
             folderDisplayName: existingItem.folderDisplayName,
             folderDisplayMode: mode,
             folderContentViewMode: existingItem.folderContentViewMode,
+            folderSortMode: existingItem.folderSortMode,
             widgetKind: existingItem.widgetKind,
             widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
             widgetSpan: existingItem.widgetSpan,
@@ -1255,6 +1294,33 @@ final class TileStore: ObservableObject {
             folderDisplayName: existingItem.folderDisplayName,
             folderDisplayMode: existingItem.folderDisplayMode,
             folderContentViewMode: mode,
+            folderSortMode: existingItem.folderSortMode,
+            widgetKind: existingItem.widgetKind,
+            widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
+            widgetSpan: existingItem.widgetSpan,
+            hiddenWidgetOwnerBundleIdentifiers: existingItem.hiddenWidgetOwnerBundleIdentifiers
+        )
+        preferences.trailingItems = trailingItems
+        refreshTrailingTilesFromPreferences()
+        rebuildTiles()
+    }
+
+    private func updateFolderSortMode(at itemIndex: Int, mode: FolderTileSortMode) {
+        let existingItem = preferences.trailingItems[itemIndex]
+        guard resolvedFolderSortMode(for: existingItem) != mode else {
+            return
+        }
+
+        var trailingItems = preferences.trailingItems
+        trailingItems[itemIndex] = TrailingTileItem(
+            id: existingItem.id,
+            kind: existingItem.kind,
+            sourceTileID: existingItem.sourceTileID,
+            folderURL: existingItem.folderURL,
+            folderDisplayName: existingItem.folderDisplayName,
+            folderDisplayMode: existingItem.folderDisplayMode,
+            folderContentViewMode: existingItem.folderContentViewMode,
+            folderSortMode: mode,
             widgetKind: existingItem.widgetKind,
             widgetOwnerBundleIdentifier: existingItem.widgetOwnerBundleIdentifier,
             widgetSpan: existingItem.widgetSpan,
@@ -1279,6 +1345,14 @@ final class TileStore: ObservableObject {
         }
 
         return systemFolder(for: item)?.contentViewMode ?? .grid
+    }
+
+    private func resolvedFolderSortMode(for item: TrailingTileItem) -> FolderTileSortMode {
+        if let mode = item.folderSortMode {
+            return mode
+        }
+
+        return systemFolder(for: item)?.sortMode ?? .dateModified
     }
 
     private func systemFolder(for item: TrailingTileItem) -> FolderTile? {
@@ -1811,7 +1885,8 @@ final class TileStore: ObservableObject {
                         url: folder.url,
                         displayName: folder.displayName,
                         displayMode: resolvedFolderDisplayMode(for: item),
-                        contentViewMode: resolvedFolderContentViewMode(for: item)
+                        contentViewMode: resolvedFolderContentViewMode(for: item),
+                        sortMode: resolvedFolderSortMode(for: item)
                     ))
                 )
             }
@@ -1825,7 +1900,8 @@ final class TileStore: ObservableObject {
                     url: folderURL,
                     displayName: item.folderDisplayName ?? FileManager.default.displayName(atPath: folderURL.path),
                     displayMode: resolvedFolderDisplayMode(for: item),
-                    contentViewMode: resolvedFolderContentViewMode(for: item)
+                    contentViewMode: resolvedFolderContentViewMode(for: item),
+                    sortMode: resolvedFolderSortMode(for: item)
                 ))
             )
         case .trash:

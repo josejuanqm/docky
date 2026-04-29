@@ -185,16 +185,19 @@ struct FolderTile: Equatable {
     let displayName: String
     let displayMode: FolderTileDisplayMode
     let contentViewMode: FolderTileContentViewMode
+    let sortMode: FolderTileSortMode
 
     nonisolated init(
         url: URL,
         displayName: String,
         displayMode: FolderTileDisplayMode,
-        contentViewMode: FolderTileContentViewMode = .grid
+        contentViewMode: FolderTileContentViewMode = .grid,
+        sortMode: FolderTileSortMode = .dateModified
     ) {
         self.url = url
         self.displayName = displayName
         self.displayMode = displayMode
         self.contentViewMode = contentViewMode
+        self.sortMode = sortMode
     }
 }

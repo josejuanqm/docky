@@ -16,7 +16,7 @@ struct FolderTileView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task(id: reloadKey) {
-                preview = FolderAccessService.shared.recentContents(of: tile.url, limit: 3)
+                preview = FolderAccessService.shared.recentContents(of: tile.url, sortMode: tile.sortMode, limit: 3)
             }
     }
 
@@ -102,7 +102,7 @@ struct FolderTileView: View {
     }
 
     private var reloadKey: String {
-        "\(tile.url.path)|\(permissions.userFolders)|\(tile.displayMode.rawValue)"
+        "\(tile.url.path)|\(permissions.userFolders)|\(tile.displayMode.rawValue)|\(tile.sortMode.rawValue)"
     }
 }
 

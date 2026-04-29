@@ -164,6 +164,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
     let folderDisplayName: String?
     let folderDisplayMode: FolderTileDisplayMode?
     let folderContentViewMode: FolderTileContentViewMode?
+    let folderSortMode: FolderTileSortMode?
     let widgetKind: WidgetKind?
     let widgetOwnerBundleIdentifier: String?
     let widgetSpan: TileSpan?
@@ -177,10 +178,43 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
         folderContentViewMode ?? .grid
     }
 
+    var effectiveFolderSortMode: FolderTileSortMode {
+        folderSortMode ?? .dateModified
+    }
+
+    nonisolated init(
+        id: String,
+        kind: TrailingTileItemKind,
+        sourceTileID: String? = nil,
+        folderURL: URL? = nil,
+        folderDisplayName: String? = nil,
+        folderDisplayMode: FolderTileDisplayMode? = nil,
+        folderContentViewMode: FolderTileContentViewMode? = nil,
+        folderSortMode: FolderTileSortMode? = nil,
+        widgetKind: WidgetKind? = nil,
+        widgetOwnerBundleIdentifier: String? = nil,
+        widgetSpan: TileSpan? = nil,
+        hiddenWidgetOwnerBundleIdentifiers: [String] = []
+    ) {
+        self.id = id
+        self.kind = kind
+        self.sourceTileID = sourceTileID
+        self.folderURL = folderURL
+        self.folderDisplayName = folderDisplayName
+        self.folderDisplayMode = folderDisplayMode
+        self.folderContentViewMode = folderContentViewMode
+        self.folderSortMode = folderSortMode
+        self.widgetKind = widgetKind
+        self.widgetOwnerBundleIdentifier = widgetOwnerBundleIdentifier
+        self.widgetSpan = widgetSpan
+        self.hiddenWidgetOwnerBundleIdentifiers = hiddenWidgetOwnerBundleIdentifiers
+    }
+
     nonisolated static func folder(
         sourceTileID: String,
         displayMode: FolderTileDisplayMode = .contents,
-        contentViewMode: FolderTileContentViewMode = .grid
+        contentViewMode: FolderTileContentViewMode = .grid,
+        sortMode: FolderTileSortMode = .dateModified
     ) -> Self {
         Self(
             id: "folder:\(sourceTileID)",
@@ -190,6 +224,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderDisplayName: nil,
             folderDisplayMode: displayMode,
             folderContentViewMode: contentViewMode,
+            folderSortMode: sortMode,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -202,7 +237,8 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
         url: URL,
         displayName: String,
         displayMode: FolderTileDisplayMode = .contents,
-        contentViewMode: FolderTileContentViewMode = .grid
+        contentViewMode: FolderTileContentViewMode = .grid,
+        sortMode: FolderTileSortMode = .dateModified
     ) -> Self {
         Self(
             id: id,
@@ -212,6 +248,7 @@ struct TrailingTileItem: Codable, Equatable, Identifiable {
             folderDisplayName: displayName,
             folderDisplayMode: displayMode,
             folderContentViewMode: contentViewMode,
+            folderSortMode: sortMode,
             widgetKind: nil,
             widgetOwnerBundleIdentifier: nil,
             widgetSpan: nil,
@@ -552,6 +589,20 @@ enum FolderTileContentViewMode: String, CaseIterable, Codable, Identifiable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
+    }
+}
+
+enum FolderTileSortMode: String, CaseIterable, Codable, Identifiable {
+    case name
+    case dateModified
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .name: "Name"
+        case .dateModified: "Date Modified"
+        }
     }
 }
 

@@ -103,10 +103,7 @@ struct FolderPopoverView: View {
     }
 
     private var items: [URL] {
-        if case .loaded(let items) = currentEntry.snapshot {
-            return items
-        }
-        return []
+        FolderAccessService.shared.sortedItems(in: currentEntry.snapshot, sortMode: tile.sortMode)
     }
 
     private var popoverItems: [FolderPopoverItem] {
