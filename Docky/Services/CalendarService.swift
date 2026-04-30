@@ -12,6 +12,7 @@ final class CalendarService: ObservableObject {
     static let shared = CalendarService()
 
     @Published private(set) var nextEvent: CalendarEventSnapshot?
+    @Published private(set) var upcomingEvents: [CalendarEventSnapshot] = []
     @Published private(set) var authorizationStatus: EKAuthorizationStatus
     @Published private(set) var isLoading = false
     @Published private(set) var lastErrorDescription: String?
@@ -54,16 +55,19 @@ final class CalendarService: ObservableObject {
             loadNextEvent()
         case .writeOnly:
             nextEvent = nil
+            upcomingEvents = []
             isLoading = false
             lastErrorDescription = "Calendar read access is needed to show upcoming events."
         case .notDetermined:
             requestAccessAndRefresh()
         case .denied, .restricted:
             nextEvent = nil
+            upcomingEvents = []
             isLoading = false
             lastErrorDescription = "Enable Calendar access in Settings to show upcoming events."
         @unknown default:
             nextEvent = nil
+            upcomingEvents = []
             isLoading = false
             lastErrorDescription = "Calendar is unavailable right now."
         }
@@ -82,6 +86,7 @@ final class CalendarService: ObservableObject {
             let granted = await self.requestCalendarPermission()
             guard granted else {
                 self.nextEvent = nil
+                self.upcomingEvents = []
                 self.isLoading = false
                 self.lastErrorDescription = "Enable Calendar access in Settings to show upcoming events."
                 return
@@ -136,6 +141,7 @@ final class CalendarService: ObservableObject {
         let nextEvent = upcomingEvents.first(where: { !$0.isAllDay }) ?? upcomingEvents.first
 
         self.nextEvent = nextEvent.map(CalendarEventSnapshot.init(event:))
+        self.upcomingEvents = upcomingEvents.prefix(8).map(CalendarEventSnapshot.init(event:))
         self.lastRefreshDate = now
         self.isLoading = false
         self.lastErrorDescription = nil
@@ -170,7 +176,7 @@ final class CalendarService: ObservableObject {
         let startDate = calendar.date(byAdding: .minute, value: 18, to: now) ?? now.addingTimeInterval(1_080)
         let endDate = calendar.date(byAdding: .minute, value: 63, to: now) ?? now.addingTimeInterval(3_780)
 
-        nextEvent = CalendarEventSnapshot(
+        let next = CalendarEventSnapshot(
             title: "Docky demo review",
             startDate: startDate,
             endDate: endDate,
@@ -180,6 +186,42 @@ final class CalendarService: ObservableObject {
             color: NSColor.systemBlue,
             quickJoinURL: URL(string: "https://zoom.us/j/5551234567")
         )
+
+        let dummyTwo = CalendarEventSnapshot(
+            title: "Lunch with Priya",
+            startDate: calendar.date(byAdding: .hour, value: 3, to: now) ?? now.addingTimeInterval(10_800),
+            endDate: calendar.date(byAdding: .hour, value: 4, to: now) ?? now.addingTimeInterval(14_400),
+            isAllDay: false,
+            location: "Mission",
+            calendarTitle: "Personal",
+            color: NSColor.systemPink,
+            quickJoinURL: nil
+        )
+
+        let dummyThree = CalendarEventSnapshot(
+            title: "Sprint planning",
+            startDate: calendar.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(86_400),
+            endDate: calendar.date(byAdding: .day, value: 1, to: now)?.addingTimeInterval(3_600) ?? now.addingTimeInterval(90_000),
+            isAllDay: false,
+            location: "",
+            calendarTitle: "Work",
+            color: NSColor.systemBlue,
+            quickJoinURL: URL(string: "https://meet.google.com/abc-defg-hij")
+        )
+
+        let dummyFour = CalendarEventSnapshot(
+            title: "Team offsite",
+            startDate: calendar.date(byAdding: .day, value: 2, to: now) ?? now.addingTimeInterval(172_800),
+            endDate: calendar.date(byAdding: .day, value: 2, to: now)?.addingTimeInterval(86_400) ?? now.addingTimeInterval(259_200),
+            isAllDay: true,
+            location: "Sausalito",
+            calendarTitle: "Work",
+            color: NSColor.systemOrange,
+            quickJoinURL: nil
+        )
+
+        nextEvent = next
+        upcomingEvents = [next, dummyTwo, dummyThree, dummyFour]
         lastRefreshDate = now
         isLoading = false
         lastErrorDescription = nil
