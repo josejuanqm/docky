@@ -836,7 +836,7 @@ struct TileContainerView: View {
     }
 
     private var effectiveTileSize: CGFloat {
-        layout.scaled(dockSettings.tileSize)
+        layout.scaled(baseTileSize)
     }
 
     private var effectiveTileSpacing: CGFloat {
@@ -858,8 +858,11 @@ struct TileContainerView: View {
     }
 
     private var tileHeight: CGFloat {
-        let iconHeight = layout.scaled(dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize)
-        return iconHeight + layout.scaled(preferences.tileVerticalPadding) * 2
+        effectiveTileSize + layout.scaled(preferences.tileVerticalPadding) * 2
+    }
+
+    private var baseTileSize: CGFloat {
+        dockSettings.displayTileSize
     }
 
     private var position: ResolvedDockWindowPosition {

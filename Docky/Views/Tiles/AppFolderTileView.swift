@@ -56,7 +56,7 @@ struct AppFolderTileView: View {
     }
 
     private var tileSize: CGFloat {
-        layout.scaled(dockSettings.tileSize)
+        layout.scaled(dockSettings.displayTileSize)
     }
 
     private var position: ResolvedDockWindowPosition {

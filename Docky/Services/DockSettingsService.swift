@@ -33,6 +33,10 @@ final class DockSettingsService: ObservableObject {
     @Published private(set) var showRecents: Bool = true
     @Published private(set) var showProcessIndicators: Bool = true
 
+    var displayTileSize: CGFloat {
+        magnification ? max(tileSize, largeSize) : tileSize
+    }
+
     private init() {
         refresh()
     }

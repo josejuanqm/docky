@@ -327,8 +327,7 @@ struct AppearanceSettingsView: View {
     }
 
     private var maximumCornerRadius: CGFloat {
-        let iconHeight = dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
-        return (iconHeight + preferences.tileVerticalPadding * 2) / 2
+        (dockSettings.displayTileSize + preferences.tileVerticalPadding * 2) / 2
     }
 
     private var systemDockTileSizeBinding: Binding<Double> {

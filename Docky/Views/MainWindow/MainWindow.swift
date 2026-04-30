@@ -383,8 +383,8 @@ final class MainWindow: NSWindow {
         lastPointerScreenFrame = screenBounds
         let contentPadding = MainWindowContainerView.contentPadding
         let position = preferences.windowPosition.resolved(systemOrientation: dockSettings.orientation)
-        let baseIconHeight = dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize
-        let baseTileHeight = baseIconHeight + preferences.tileVerticalPadding * 2
+        let baseTileSize = dockSettings.displayTileSize
+        let baseTileHeight = baseTileSize + preferences.tileVerticalPadding * 2
         let sizingTiles = TileContainerView.previewedTiles(
             from: tileStore.tiles,
             paletteDrag: editMode.paletteDrag,
@@ -392,7 +392,7 @@ final class MainWindow: NSWindow {
         )
         let naturalContentSize = TileContainerView.contentSize(
             tiles: sizingTiles,
-            tileSize: dockSettings.tileSize,
+            tileSize: baseTileSize,
             tileHeight: baseTileHeight,
             tileSpacing: preferences.tileSpacing,
             position: position
@@ -420,7 +420,7 @@ final class MainWindow: NSWindow {
         )
         let baseContentSize = TileContainerView.contentSize(
             tiles: sizingTiles,
-            tileSize: dockSettings.tileSize,
+            tileSize: baseTileSize,
             tileHeight: baseTileHeight,
             tileSpacing: preferences.tileSpacing,
             position: position,
@@ -434,9 +434,8 @@ final class MainWindow: NSWindow {
         layout.setContentScale(contentScale)
         layout.setCompactsWidgetsForOverflow(compactsWidgetsForOverflow)
 
-        let scaledTileSize = dockSettings.tileSize * contentScale
-        let scaledIconHeight = baseIconHeight * contentScale
-        let scaledTileHeight = scaledIconHeight + (preferences.tileVerticalPadding * contentScale * 2)
+        let scaledTileSize = baseTileSize * contentScale
+        let scaledTileHeight = scaledTileSize + (preferences.tileVerticalPadding * contentScale * 2)
         let scaledTileSpacing = preferences.tileSpacing * contentScale
         let displayedContentSize = TileContainerView.contentSize(
             tiles: sizingTiles,

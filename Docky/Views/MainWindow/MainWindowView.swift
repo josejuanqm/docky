@@ -84,7 +84,7 @@ struct MainWindowView: View {
     }
 
     private var maximumCornerRadius: CGFloat {
-        let iconHeight = layoutService.scaled(dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize)
+        let iconHeight = layoutService.scaled(dockSettings.displayTileSize)
         return (iconHeight + layoutService.scaled(preferences.tileVerticalPadding) * 2) / 2
     }
 

@@ -664,7 +664,7 @@ struct TileView: View {
     }
 
     private var effectiveTileSize: CGFloat {
-        layout.scaled(dockSettings.magnification ? dockSettings.largeSize : dockSettings.tileSize)
+        layout.scaled(dockSettings.displayTileSize)
     }
 
     private func renderedWidgetSpan(for span: TileSpan) -> TileSpan {

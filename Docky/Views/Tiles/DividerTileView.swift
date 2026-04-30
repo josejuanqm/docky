@@ -85,7 +85,7 @@ struct DividerTileView: View {
     }
 
     private var lineInset: CGFloat {
-        layout.scaled(dockSettings.tileSize) * 0.25
+        layout.scaled(dockSettings.displayTileSize) * 0.25
     }
 
     private var position: ResolvedDockWindowPosition {
