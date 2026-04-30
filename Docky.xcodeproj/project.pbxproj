@@ -8,8 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		1116D2FA2FA3B360006A9DD8 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1116D2F92FA3B360006A9DD8 /* Sentry */; };
 		113717682FA17B980012480C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 113717672FA17B980012480C /* Sparkle */; };
-		57888E56F28A4BE585ED8E56 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 6CC6084E3F2D4C5EB27F8E8B /* Sentry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -45,7 +45,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				113717682FA17B980012480C /* Sparkle in Frameworks */,
-				57888E56F28A4BE585ED8E56 /* Sentry in Frameworks */,
+				1116D2FA2FA3B360006A9DD8 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,7 +100,7 @@
 			name = Docky;
 			packageProductDependencies = (
 				113717672FA17B980012480C /* Sparkle */,
-				6CC6084E3F2D4C5EB27F8E8B /* Sentry */,
+				1116D2F92FA3B360006A9DD8 /* Sentry */,
 			);
 			productName = Docky;
 			productReference = 11051DE72F929079005CE09D /* Docky.app */;
@@ -132,7 +132,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */,
-				8BF6581FFF1E448CB55CE88B /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+				1116D2F82FA3B360006A9DD8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 11051DE82F929079005CE09D /* Products */;
@@ -465,6 +465,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		1116D2F82FA3B360006A9DD8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa/";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 		113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -473,26 +481,18 @@
 				minimumVersion = 2.9.1;
 			};
 		};
-		8BF6581FFF1E448CB55CE88B /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/getsentry/sentry-cocoa/";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 9.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		1116D2F92FA3B360006A9DD8 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1116D2F82FA3B360006A9DD8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
 		113717672FA17B980012480C /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		6CC6084E3F2D4C5EB27F8E8B /* Sentry */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8BF6581FFF1E448CB55CE88B /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
-			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

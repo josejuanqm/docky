@@ -199,7 +199,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             options.enableNetworkBreadcrumbs = false
             options.tracesSampleRate = 0
             options.shutdownTimeInterval = 2
-            options.enableLogs = true
+            options.experimental.enableLogs = true
             options.beforeSend = { _ in nil }
             options.beforeSendSpan = { _ in nil }
             options.beforeSendLog = { log in
