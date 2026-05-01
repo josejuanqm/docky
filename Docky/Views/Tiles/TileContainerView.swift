@@ -1878,7 +1878,7 @@ struct TileContainerView: View {
     }
 
     private static func effectiveWidgetSpan(_ span: TileSpan, tileSize: CGFloat, isVertical: Bool, compactWidgets: Bool) -> TileSpan {
-        if compactWidgets || isVertical || tileSize < 50 {
+        if compactWidgets || isVertical {
             return .one
         }
 

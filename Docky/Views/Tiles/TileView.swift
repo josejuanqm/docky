@@ -694,7 +694,7 @@ struct TileView: View {
     }
 
     private func renderedWidgetSpan(for span: TileSpan) -> TileSpan {
-        if layout.compactsWidgetsForOverflow || position.isVertical || effectiveTileSize < 50 {
+        if layout.compactsWidgetsForOverflow || position.isVertical {
             return .one
         }
 
