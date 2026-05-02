@@ -127,10 +127,16 @@ final class CalendarService: ObservableObject {
         isLoading = true
 
         let now = Date()
-        let searchEnd = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 30, to: now) ?? now.addingTimeInterval(2_592_000)
+        let calendarRef = Calendar.autoupdatingCurrent
+        let searchEnd = calendarRef.date(byAdding: .day, value: 30, to: now) ?? now.addingTimeInterval(2_592_000)
         let predicate = eventStore.predicateForEvents(withStart: now, end: searchEnd, calendars: nil)
+        let staleStartCutoff = now.addingTimeInterval(-15 * 60)
+        let startOfToday = calendarRef.startOfDay(for: now)
         let upcomingEvents = eventStore.events(matching: predicate)
-            .filter { $0.endDate > now }
+            .filter {
+                guard $0.endDate > now, $0.startDate >= startOfToday else { return false }
+                return $0.isAllDay || $0.startDate >= staleStartCutoff
+            }
             .sorted {
                 if $0.startDate == $1.startDate {
                     return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
