@@ -100,24 +100,81 @@ final class WorkspaceService: ObservableObject {
     }
 
     func activateOrOpen(bundleIdentifier: String) {
-        if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first {
-            if PermissionsService.shared.accessibility == .granted,
-               appWindows(bundleIdentifier: bundleIdentifier).isEmpty,
-               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+            // Not running: launch it.
+            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
                 openApplication(at: appURL)
-                return
             }
-
-            runningApp.unhide()
-            runningApp.activate(options: [.activateAllWindows])
             return
         }
 
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+        let accessibilityGranted = PermissionsService.shared.accessibility == .granted
+        let allWindows = accessibilityGranted ? appWindows(bundleIdentifier: bundleIdentifier) : []
+        let visibleWindows = allWindows.filter { !$0.isMinimized }
+        let isFrontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier
+            && !runningApp.isHidden
+
+        // Running but no AX windows: spawn a new window.
+        if accessibilityGranted, allWindows.isEmpty,
+           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            openApplication(at: appURL)
             return
         }
 
-        openApplication(at: appURL)
+        // Running but every window is minimized: restore the most-recently-minimized.
+        if accessibilityGranted, visibleWindows.isEmpty, !allWindows.isEmpty,
+           let lastMinimized = minimizedWindows.last(where: { $0.bundleIdentifier == bundleIdentifier }) {
+            _ = restoreMinimizedWindow(lastMinimized)
+            return
+        }
+
+        // Already frontmost with at least one visible window: apply user preference.
+        if isFrontmost, !visibleWindows.isEmpty {
+            applyFrontmostAppTileClickBehavior(
+                runningApp: runningApp,
+                visibleWindows: visibleWindows
+            )
+            return
+        }
+
+        // Default: bring the app forward.
+        runningApp.unhide()
+        runningApp.activate(options: [.activateAllWindows])
+    }
+
+    private func applyFrontmostAppTileClickBehavior(
+        runningApp: NSRunningApplication,
+        visibleWindows: [AppWindow]
+    ) {
+        let preference = DockyPreferences.shared.appTileFrontmostClickBehavior
+        let resolved: AppTileFrontmostClickBehavior = {
+            guard preference.requiresPro else { return preference }
+            return ProductService.shared.currentTier == .pro ? preference : .none
+        }()
+
+        switch resolved {
+        case .none:
+            return
+        case .hide:
+            runningApp.hide()
+        case .cycleWindows:
+            cycleFrontmostAppWindows(visibleWindows)
+        case .minimizeAll:
+            minimizeAllWindows(visibleWindows)
+        }
+    }
+
+    private func cycleFrontmostAppWindows(_ visibleWindows: [AppWindow]) {
+        // appWindows() returns front-to-back order from AXWindows; raising index 1
+        // promotes the next window beneath the frontmost.
+        guard visibleWindows.count > 1 else { return }
+        _ = focus(window: visibleWindows[1])
+    }
+
+    private func minimizeAllWindows(_ visibleWindows: [AppWindow]) {
+        for window in visibleWindows {
+            _ = minimize(window: window)
+        }
     }
 
     func open(fileURLs: [URL], withApplicationBundleIdentifier bundleIdentifier: String) {

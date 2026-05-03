@@ -188,6 +188,30 @@ struct BehaviorSettingsView: View {
                 .padding(.vertical, 4)
             }
 
+            Section("App Tile Click") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("When App Is Already Active")
+                            .font(.headline)
+
+                        Spacer()
+
+                        Picker("When App Is Already Active", selection: frontmostClickBehaviorBinding) {
+                            ForEach(AppTileFrontmostClickBehavior.allCases) { behavior in
+                                Text(frontmostClickBehaviorTitle(behavior)).tag(behavior)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+
+                    Text("Choose what happens when you click the tile of an app that already has the focus. Clicking idle apps always launches, focuses, or restores their last minimized window.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            }
+
             Section("Widgets") {
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle("Show Expanded Preview on Hover", isOn: $preferences.enablesWidgetHoverPreview)
@@ -300,6 +324,24 @@ struct BehaviorSettingsView: View {
         case .two: "Medium"
         case .three: "Large"
         }
+    }
+
+    private var frontmostClickBehaviorBinding: Binding<AppTileFrontmostClickBehavior> {
+        Binding(
+            get: { preferences.appTileFrontmostClickBehavior },
+            set: { newValue in
+                if newValue.requiresPro && product.currentTier != .pro {
+                    preferences.appTileFrontmostClickBehavior = .none
+                } else {
+                    preferences.appTileFrontmostClickBehavior = newValue
+                }
+            }
+        )
+    }
+
+    private func frontmostClickBehaviorTitle(_ behavior: AppTileFrontmostClickBehavior) -> String {
+        let isLocked = behavior.requiresPro && product.currentTier != .pro
+        return isLocked ? "\(behavior.title) (Pro)" : behavior.title
     }
 
     private func spanBinding(for span: TileSpan) -> Binding<Bool> {

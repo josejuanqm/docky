@@ -489,6 +489,34 @@ enum ResolvedDockWindowPosition {
     }
 }
 
+/// Behavior when an app tile is clicked while that app is already frontmost
+/// with at least one visible (non-minimized) window. Default `.none` keeps the
+/// click as a no-op so existing users don't change behavior on upgrade.
+enum AppTileFrontmostClickBehavior: String, CaseIterable, Identifiable {
+    case none
+    case hide
+    case cycleWindows
+    case minimizeAll
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: "Do Nothing"
+        case .hide: "Hide App"
+        case .cycleWindows: "Cycle Windows"
+        case .minimizeAll: "Minimize All Windows"
+        }
+    }
+
+    var requiresPro: Bool {
+        switch self {
+        case .none, .hide: false
+        case .cycleWindows, .minimizeAll: true
+        }
+    }
+}
+
 enum DockTileIndicatorShape: String, CaseIterable, Identifiable {
     case none
     case dot
@@ -891,6 +919,15 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Behavior when clicking an app tile whose app is already frontmost with at least one
+    /// visible window. `.none` is the default; `.cycleWindows` and `.minimizeAll` are pro-only.
+    @Published var appTileFrontmostClickBehavior: AppTileFrontmostClickBehavior {
+        didSet {
+            guard appTileFrontmostClickBehavior != oldValue else { return }
+            defaults.set(appTileFrontmostClickBehavior.rawValue, forKey: Keys.appTileFrontmostClickBehavior)
+        }
+    }
+
     /// Whether Docky surfaces minimized window tiles in the trailing section.
     @Published var showsMinimizedWindows: Bool {
         didSet {
@@ -1215,6 +1252,7 @@ final class DockyPreferences: ObservableObject {
         static let showsActivePinnedSeparator = "docky.showsActivePinnedSeparator"
         static let showsRunningApps = "docky.showsRunningApps"
         static let showsMinimizedWindows = "docky.showsMinimizedWindows"
+        static let appTileFrontmostClickBehavior = "docky.appTileFrontmostClickBehavior"
         static let activeIndicatorShape = "docky.activeIndicatorShape"
         static let activeIndicatorImagePath = "docky.activeIndicatorImagePath"
         static let activeIndicatorColor = "docky.activeIndicatorColor"
@@ -1261,6 +1299,7 @@ final class DockyPreferences: ObservableObject {
         static let showsActivePinnedSeparator = true
         static let showsRunningApps = true
         static let showsMinimizedWindows = true
+        static let appTileFrontmostClickBehavior: AppTileFrontmostClickBehavior = .none
         static let activeIndicatorShape: DockTileIndicatorShape = .dot
         static let activeIndicatorImagePath: String? = nil
         static let activeIndicatorColor: DockColor? = nil
@@ -1308,6 +1347,7 @@ final class DockyPreferences: ObservableObject {
         let storedShowsActivePinnedSeparator = defaults.object(forKey: Keys.showsActivePinnedSeparator) as? Bool
         let storedShowsRunningApps = defaults.object(forKey: Keys.showsRunningApps) as? Bool
         let storedShowsMinimizedWindows = defaults.object(forKey: Keys.showsMinimizedWindows) as? Bool
+        let storedAppTileFrontmostClickBehavior = defaults.string(forKey: Keys.appTileFrontmostClickBehavior)
         let storedActiveIndicatorShape = defaults.string(forKey: Keys.activeIndicatorShape)
         let storedActiveIndicatorImagePath = defaults.string(forKey: Keys.activeIndicatorImagePath)
         let storedActiveIndicatorColor = defaults.data(forKey: Keys.activeIndicatorColor)
@@ -1356,6 +1396,9 @@ final class DockyPreferences: ObservableObject {
         self.showsActivePinnedSeparator = storedShowsActivePinnedSeparator ?? DefaultValues.showsActivePinnedSeparator
         self.showsRunningApps = storedShowsRunningApps ?? DefaultValues.showsRunningApps
         self.showsMinimizedWindows = storedShowsMinimizedWindows ?? DefaultValues.showsMinimizedWindows
+        self.appTileFrontmostClickBehavior = storedAppTileFrontmostClickBehavior
+            .flatMap(AppTileFrontmostClickBehavior.init(rawValue:))
+            ?? DefaultValues.appTileFrontmostClickBehavior
         self.activeIndicatorShape = (storedActiveIndicatorShape.flatMap(DockTileIndicatorShape.init(rawValue:)) ?? DefaultValues.activeIndicatorShape)
         self.activeIndicatorImagePath = storedActiveIndicatorImagePath ?? DefaultValues.activeIndicatorImagePath
         self.activeIndicatorColor = Self.decodeColor(from: storedActiveIndicatorColor) ?? DefaultValues.activeIndicatorColor
@@ -1427,6 +1470,7 @@ final class DockyPreferences: ObservableObject {
         showsActivePinnedSeparator = DefaultValues.showsActivePinnedSeparator
         showsRunningApps = DefaultValues.showsRunningApps
         showsMinimizedWindows = DefaultValues.showsMinimizedWindows
+        appTileFrontmostClickBehavior = DefaultValues.appTileFrontmostClickBehavior
         activeIndicatorShape = DefaultValues.activeIndicatorShape
         activeIndicatorImagePath = DefaultValues.activeIndicatorImagePath
         activeIndicatorColor = DefaultValues.activeIndicatorColor
