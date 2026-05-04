@@ -13,11 +13,7 @@ final class WindowSwitcherOverlayWindowController: NSWindowController {
     private let animationDuration: TimeInterval = 0.18
     private let preferences = DockyPreferences.shared
 
-    /// Whether the chrome (window cards) should accept clicks and keyboard input.
-    /// In instant-focus mode the overlay is still presented to render the live
-    /// focused-window preview, but it should not steal focus from the original
-    /// frontmost app — mouse passes through and Docky is not activated.
-    private var presentsInteractiveChrome: Bool {
+    private var showsOverlayUI: Bool {
         guard ProductService.shared.isUnlocked(.windowSwitcher),
               preferences.showsWindowSwitcherFocusPreview,
               preferences.windowSwitcherPreviewMode == .instantFocus else {
@@ -76,23 +72,24 @@ final class WindowSwitcherOverlayWindowController: NSWindowController {
     private func presentOverlay() {
         guard let window else { return }
 
+        guard showsOverlayUI else {
+            configureHiddenWindowState()
+            return
+        }
+
         updateFrame()
         window.alphaValue = 1
-
-        if presentsInteractiveChrome {
-            window.ignoresMouseEvents = false
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        } else {
-            // Instant-focus: the overlay only renders the live preview. Pass
-            // through mouse events and don't steal focus from the original
-            // frontmost app so the eventual confirm-focus is a clean handoff.
-            window.ignoresMouseEvents = true
-            window.orderFront(nil)
-        }
+        window.ignoresMouseEvents = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func dismissOverlay() {
+        guard showsOverlayUI else {
+            configureHiddenWindowState()
+            return
+        }
+
         animateWindowAlpha(to: 0) { [weak self] in
             guard let self, let window = self.window else { return }
 
@@ -144,7 +141,11 @@ final class WindowSwitcherOverlayWindowController: NSWindowController {
             return
         }
 
-        presentOverlay()
+        if showsOverlayUI {
+            presentOverlay()
+        } else {
+            configureHiddenWindowState()
+        }
     }
 
     private func updateFrame() {
@@ -200,16 +201,6 @@ private struct WindowSwitcherOverlayView: View {
         cardCornerRadius + containerPadding
     }
 
-    private var rendersChrome: Bool {
-        guard ProductService.shared.isUnlocked(.windowSwitcher),
-              preferences.showsWindowSwitcherFocusPreview,
-              preferences.windowSwitcherPreviewMode == .instantFocus else {
-            return true
-        }
-
-        return false
-    }
-
     var body: some View {
         #if DEBUG
         let _ = Self._printChanges()
@@ -229,52 +220,36 @@ private struct WindowSwitcherOverlayView: View {
                     .transition(.opacity)
                 }
 
-                if rendersChrome {
-                    chromeView
-                }
-            }
-            // First-appear / final-dismiss fade always animates so the overlay
-            // doesn't pop in or out abruptly.
-            .animation(.easeInOut(duration: 0.18), value: switcher.focusedPreview != nil)
-            // Cross-fade between windows on selection change is the "subsequent"
-            // animation — only enabled when the chrome is shown (in-place mode).
-            .animation(
-                rendersChrome ? .easeInOut(duration: 0.18) : nil,
-                value: switcher.focusedPreview?.windowIdentifier
-            )
-        }
-    }
-
-    private var chromeView: some View {
-        GeometryReader { proxy in
-            ScrollViewReader { scrollProxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 18) {
-                        ForEach(switcher.windows) { window in
-                            WindowSwitcherCard(
-                                window: window,
-                                isSelected: window.windowIdentifier == switcher.selectedWindowIdentifier,
-                                innerPreviewCornerRadius: innerPreviewCornerRadius,
-                                cardCornerRadius: cardCornerRadius
-                            )
-                            .id(window.windowIdentifier)
+                ScrollViewReader { scrollProxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 18) {
+                            ForEach(switcher.windows) { window in
+                                WindowSwitcherCard(
+                                    window: window,
+                                    isSelected: window.windowIdentifier == switcher.selectedWindowIdentifier,
+                                    innerPreviewCornerRadius: innerPreviewCornerRadius,
+                                    cardCornerRadius: cardCornerRadius
+                                )
+                                .id(window.windowIdentifier)
+                            }
+                        }
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 28)
+                    }
+                    .frame(maxWidth: max(0, proxy.size.width - 80))
+                    .fixedSize(horizontal: true, vertical: true)
+                    .background(.primary.opacity(0.18))
+                    .glassEffect(.regular, in: .rect(cornerRadius: containerCornerRadius, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: containerCornerRadius, style: .continuous))
+                    .onChange(of: switcher.selectedWindowIdentifier) { _, selection in
+                        guard let selection else { return }
+                        withAnimation(.easeInOut(duration: 0.14)) {
+                            scrollProxy.scrollTo(selection, anchor: .center)
                         }
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 28)
-                }
-                .frame(maxWidth: max(0, proxy.size.width - 80))
-                .fixedSize(horizontal: true, vertical: true)
-                .background(.primary.opacity(0.18))
-                .glassEffect(.regular, in: .rect(cornerRadius: containerCornerRadius, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: containerCornerRadius, style: .continuous))
-                .onChange(of: switcher.selectedWindowIdentifier) { _, selection in
-                    guard let selection else { return }
-                    withAnimation(.easeInOut(duration: 0.14)) {
-                        scrollProxy.scrollTo(selection, anchor: .center)
-                    }
                 }
             }
+            .animation(.easeInOut(duration: 0.18), value: switcher.focusedPreview?.windowIdentifier)
         }
     }
 }
