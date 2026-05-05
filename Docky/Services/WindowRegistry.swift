@@ -151,10 +151,11 @@ final class WindowRegistry: ObservableObject {
     }
 
     func windowsByRecency(forBundleIdentifier bundleIdentifier: String) -> [AppWindow] {
-        // The registry's `windows` array is maintained in MRU order: app
-        // activation/focus changes bump the app's block to the front (see
-        // `bumpAppToTop`), so within an app the first match is the most
-        // recently focused window.
+        // The registry's `windows` array is maintained in per-window MRU
+        // order: focus/activation events bump only the actually-focused
+        // window to the front (see `bumpWindowToTop`). For this app, the
+        // first match is the most recently focused window — its other
+        // windows sit wherever they were last seen.
         windows(forBundleIdentifier: bundleIdentifier)
     }
 
@@ -460,14 +461,18 @@ final class WindowRegistry: ObservableObject {
         let name = notificationName as String
 
         switch name {
-        case kAXApplicationActivatedNotification,
-             kAXApplicationShownNotification,
-             kAXFocusedWindowChangedNotification,
+        case kAXFocusedWindowChangedNotification,
              kAXMainWindowChangedNotification:
-            // MRU: activation and focus changes bump the app's window block
-            // to the front of the list, with AX's Z-order (focused first)
-            // applied within the block.
-            bumpAppToTop(pid: pid)
+            // Per-window MRU: the notification's element IS the now-focused
+            // window. Move just that one to the front; the app's other
+            // windows stay where they were in the global list.
+            bumpWindowToTop(element: element, pid: pid)
+
+        case kAXApplicationActivatedNotification,
+             kAXApplicationShownNotification:
+            // App-level signal — query AX for the currently focused window
+            // and bump only that one (not the app's whole block).
+            bumpFocusedWindowToTop(pid: pid)
 
         case kAXWindowCreatedNotification,
              kAXWindowMiniaturizedNotification,
@@ -514,32 +519,66 @@ final class WindowRegistry: ObservableObject {
         replaceWindows(forPID: pid, with: updated)
     }
 
-    /// Moves an app's window block to the front of the registry, using AX's
-    /// own Z-order (focused first) for the block's internal order. Bypasses
+    /// Moves a single window to the front of the registry. Identifies the
+    /// window by AX element pointer first, falling back to CGWindowID if AX
+    /// returned a different element instance for the same window. Bypasses
     /// `applyOrdered`, which deliberately preserves existing order — so this
     /// is the only mutation path that actually changes ordering.
-    private func bumpAppToTop(pid: pid_t) {
+    private func bumpWindowToTop(element: AXUIElement, pid: pid_t) {
+        let target = WindowID(element: element)
+        if let index = windows.firstIndex(where: { $0.id == target }) {
+            // Already at the top — skip the mutation so we don't fire a
+            // spurious @Published update.
+            guard index != 0 else { return }
+            let window = windows.remove(at: index)
+            windows.insert(window, at: 0)
+            return
+        }
+
+        // AX element identity didn't match — try the system CGWindowID.
+        var wid: CGWindowID = 0
+        if _AXUIElementGetWindow(element, &wid) == .success,
+           wid != 0,
+           let index = windows.firstIndex(where: { $0.cgWindowID == wid }) {
+            guard index != 0 else { return }
+            let window = windows.remove(at: index)
+            windows.insert(window, at: 0)
+            return
+        }
+
+        // Last resort: window isn't in the registry yet. Refresh the app's
+        // windows so the next focus event (or the AX-create notification we
+        // raced against) lands cleanly.
+        syncWindows(for: pid)
+    }
+
+    /// Looks up the app's currently focused window via AX and bumps just
+    /// that one to the front. Used when the notification carries the app
+    /// element rather than a window element.
+    private func bumpFocusedWindowToTop(pid: pid_t) {
         guard let app = NSRunningApplication(processIdentifier: pid),
               app.activationPolicy == .regular else {
             removeWindows(for: pid)
             return
         }
 
-        let updated = enumerateWindows(for: app)
-        guard !updated.isEmpty else {
-            // No tracked windows for this app — drop any stale entries but
-            // don't reorder anything else.
-            if windows.contains(where: { $0.processIdentifier == pid }) {
-                windows.removeAll { $0.processIdentifier == pid }
-            }
+        let appElement = AXUIElementCreateApplication(pid)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+                appElement,
+                kAXFocusedWindowAttribute as CFString,
+                &value
+              ) == .success,
+              let value,
+              CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            // No focused window reported — refresh in place so we at least
+            // pick up state changes (hide/unhide, fresh windows).
+            syncWindows(for: pid)
             return
         }
 
-        var next = windows.filter { $0.processIdentifier != pid }
-        next.insert(contentsOf: updated, at: 0)
-        if next != windows {
-            windows = next
-        }
+        let focusedElement = value as! AXUIElement
+        bumpWindowToTop(element: focusedElement, pid: pid)
     }
 
     private func enumerateWindows(for app: NSRunningApplication) -> [AppWindow] {
