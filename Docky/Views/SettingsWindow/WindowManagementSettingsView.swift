@@ -166,6 +166,31 @@ struct WindowManagementSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Layout")
+                        .font(.headline)
+
+                    Picker("Layout", selection: $preferences.windowPreviewLayout) {
+                        ForEach(WindowSwitcherLayout.allCases) { layout in
+                            Text(layout.title).tag(layout)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text(preferences.windowPreviewLayout.summary)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if preferences.windowPreviewLayout == .auto, permissions.screenCapture != .granted {
+                        Text("Auto is using the list right now because Screen Recording permission isn't granted.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.vertical, 4)
             }
         }
         .formStyle(.grouped)

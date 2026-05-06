@@ -27,7 +27,7 @@ final class WindowPreviewService: ObservableObject {
 
     var resolvedLayout: WindowSwitcherLayout {
         let canCapture = PermissionsService.shared.screenCapture == .granted
-        return DockyPreferences.shared.windowSwitcherLayout
+        return DockyPreferences.shared.windowPreviewLayout
             .resolved(canCaptureThumbnails: canCapture)
     }
 
