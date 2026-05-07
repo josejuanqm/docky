@@ -41,6 +41,15 @@ struct AppIconsSettingsView: View {
                 }
             }
 
+            Section("Launchpad") {
+                Text("Pick a custom image for the Launchpad tile. Defaults to the system Launchpad icon.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                LaunchpadIconOverrideRow()
+                    .padding(.vertical, 4)
+            }
+
             Section("Overrides") {
                 if !product.isUnlocked(.customAppIcons) {
                     ProFeatureNotice(feature: .customAppIcons)
@@ -176,7 +185,44 @@ private struct AppIconOverrideRow: View {
                 }
             }
 
+            if overrideEntry != nil {
+                paddingSlider
+            }
         }
+    }
+
+    /// Per-icon padding slider, shown only when an override is set. The
+    /// fraction is stored as 0...0.5 of the smaller cell dimension and
+    /// rendered as 0–50 % in the UI.
+    private var paddingSlider: some View {
+        HStack(spacing: 8) {
+            Text("Padding")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Slider(value: paddingFractionBinding, in: 0...0.5, step: 0.01)
+                .controlSize(.small)
+                .disabled(!product.isUnlocked(.customAppIcons))
+
+            Text("\(Int((overrideEntry?.paddingFraction ?? 0) * 100))%")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 36, alignment: .trailing)
+        }
+    }
+
+    private var paddingFractionBinding: Binding<CGFloat> {
+        Binding(
+            get: { overrideEntry?.paddingFraction ?? 0 },
+            set: { newValue in
+                let clamped = min(max(newValue, 0), 0.5)
+                preferences.setAppIconPaddingFraction(
+                    bundleIdentifier: entry.bundleIdentifier,
+                    paddingFraction: clamped == 0 ? nil : clamped
+                )
+            }
+        )
     }
 
     private var overrideEntry: AppIconOverride? {
@@ -232,45 +278,82 @@ private struct TrashIconOverrideRow: View {
     @ObservedObject private var product = ProductService.shared
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(nsImage: previewImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 36, height: 36)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(nsImage: previewImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 36, height: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Trash (\(state.title))")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Trash (\(state.title))")
+                        .font(.headline)
 
-                Text(state == .empty
-                     ? "Shown when the Trash is empty."
-                     : "Shown when the Trash has items.")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-
-                if let overrideName {
-                    Text("Override: \(overrideName)")
+                    Text(state == .empty
+                         ? "Shown when the Trash is empty."
+                         : "Shown when the Trash has items.")
                         .foregroundStyle(.secondary)
                         .font(.caption)
+
+                    if let overrideName {
+                        Text("Override: \(overrideName)")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
                 }
-            }
 
-            Spacer()
+                Spacer()
 
-            HStack(spacing: 8) {
-                Button("Choose Image...") {
-                    chooseOverrideImage()
-                }
-                .disabled(!product.isUnlocked(.customAppIcons))
-
-                if overrideEntry != nil {
-                    Button("Clear") {
-                        preferences.removeTrashIconOverride(state: state)
+                HStack(spacing: 8) {
+                    Button("Choose Image...") {
+                        chooseOverrideImage()
                     }
                     .disabled(!product.isUnlocked(.customAppIcons))
+
+                    if overrideEntry != nil {
+                        Button("Clear") {
+                            preferences.removeTrashIconOverride(state: state)
+                        }
+                        .disabled(!product.isUnlocked(.customAppIcons))
+                    }
                 }
             }
+
+            if overrideEntry != nil {
+                paddingSlider
+            }
         }
+    }
+
+    private var paddingSlider: some View {
+        HStack(spacing: 8) {
+            Text("Padding")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Slider(value: paddingFractionBinding, in: 0...0.5, step: 0.01)
+                .controlSize(.small)
+                .disabled(!product.isUnlocked(.customAppIcons))
+
+            Text("\(Int((overrideEntry?.paddingFraction ?? 0) * 100))%")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 36, alignment: .trailing)
+        }
+    }
+
+    private var paddingFractionBinding: Binding<CGFloat> {
+        Binding(
+            get: { overrideEntry?.paddingFraction ?? 0 },
+            set: { newValue in
+                let clamped = min(max(newValue, 0), 0.5)
+                preferences.setTrashIconPaddingFraction(
+                    state: state,
+                    paddingFraction: clamped == 0 ? nil : clamped
+                )
+            }
+        )
     }
 
     private var overrideEntry: TrashIconOverride? {
@@ -322,45 +405,82 @@ private struct FolderIconOverrideRow: View {
     @ObservedObject private var product = ProductService.shared
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(nsImage: previewImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 36, height: 36)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(nsImage: previewImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 36, height: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.displayName)
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.displayName)
+                        .font(.headline)
 
-                Text(entry.folderPath)
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                if let overrideName {
-                    Text("Override: \(overrideName)")
+                    Text(entry.folderPath)
                         .foregroundStyle(.secondary)
                         .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    if let overrideName {
+                        Text("Override: \(overrideName)")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
                 }
-            }
 
-            Spacer()
+                Spacer()
 
-            HStack(spacing: 8) {
-                Button("Choose Image...") {
-                    chooseOverrideImage()
-                }
-                .disabled(!product.isUnlocked(.customAppIcons))
-
-                if overrideEntry != nil {
-                    Button("Clear") {
-                        preferences.removeFolderIconOverride(folderPath: entry.folderPath)
+                HStack(spacing: 8) {
+                    Button("Choose Image...") {
+                        chooseOverrideImage()
                     }
                     .disabled(!product.isUnlocked(.customAppIcons))
+
+                    if overrideEntry != nil {
+                        Button("Clear") {
+                            preferences.removeFolderIconOverride(folderPath: entry.folderPath)
+                        }
+                        .disabled(!product.isUnlocked(.customAppIcons))
+                    }
                 }
             }
+
+            if overrideEntry != nil {
+                paddingSlider
+            }
         }
+    }
+
+    private var paddingSlider: some View {
+        HStack(spacing: 8) {
+            Text("Padding")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Slider(value: paddingFractionBinding, in: 0...0.5, step: 0.01)
+                .controlSize(.small)
+                .disabled(!product.isUnlocked(.customAppIcons))
+
+            Text("\(Int((overrideEntry?.paddingFraction ?? 0) * 100))%")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 36, alignment: .trailing)
+        }
+    }
+
+    private var paddingFractionBinding: Binding<CGFloat> {
+        Binding(
+            get: { overrideEntry?.paddingFraction ?? 0 },
+            set: { newValue in
+                let clamped = min(max(newValue, 0), 0.5)
+                preferences.setFolderIconPaddingFraction(
+                    folderPath: entry.folderPath,
+                    paddingFraction: clamped == 0 ? nil : clamped
+                )
+            }
+        )
     }
 
     private var overrideEntry: FolderIconOverride? {
@@ -393,6 +513,118 @@ private struct FolderIconOverrideRow: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             preferences.setFolderIconOverride(folderPath: entry.folderPath, iconPath: url.path)
+        }
+    }
+}
+
+private struct LaunchpadIconOverrideRow: View {
+    @ObservedObject private var preferences = DockyPreferences.shared
+    @ObservedObject private var product = ProductService.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(nsImage: previewImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 36, height: 36)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Launchpad")
+                        .font(.headline)
+
+                    Text("Replaces the Launchpad tile's icon.")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+
+                    if let overrideName {
+                        Text("Override: \(overrideName)")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button("Choose Image...") {
+                        chooseOverrideImage()
+                    }
+                    .disabled(!product.isUnlocked(.customAppIcons))
+
+                    if hasOverride {
+                        Button("Clear") {
+                            preferences.launchpadIconPath = nil
+                            preferences.launchpadIconPaddingFraction = nil
+                        }
+                        .disabled(!product.isUnlocked(.customAppIcons))
+                    }
+                }
+            }
+
+            if hasOverride {
+                paddingSlider
+            }
+        }
+    }
+
+    private var paddingSlider: some View {
+        HStack(spacing: 8) {
+            Text("Padding")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Slider(value: paddingFractionBinding, in: 0...0.5, step: 0.01)
+                .controlSize(.small)
+                .disabled(!product.isUnlocked(.customAppIcons))
+
+            Text("\(Int((preferences.launchpadIconPaddingFraction ?? 0) * 100))%")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 36, alignment: .trailing)
+        }
+    }
+
+    private var paddingFractionBinding: Binding<CGFloat> {
+        Binding(
+            get: { preferences.launchpadIconPaddingFraction ?? 0 },
+            set: { newValue in
+                let clamped = min(max(newValue, 0), 0.5)
+                preferences.launchpadIconPaddingFraction = clamped == 0 ? nil : clamped
+            }
+        )
+    }
+
+    private var hasOverride: Bool {
+        guard let path = preferences.launchpadIconPath else { return false }
+        return !path.isEmpty
+    }
+
+    private var overrideName: String? {
+        guard let path = preferences.launchpadIconPath, !path.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    private var previewImage: NSImage {
+        if let overrideURL = preferences.effectiveLaunchpadIconOverrideURL,
+           let overrideImage = IconCacheService.shared.image(forImageFileURL: overrideURL) {
+            return overrideImage
+        }
+        return IconCacheService.shared.icon(forBundleIdentifier: LaunchpadTile.spotlightBundleIdentifier)
+    }
+
+    private func chooseOverrideImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+
+        if panel.runModal() == .OK, let url = panel.url {
+            preferences.launchpadIconPath = url.path
         }
     }
 }

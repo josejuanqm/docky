@@ -54,10 +54,20 @@ struct FolderTileView: View {
     }
 
     private var folderIcon: some View {
-        Image(nsImage: resolvedFolderIconImage)
-            .resizable()
-            .interpolation(.high)
-            .aspectRatio(contentMode: .fit)
+        GeometryReader { proxy in
+            Image(nsImage: resolvedFolderIconImage)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .padding(overrideIconPadding(in: proxy.size))
+        }
+    }
+
+    private func overrideIconPadding(in size: CGSize) -> CGFloat {
+        guard preferences.effectiveFolderIconOverrideURL(forPath: tile.url.path) != nil else {
+            return 0
+        }
+        return preferences.folderIconOverridePadding(forPath: tile.url.path) * min(size.width, size.height)
     }
 
     private var resolvedFolderIconImage: NSImage {

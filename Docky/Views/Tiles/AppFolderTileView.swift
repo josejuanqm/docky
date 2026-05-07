@@ -279,6 +279,9 @@ struct AppFolderTileView: View {
 
     private func baseGridIcon(forBundleIdentifier bundleIdentifier: String, side: CGFloat) -> some View {
         let inset = shouldApplyCircleClip(to: bundleIdentifier) ? floor(side * 3 / 32) : 0
+        let overridePadding = preferences.effectiveAppIconOverrideURL(forBundleIdentifier: bundleIdentifier) != nil
+            ? preferences.appIconOverridePadding(forBundleIdentifier: bundleIdentifier) * side
+            : 0
 
         return Image(nsImage: icon(forBundleIdentifier: bundleIdentifier))
             .resizable()
@@ -286,6 +289,7 @@ struct AppFolderTileView: View {
             .aspectRatio(contentMode: .fit)
             .frame(width: side + inset * 2, height: side + inset * 2)
             .frame(width: side - inset * 2, height: side - inset * 2)
+            .padding(overridePadding)
     }
 
     private func shouldApplyCircleClip(to bundleIdentifier: String) -> Bool {
@@ -364,6 +368,7 @@ struct AppFolderPopoverView: View {
                                 .interpolation(.high)
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: itemWidth, height: itemHeight)
+                                .padding(overrideIconPadding(for: app.bundleIdentifier, side: itemWidth))
                                 .background {
                                     // Border lives in an overlay whose inset
                                     // tracks hover state — at rest the ring
@@ -433,6 +438,13 @@ struct AppFolderPopoverView: View {
         }
 
         return IconCacheService.shared.icon(forBundleIdentifier: bundleIdentifier)
+    }
+
+    private func overrideIconPadding(for bundleIdentifier: String, side: CGFloat) -> CGFloat {
+        guard preferences.effectiveAppIconOverrideURL(forBundleIdentifier: bundleIdentifier) != nil else {
+            return 0
+        }
+        return preferences.appIconOverridePadding(forBundleIdentifier: bundleIdentifier) * side
     }
 
     /// Builds the same context menu a dock AppTile would show, scoped to the

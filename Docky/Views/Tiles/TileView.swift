@@ -892,7 +892,9 @@ struct TileView: View {
                     displayName: launchpad.title
                 ),
                 clipShape: preferences.tileClipShape,
-                transparencyCompensationInset: 0
+                transparencyCompensationInset: 0,
+                iconOverrideURL: preferences.effectiveLaunchpadIconOverrideURL,
+                iconOverridePaddingFraction: preferences.launchpadIconPaddingFraction
             )
         case .widget(let widget):
             WidgetTileView(
@@ -1097,10 +1099,19 @@ struct TileView: View {
         isContextMenuPresented = isPresented
         updateTooltipPresentation()
 
-        if isPresented, expandableWidget != nil {
-            widgetExpansionTask?.cancel()
-            widgetExpansionTask = nil
-            WidgetExpansionWindowController.shared.dismiss(sourceTileID: tile.id)
+        if isPresented {
+            // Cancel any in-flight preview dwell and dismiss whatever is
+            // already on screen — the context menu takes over input and
+            // the preview shouldn't sit underneath it.
+            windowPreviewDelayTask?.cancel()
+            windowPreviewDelayTask = nil
+            WindowPreviewWindowController.shared.dismiss(sourceTileID: tile.id)
+
+            if expandableWidget != nil {
+                widgetExpansionTask?.cancel()
+                widgetExpansionTask = nil
+                WidgetExpansionWindowController.shared.dismiss(sourceTileID: tile.id)
+            }
         }
     }
 

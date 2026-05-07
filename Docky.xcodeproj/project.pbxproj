@@ -126,6 +126,7 @@
 				11051DE52F929079005CE09D /* Resources */,
 				11051E022F929079005CE09D /* Embed Frameworks */,
 				D0C1000D2FA400000000000D /* Embed Watchdog */,
+				D0C1000F2FA400000000000F /* Bump CFBundleVersion (Release Only) */,
 				8C2157CA1EC44443B69BF4BB /* Upload Debug Symbols to Sentry */,
 			);
 			buildRules = (
@@ -227,6 +228,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		D0C1000F2FA400000000000F /* Bump CFBundleVersion (Release Only) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Bump CFBundleVersion (Release Only)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Auto-bump CFBundleVersion on Release builds only.\n# Sparkle compares this numerically, so every release commit is a new version.\nif [ \"$CONFIGURATION\" != \"Release\" ]; then\n    exit 0\nfi\n\nINFOPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n\n# Use the commit count as the build number — monotonic, no state to track.\n# Skips silently when git is unavailable (e.g. CI without checkout) so the\n# pre-existing CFBundleVersion stays.\nif BUILD_NUMBER=$(git -C \"$SRCROOT\" rev-list --count HEAD 2>/dev/null); then\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD_NUMBER\" \"$INFOPLIST\"\n    echo \"note: bumped CFBundleVersion to $BUILD_NUMBER\"\nfi\n";
+		};
 		8C2157CA1EC44443B69BF4BB /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

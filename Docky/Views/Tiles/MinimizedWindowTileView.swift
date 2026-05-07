@@ -22,6 +22,7 @@ struct MinimizedWindowTileView: View {
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
                     .frame(width: geo.size.width * 0.32, height: geo.size.width * 0.32)
+                    .padding(overrideIconPadding(side: geo.size.width * 0.32))
                     .padding(5)
                     .shadow(color: .black.opacity(0.18), radius: 4, y: 1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -61,5 +62,12 @@ struct MinimizedWindowTileView: View {
         }
 
         return IconCacheService.shared.icon(forBundleIdentifier: tile.bundleIdentifier)
+    }
+
+    private func overrideIconPadding(side: CGFloat) -> CGFloat {
+        guard preferences.effectiveAppIconOverrideURL(forBundleIdentifier: tile.bundleIdentifier) != nil else {
+            return 0
+        }
+        return preferences.appIconOverridePadding(forBundleIdentifier: tile.bundleIdentifier) * side
     }
 }

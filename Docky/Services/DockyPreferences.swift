@@ -576,6 +576,18 @@ enum DockTileIndicatorShape: String, CaseIterable, Identifiable {
 struct AppIconOverride: Codable, Equatable, Identifiable {
     let bundleIdentifier: String
     let iconPath: String
+    /// Optional inset, expressed as a fraction of the smaller cell
+    /// dimension, applied around the override icon at render time. Lets
+    /// users compensate for custom icons that lack the transparent
+    /// padding system icons usually have. Missing in older serialized
+    /// data, hence Optional.
+    let paddingFraction: CGFloat?
+
+    init(bundleIdentifier: String, iconPath: String, paddingFraction: CGFloat? = nil) {
+        self.bundleIdentifier = bundleIdentifier
+        self.iconPath = iconPath
+        self.paddingFraction = paddingFraction
+    }
 
     var id: String { bundleIdentifier }
 
@@ -612,6 +624,14 @@ enum TrashIconState: String, Codable, CaseIterable, Identifiable {
 struct TrashIconOverride: Codable, Equatable, Identifiable {
     let state: TrashIconState
     let iconPath: String
+    /// See `AppIconOverride.paddingFraction`.
+    let paddingFraction: CGFloat?
+
+    init(state: TrashIconState, iconPath: String, paddingFraction: CGFloat? = nil) {
+        self.state = state
+        self.iconPath = iconPath
+        self.paddingFraction = paddingFraction
+    }
 
     var id: String { state.rawValue }
 
@@ -627,6 +647,14 @@ struct TrashIconOverride: Codable, Equatable, Identifiable {
 struct FolderIconOverride: Codable, Equatable, Identifiable {
     let folderPath: String
     let iconPath: String
+    /// See `AppIconOverride.paddingFraction`.
+    let paddingFraction: CGFloat?
+
+    init(folderPath: String, iconPath: String, paddingFraction: CGFloat? = nil) {
+        self.folderPath = folderPath
+        self.iconPath = iconPath
+        self.paddingFraction = paddingFraction
+    }
 
     var id: String { folderPath }
 
@@ -1298,6 +1326,33 @@ final class DockyPreferences: ObservableObject {
         }
     }
 
+    /// Optional image path used to replace the Launchpad tile's icon.
+    @Published var launchpadIconPath: String? {
+        didSet {
+            guard launchpadIconPath != oldValue else { return }
+
+            if let launchpadIconPath, !launchpadIconPath.isEmpty {
+                defaults.set(launchpadIconPath, forKey: Keys.launchpadIconPath)
+            } else {
+                defaults.removeObject(forKey: Keys.launchpadIconPath)
+            }
+        }
+    }
+
+    /// Optional padding fraction applied around the Launchpad override icon.
+    /// Persists as a Double under `launchpadIconPaddingFraction`.
+    @Published var launchpadIconPaddingFraction: CGFloat? {
+        didSet {
+            guard launchpadIconPaddingFraction != oldValue else { return }
+
+            if let launchpadIconPaddingFraction {
+                defaults.set(Double(launchpadIconPaddingFraction), forKey: Keys.launchpadIconPaddingFraction)
+            } else {
+                defaults.removeObject(forKey: Keys.launchpadIconPaddingFraction)
+            }
+        }
+    }
+
     /// Bundle identifiers hidden from Docky's app tile surfaces.
     @Published var hiddenAppBundleIdentifiers: [String] {
         didSet {
@@ -1606,7 +1661,7 @@ final class DockyPreferences: ObservableObject {
         appIconOverride(forBundleIdentifier: bundleIdentifier)?.effectiveIconURL
     }
 
-    func setAppIconOverride(bundleIdentifier: String, iconPath: String) {
+    func setAppIconOverride(bundleIdentifier: String, iconPath: String, paddingFraction: CGFloat? = nil) {
         guard ProductService.shared.isUnlocked(.customAppIcons) else {
             return
         }
@@ -1620,15 +1675,35 @@ final class DockyPreferences: ObservableObject {
         })
         overridesByBundleIdentifier[bundleIdentifier] = AppIconOverride(
             bundleIdentifier: bundleIdentifier,
-            iconPath: iconPath
+            iconPath: iconPath,
+            paddingFraction: paddingFraction
         )
         appIconOverrides = overridesByBundleIdentifier.values.sorted {
             $0.bundleIdentifier.localizedCaseInsensitiveCompare($1.bundleIdentifier) == .orderedAscending
         }
     }
 
+    /// Updates only the padding for an existing override. No-op when the
+    /// app has no override yet — callers should set an icon first.
+    func setAppIconPaddingFraction(bundleIdentifier: String, paddingFraction: CGFloat?) {
+        guard let existing = appIconOverrides.first(where: { $0.bundleIdentifier == bundleIdentifier }) else {
+            return
+        }
+        setAppIconOverride(
+            bundleIdentifier: bundleIdentifier,
+            iconPath: existing.iconPath,
+            paddingFraction: paddingFraction
+        )
+    }
+
     func removeAppIconOverride(bundleIdentifier: String) {
         appIconOverrides.removeAll { $0.bundleIdentifier == bundleIdentifier }
+    }
+
+    /// Padding fraction (0...0.5) applied around an app's override icon.
+    /// Returns 0 when no override or no padding has been configured.
+    func appIconOverridePadding(forBundleIdentifier bundleIdentifier: String) -> CGFloat {
+        appIconOverride(forBundleIdentifier: bundleIdentifier)?.paddingFraction ?? 0
     }
 
     func trashIconOverride(forState state: TrashIconState) -> TrashIconOverride? {
@@ -1643,7 +1718,7 @@ final class DockyPreferences: ObservableObject {
         trashIconOverride(forState: state)?.effectiveIconURL
     }
 
-    func setTrashIconOverride(state: TrashIconState, iconPath: String) {
+    func setTrashIconOverride(state: TrashIconState, iconPath: String, paddingFraction: CGFloat? = nil) {
         guard ProductService.shared.isUnlocked(.customAppIcons) else {
             return
         }
@@ -1655,12 +1730,31 @@ final class DockyPreferences: ObservableObject {
         var overridesByState = Dictionary(uniqueKeysWithValues: trashIconOverrides.map {
             ($0.state, $0)
         })
-        overridesByState[state] = TrashIconOverride(state: state, iconPath: iconPath)
+        overridesByState[state] = TrashIconOverride(
+            state: state,
+            iconPath: iconPath,
+            paddingFraction: paddingFraction
+        )
         trashIconOverrides = TrashIconState.allCases.compactMap { overridesByState[$0] }
+    }
+
+    func setTrashIconPaddingFraction(state: TrashIconState, paddingFraction: CGFloat?) {
+        guard let existing = trashIconOverrides.first(where: { $0.state == state }) else {
+            return
+        }
+        setTrashIconOverride(
+            state: state,
+            iconPath: existing.iconPath,
+            paddingFraction: paddingFraction
+        )
     }
 
     func removeTrashIconOverride(state: TrashIconState) {
         trashIconOverrides.removeAll { $0.state == state }
+    }
+
+    func trashIconOverridePadding(forState state: TrashIconState) -> CGFloat {
+        trashIconOverride(forState: state)?.paddingFraction ?? 0
     }
 
     func folderIconOverride(forPath path: String) -> FolderIconOverride? {
@@ -1675,7 +1769,7 @@ final class DockyPreferences: ObservableObject {
         folderIconOverride(forPath: path)?.effectiveIconURL
     }
 
-    func setFolderIconOverride(folderPath: String, iconPath: String) {
+    func setFolderIconOverride(folderPath: String, iconPath: String, paddingFraction: CGFloat? = nil) {
         guard ProductService.shared.isUnlocked(.customAppIcons) else {
             return
         }
@@ -1688,14 +1782,53 @@ final class DockyPreferences: ObservableObject {
             folderIconOverrides.map { ($0.folderPath, $0) },
             site: "DockyPreferences.folderIconOverrides"
         )
-        overridesByPath[folderPath] = FolderIconOverride(folderPath: folderPath, iconPath: iconPath)
+        overridesByPath[folderPath] = FolderIconOverride(
+            folderPath: folderPath,
+            iconPath: iconPath,
+            paddingFraction: paddingFraction
+        )
         folderIconOverrides = overridesByPath.values.sorted {
             $0.folderPath.localizedCaseInsensitiveCompare($1.folderPath) == .orderedAscending
         }
     }
 
+    func setFolderIconPaddingFraction(folderPath: String, paddingFraction: CGFloat?) {
+        guard let existing = folderIconOverrides.first(where: { $0.folderPath == folderPath }) else {
+            return
+        }
+        setFolderIconOverride(
+            folderPath: folderPath,
+            iconPath: existing.iconPath,
+            paddingFraction: paddingFraction
+        )
+    }
+
+    func folderIconOverridePadding(forPath path: String) -> CGFloat {
+        folderIconOverride(forPath: path)?.paddingFraction ?? 0
+    }
+
     func removeFolderIconOverride(folderPath: String) {
         folderIconOverrides.removeAll { $0.folderPath == folderPath }
+    }
+
+    var effectiveLaunchpadIconOverrideURL: URL? {
+        guard ProductService.shared.isUnlocked(.customAppIcons) else {
+            return nil
+        }
+        guard let path = launchpadIconPath, !path.isEmpty else {
+            return nil
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            return nil
+        }
+        return URL(fileURLWithPath: path)
+    }
+
+    /// Padding fraction (0...0.5) for the Launchpad override icon. Returns
+    /// 0 when no override or no padding is configured.
+    var effectiveLaunchpadIconOverridePadding: CGFloat {
+        guard effectiveLaunchpadIconOverrideURL != nil else { return 0 }
+        return launchpadIconPaddingFraction ?? 0
     }
 
     func isAppHiddenInDocky(bundleIdentifier: String) -> Bool {
@@ -1771,6 +1904,8 @@ final class DockyPreferences: ObservableObject {
         static let appIconOverrides = "docky.appIconOverrides"
         static let trashIconOverrides = "docky.trashIconOverrides"
         static let folderIconOverrides = "docky.folderIconOverrides"
+        static let launchpadIconPath = "docky.launchpadIconPath"
+        static let launchpadIconPaddingFraction = "docky.launchpadIconPaddingFraction"
         static let hiddenAppBundleIdentifiers = "docky.hiddenAppBundleIdentifiers"
         static let showsGroupedOpenedAppsInDock = "docky.showsGroupedOpenedAppsInDock"
         static let showsGroupedOpenedAppsBackdrop = "docky.showsGroupedOpenedAppsBackdrop"
@@ -1840,6 +1975,8 @@ final class DockyPreferences: ObservableObject {
         static let appIconOverrides: [AppIconOverride] = []
         static let trashIconOverrides: [TrashIconOverride] = []
         static let folderIconOverrides: [FolderIconOverride] = []
+        static let launchpadIconPath: String? = nil
+        static let launchpadIconPaddingFraction: CGFloat? = nil
         static let hiddenAppBundleIdentifiers: [String] = []
         static let showsGroupedOpenedAppsInDock = true
         static let showsGroupedOpenedAppsBackdrop = true
@@ -1910,6 +2047,8 @@ final class DockyPreferences: ObservableObject {
         let storedAppIconOverrides = defaults.data(forKey: Keys.appIconOverrides)
         let storedTrashIconOverrides = defaults.data(forKey: Keys.trashIconOverrides)
         let storedFolderIconOverrides = defaults.data(forKey: Keys.folderIconOverrides)
+        let storedLaunchpadIconPath = defaults.string(forKey: Keys.launchpadIconPath)
+        let storedLaunchpadIconPaddingFraction = defaults.object(forKey: Keys.launchpadIconPaddingFraction) as? Double
         let storedHiddenAppBundleIdentifiers = defaults.stringArray(forKey: Keys.hiddenAppBundleIdentifiers)
         let storedShowsGroupedOpenedAppsInDock = defaults.object(forKey: Keys.showsGroupedOpenedAppsInDock) as? Bool
         let storedShowsGroupedOpenedAppsBackdrop = defaults.object(forKey: Keys.showsGroupedOpenedAppsBackdrop) as? Bool
@@ -1983,6 +2122,9 @@ final class DockyPreferences: ObservableObject {
         self.appIconOverrides = Self.decodeAppIconOverrides(from: storedAppIconOverrides) ?? DefaultValues.appIconOverrides
         self.trashIconOverrides = Self.decodeTrashIconOverrides(from: storedTrashIconOverrides) ?? DefaultValues.trashIconOverrides
         self.folderIconOverrides = Self.decodeFolderIconOverrides(from: storedFolderIconOverrides) ?? DefaultValues.folderIconOverrides
+        self.launchpadIconPath = storedLaunchpadIconPath ?? DefaultValues.launchpadIconPath
+        self.launchpadIconPaddingFraction = storedLaunchpadIconPaddingFraction.map { CGFloat($0) }
+            ?? DefaultValues.launchpadIconPaddingFraction
         self.hiddenAppBundleIdentifiers = Self.normalizedBundleIdentifiers(storedHiddenAppBundleIdentifiers ?? DefaultValues.hiddenAppBundleIdentifiers)
         self.showsGroupedOpenedAppsInDock = storedShowsGroupedOpenedAppsInDock ?? DefaultValues.showsGroupedOpenedAppsInDock
         self.showsGroupedOpenedAppsBackdrop = storedShowsGroupedOpenedAppsBackdrop ?? DefaultValues.showsGroupedOpenedAppsBackdrop
@@ -2080,6 +2222,8 @@ final class DockyPreferences: ObservableObject {
         appIconOverrides = DefaultValues.appIconOverrides
         trashIconOverrides = DefaultValues.trashIconOverrides
         folderIconOverrides = DefaultValues.folderIconOverrides
+        launchpadIconPath = DefaultValues.launchpadIconPath
+        launchpadIconPaddingFraction = DefaultValues.launchpadIconPaddingFraction
         hiddenAppBundleIdentifiers = DefaultValues.hiddenAppBundleIdentifiers
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop

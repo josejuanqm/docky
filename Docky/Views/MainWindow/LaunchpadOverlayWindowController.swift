@@ -683,6 +683,7 @@ private struct LaunchpadAppCard: View {
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
                 .frame(width: iconSide, height: iconSide)
+                .padding(overridePadding)
 
             Text(app.displayName)
                 .font(.body)
@@ -705,6 +706,15 @@ private struct LaunchpadAppCard: View {
     /// reference, scaled linearly elsewhere), so this also drives the
     /// rendered icon size.
     private var iconSide: CGFloat { cellSize.width }
+
+    /// Optional per-icon padding applied around override icons (only when
+    /// the user has set a custom icon for this app).
+    private var overridePadding: CGFloat {
+        guard preferences.effectiveAppIconOverrideURL(forBundleIdentifier: app.bundleIdentifier) != nil else {
+            return 0
+        }
+        return preferences.appIconOverridePadding(forBundleIdentifier: app.bundleIdentifier) * iconSide
+    }
 
     private var icon: NSImage {
         if let overrideURL = preferences.effectiveAppIconOverrideURL(forBundleIdentifier: app.bundleIdentifier),
@@ -785,6 +795,7 @@ private struct LaunchpadFolderCard: View {
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
                         .frame(width: cellSide, height: cellSide)
+                        .padding(overrideIconPadding(for: app.bundleIdentifier, side: cellSide))
                 }
             }
             .padding(innerPadding)
@@ -797,6 +808,13 @@ private struct LaunchpadFolderCard: View {
     /// Matches `LaunchpadAppCard.iconSide` so folder tiles render the same
     /// size as app tiles in the launchpad grid.
     private var tileSide: CGFloat { cellSize.width }
+
+    private func overrideIconPadding(for bundleIdentifier: String, side: CGFloat) -> CGFloat {
+        guard preferences.effectiveAppIconOverrideURL(forBundleIdentifier: bundleIdentifier) != nil else {
+            return 0
+        }
+        return preferences.appIconOverridePadding(forBundleIdentifier: bundleIdentifier) * side
+    }
 
     private func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
         if let overrideURL = preferences.effectiveAppIconOverrideURL(forBundleIdentifier: bundleIdentifier),
