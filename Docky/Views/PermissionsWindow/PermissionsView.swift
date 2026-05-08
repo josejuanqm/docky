@@ -277,7 +277,10 @@ struct PermissionsView: View {
 
     private var skipButton: some View {
         Button("Skip") { skipCurrentStep() }
-            .onboardingButtonStyle()
+            .buttonStyle(.plain)
+            .padding(9)
+            .background(Color(nsColor: .controlBackgroundColor), in: .capsule)
+            .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.12)))
     }
 
     private var quitButton: some View {
