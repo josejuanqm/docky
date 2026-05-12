@@ -43,26 +43,26 @@ struct DividerTileView: View {
             .action(preferences.autohidesWindow ? "Turn Hiding Off" : "Turn Hiding On") {
                 preferences.autohidesWindow.toggle()
             },
-            .submenu("Position on Screen", children: positionActions),
+            .submenu(String(localized: "Position on Screen"), children: positionActions),
             .divider,
 //            .action("Smart Organize Pinned Items") {
 //                TileStore.shared.smartOrganizePinnedItems()
 //            },
             .divider,
-            .action("Edit Dock...") {
+            .action(String(localized: "Edit Dock...")) {
                 DockEditModeService.shared.enter()
             },
-            .submenu("Troubleshoot", children: troubleshootActions),
+            .submenu(String(localized: "Troubleshoot"), children: troubleshootActions),
             .divider,
-            .action("About Docky") {
+            .action(String(localized: "About Docky")) {
                 NSApp.activate(ignoringOtherApps: true)
                 NSApp.orderFrontStandardAboutPanel(nil)
             },
-            .action("Settings...") {
+            .action(String(localized: "Settings...")) {
                 (NSApp.delegate as? AppDelegate)?.showSettingsWindow(nil)
             },
             .divider,
-            .action("Quit Docky", isDestructive: true) {
+            .action(String(localized: "Quit Docky"), isDestructive: true) {
                 NSApp.terminate(nil)
             }
         ]
@@ -78,7 +78,7 @@ struct DividerTileView: View {
 
     private var troubleshootActions: [ContextAction] {
         [
-            .action("Sync Dock") {
+            .action(String(localized: "Sync Dock")) {
                 DockSettingsService.shared.refresh()
                 TileStore.shared.refresh()
             }

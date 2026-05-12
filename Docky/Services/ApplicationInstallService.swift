@@ -30,10 +30,10 @@ final class ApplicationInstallService {
         }
 
         let alert = NSAlert()
-        alert.messageText = "Move Docky to Applications?"
-        alert.informativeText = "Docky works best from the Applications folder. Moving it there avoids running from a disk image or temporary location and makes features like Open at Login reliable."
-        alert.addButton(withTitle: "Move to Applications")
-        alert.addButton(withTitle: "Not Now")
+        alert.messageText = String(localized: "Move Docky to Applications?")
+        alert.informativeText = String(localized: "Docky works best from the Applications folder. Moving it there avoids running from a disk image or temporary location and makes features like Open at Login reliable.")
+        alert.addButton(withTitle: String(localized: "Move to Applications"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
 
         if alert.runModal() == .alertFirstButtonReturn {
             return moveToApplicationsAndRelaunch()
@@ -111,10 +111,10 @@ final class ApplicationInstallService {
         }
 
         let alert = NSAlert()
-        alert.messageText = "Replace existing Docky in Applications?"
-        alert.informativeText = "An existing copy of Docky is already in Applications. Replacing it will keep the newer copy you just opened."
-        alert.addButton(withTitle: "Replace")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = String(localized: "Replace existing Docky in Applications?")
+        alert.informativeText = String(localized: "An existing copy of Docky is already in Applications. Replacing it will keep the newer copy you just opened.")
+        alert.addButton(withTitle: String(localized: "Replace"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
 
         guard alert.runModal() == .alertFirstButtonReturn else {
             throw CocoaError(.userCancelled)
@@ -136,7 +136,7 @@ final class ApplicationInstallService {
 
     private func presentMoveFailureAlert(message: String) {
         let alert = NSAlert()
-        alert.messageText = "Docky could not move to Applications"
+        alert.messageText = String(localized: "Docky could not move to Applications")
         alert.informativeText = message
         alert.runModal()
     }

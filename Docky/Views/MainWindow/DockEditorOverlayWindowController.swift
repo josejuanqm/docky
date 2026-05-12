@@ -17,11 +17,11 @@ private enum DockEditorGalleryCategory: String, CaseIterable, Identifiable {
     nonisolated var title: String {
         switch self {
         case .all:
-            "All"
+            String(localized: "All")
         case .widgets:
-            "Widgets"
+            String(localized: "Widgets")
         case .utility:
-            "Utility"
+            String(localized: "Utility")
         }
     }
 }
@@ -173,18 +173,20 @@ private struct DockEditorGalleryItem: Equatable, Identifiable {
 
     nonisolated private static func makeSmartStackItem() -> Self {
         let paletteItem = DockEditPaletteItem.smartStack
+        let localizedTitle = String(localized: "Smart Stack")
+        let localizedSubtitle = String(localized: "Stacks available widgets into a single tile you can scroll through.")
         return Self(
             paletteItem: paletteItem,
             feature: .smartStack,
-            title: "Smart Stack",
-            subtitle: "Stacks available widgets into a single tile you can scroll through.",
+            title: localizedTitle,
+            subtitle: localizedSubtitle,
             iconName: iconName(for: paletteItem),
             category: .widgets,
             supportedSpans: [.three],
             defaultSpan: .three,
             searchIndex: makeSearchIndex(
-                title: "Smart Stack",
-                subtitle: "Stacks available widgets into a single tile you can scroll through.",
+                title: localizedTitle,
+                subtitle: localizedSubtitle,
                 category: .widgets,
                 extraTerms: ["stack", "smart"]
             )
@@ -213,49 +215,49 @@ private struct DockEditorGalleryItem: Equatable, Identifiable {
     nonisolated private static func title(for item: DockEditPaletteItem) -> String {
         switch item {
         case .launchpad:
-            "Launchpad"
+            String(localized: "Launchpad")
         case .spacer:
-            "Spacer"
+            String(localized: "Spacer")
         case .divider:
-            "Divider"
+            String(localized: "Divider")
         case .widget(_, let kind):
             kind.title
         case .smartStack:
-            "Smart Stack"
+            String(localized: "Smart Stack")
         }
     }
 
     nonisolated private static func subtitle(for item: DockEditPaletteItem) -> String {
         switch item {
         case .launchpad:
-            "Shows a fullscreen launcher with all installed apps on a blurred backdrop."
+            String(localized: "Shows a fullscreen launcher with all installed apps on a blurred backdrop.")
         case .spacer:
-            "Adds breathing room between pinned tiles or folders."
+            String(localized: "Adds breathing room between pinned tiles or folders.")
         case .divider:
-            "Adds a visual separator to break up sections in the dock."
+            String(localized: "Adds a visual separator to break up sections in the dock.")
         case .widget(_, let kind):
             subtitle(for: kind)
         case .smartStack:
-            "Stacks available widgets into a single tile you can scroll through."
+            String(localized: "Stacks available widgets into a single tile you can scroll through.")
         }
     }
 
     nonisolated private static func subtitle(for kind: WidgetKind) -> String {
         switch kind {
         case .calendar:
-            "Shows the current date and month at a glance."
+            String(localized: "Shows the current date and month at a glance.")
         case .calendarDate:
-            "Shows the weekday and date number at a glance."
+            String(localized: "Shows the weekday and date number at a glance.")
         case .reminders:
-            "Shows your open tasks and what needs attention next."
+            String(localized: "Shows your open tasks and what needs attention next.")
         case .batteries:
-            "Shows Mac and accessory battery levels at a glance."
+            String(localized: "Shows Mac and accessory battery levels at a glance.")
         case .systemStatus:
-            "Shows CPU, memory, and network activity at a glance."
+            String(localized: "Shows CPU, memory, and network activity at a glance.")
         case .nowPlaying:
-            "Shows the currently playing media with quick playback control."
+            String(localized: "Shows the currently playing media with quick playback control.")
         case .weather:
-            "Shows current weather for your location."
+            String(localized: "Shows current weather for your location.")
         }
     }
 

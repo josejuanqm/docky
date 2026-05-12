@@ -87,7 +87,7 @@ struct TileView: View {
                 var actions = folderPresentationContextActions + [.divider] + catalogActions
                 if isDockyTrailingTile {
                     actions.append(.divider)
-                    actions.append(.action("Remove from Dock") {
+                    actions.append(.action(String(localized: "Remove from Dock")) {
                         removeDockyTile()
                     })
                 }
@@ -108,7 +108,7 @@ struct TileView: View {
             var actions: [ContextAction] = []
 
             if preferences.enablesLaunchpadOverlay {
-                actions.append(.action("Open Launchpad") {
+                actions.append(.action(String(localized: "Open Launchpad")) {
                     LaunchpadOverlayService.shared.present()
                 })
             }
@@ -127,12 +127,12 @@ struct TileView: View {
             return smartStackContextActions(for: stack)
         case .folder(let folder):
             var actions = folderPresentationContextActions + [.divider,
-                .action("Open in Finder") {
+                .action(String(localized: "Open in Finder")) {
                     Task {
                         _ = await AppleScriptService.shared.openFinderWindow(for: folder.url)
                     }
                 },
-                .action("Reveal in Finder") {
+                .action(String(localized: "Reveal in Finder")) {
                     Task {
                         _ = await AppleScriptService.shared.revealInFinder(folder.url)
                     }
@@ -141,7 +141,7 @@ struct TileView: View {
 
             if isDockyTrailingTile {
                 actions.append(.divider)
-                actions.append(.action("Remove from Dock") {
+                actions.append(.action(String(localized: "Remove from Dock")) {
                     removeDockyTile()
                 })
             }
@@ -149,13 +149,13 @@ struct TileView: View {
             return actions
         case .trash:
             return [
-                .action("Open Trash") {
+                .action(String(localized: "Open Trash")) {
                     Task {
                         _ = await AppleScriptService.shared.openTrash()
                     }
                 },
                 .divider,
-                .action("Empty Trash", isDestructive: true) {
+                .action(String(localized: "Empty Trash"), isDestructive: true) {
                     Task {
                         _ = await AppleScriptService.shared.emptyTrash()
                     }
@@ -172,23 +172,23 @@ struct TileView: View {
         }
 
         return [
-            .submenu("Display as", children: [
-                .action("Folder", isOn: folderDisplayMode == .folder) {
+            .submenu(String(localized: "Display as"), children: [
+                .action(String(localized: "Folder"), isOn: folderDisplayMode == .folder) {
                     TileStore.shared.setFolderDisplayMode(tileID: tile.id, folderURL: folder.url, mode: .folder)
                 },
-                .action("Contents", isOn: folderDisplayMode == .contents) {
+                .action(String(localized: "Contents"), isOn: folderDisplayMode == .contents) {
                     TileStore.shared.setFolderDisplayMode(tileID: tile.id, folderURL: folder.url, mode: .contents)
                 }
             ]),
-            .submenu("View Content as", children: [
-                .action("Grid", isOn: folderContentViewMode == .grid) {
+            .submenu(String(localized: "View Content as"), children: [
+                .action(String(localized: "Grid"), isOn: folderContentViewMode == .grid) {
                     TileStore.shared.setFolderContentViewMode(tileID: tile.id, folderURL: folder.url, mode: .grid)
                 },
-                .action("List", isOn: folderContentViewMode == .list) {
+                .action(String(localized: "List"), isOn: folderContentViewMode == .list) {
                     TileStore.shared.setFolderContentViewMode(tileID: tile.id, folderURL: folder.url, mode: .list)
                 }
             ]),
-            .submenu("Sort By", children: FolderTileSortMode.allCases.map { mode in
+            .submenu(String(localized: "Sort By"), children: FolderTileSortMode.allCases.map { mode in
                 .action(mode.title, isOn: folderSortMode == mode) {
                     TileStore.shared.setFolderSortMode(tileID: tile.id, folderURL: folder.url, mode: mode)
                 }
@@ -241,72 +241,72 @@ struct TileView: View {
         }
 
         var actions: [ContextAction] = [
-            .action("Edit Dock...") {
+            .action(String(localized: "Edit Dock...")) {
                 DockEditModeService.shared.enter()
             }
         ]
 
         if case .spacer = tile.content {
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
+            actions.append(.action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             })
         }
 
         if case .divider = tile.content {
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
+            actions.append(.action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             })
         }
 
         if case .widget = tile.content {
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
+            actions.append(.action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             })
         }
 
         if case .smartStack = tile.content {
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
+            actions.append(.action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             })
         }
 
         if case .appFolder = tile.content {
             actions.append(.divider)
-            actions.append(.submenu("Display As", children: [
-                .action("Grid", isOn: appFolderDisplayMode == .grid) {
+            actions.append(.submenu(String(localized: "Display As"), children: [
+                .action(String(localized: "Grid"), isOn: appFolderDisplayMode == .grid) {
                     TileStore.shared.setAppFolderDisplayMode(tileID: tile.id, mode: .grid)
                 },
-                .action("Stack", isOn: appFolderDisplayMode == .stack) {
+                .action(String(localized: "Stack"), isOn: appFolderDisplayMode == .stack) {
                     TileStore.shared.setAppFolderDisplayMode(tileID: tile.id, mode: .stack)
                 }
             ]))
-            actions.append(.submenu("View Content as", children: [
-                .action("Grid", isOn: appFolderContentViewMode == .grid) {
+            actions.append(.submenu(String(localized: "View Content as"), children: [
+                .action(String(localized: "Grid"), isOn: appFolderContentViewMode == .grid) {
                     TileStore.shared.setAppFolderContentViewMode(tileID: tile.id, mode: .grid)
                 },
-                .action("List", isOn: appFolderContentViewMode == .list) {
+                .action(String(localized: "List"), isOn: appFolderContentViewMode == .list) {
                     TileStore.shared.setAppFolderContentViewMode(tileID: tile.id, mode: .list)
                 },
-                .action("Inline", isOn: appFolderContentViewMode == .inline) {
+                .action(String(localized: "Inline"), isOn: appFolderContentViewMode == .inline) {
                     TileStore.shared.setAppFolderContentViewMode(tileID: tile.id, mode: .inline)
                 }
             ]))
             actions.append(.divider)
-            actions.append(.action("Rename Folder...") {
+            actions.append(.action(String(localized: "Rename Folder...")) {
                 TileStore.shared.presentRenameAppFolderPrompt(tileID: tile.id)
             })
-            actions.append(.action("Ungroup Folder") {
+            actions.append(.action(String(localized: "Ungroup Folder")) {
                 TileStore.shared.ungroupAppFolder(tileID: tile.id)
             })
         }
 
         if case .launchpad = tile.content {
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
+            actions.append(.action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             })
         }
@@ -381,7 +381,7 @@ struct TileView: View {
 
     private func lockedContextActions() -> [ContextAction] {
         var actions: [ContextAction] = [
-            .action("Unlock Docky Pro") {
+            .action(String(localized: "Unlock Docky Pro")) {
                 openProductSettings()
             }
         ]
@@ -389,13 +389,13 @@ struct TileView: View {
         switch tile.content {
         case .app(let app) where app.displayedWidget != nil:
             actions.append(.divider)
-            actions.append(.action("Show App Icon") {
+            actions.append(.action(String(localized: "Show App Icon")) {
                 TileStore.shared.removeAppWidgetDisplay(bundleIdentifier: app.bundleIdentifier)
             })
         case .launchpad, .widget, .smartStack:
             if isDockyPinnedTile || isDockyTrailingTile {
                 actions.append(.divider)
-                actions.append(.action("Remove from Dock") {
+                actions.append(.action(String(localized: "Remove from Dock")) {
                     removeDockyTile()
                 })
             }
@@ -1228,7 +1228,7 @@ struct TileView: View {
             if !actions.isEmpty {
                 actions.append(.divider)
             }
-            actions.append(.action("Open All") {
+            actions.append(.action(String(localized: "Open All")) {
                 for app in folder.apps {
                     WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
                 }
@@ -1244,10 +1244,10 @@ struct TileView: View {
 
         let appActions = folder.apps.map { app in
             ContextAction.submenu(app.displayName, children: [
-                .action("Open") {
+                .action(String(localized: "Open")) {
                     WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
                 },
-                .action("Remove from Folder") {
+                .action(String(localized: "Remove from Folder")) {
                     TileStore.shared.removeAppFromFolder(tileID: tile.id, bundleIdentifier: app.bundleIdentifier)
                 }
             ])
@@ -1257,7 +1257,7 @@ struct TileView: View {
             if !actions.isEmpty {
                 actions.append(.divider)
             }
-            actions.append(.submenu("Apps", children: appActions))
+            actions.append(.submenu(String(localized: "Apps"), children: appActions))
         }
 
         return actions
@@ -1314,7 +1314,7 @@ struct TileView: View {
             }
         }
 
-        return .submenu("Windows", children: children)
+        return .submenu(String(localized: "Windows"), children: children)
     }
 
     private func appContextActions(
@@ -1389,14 +1389,14 @@ struct TileView: View {
                 children.append(.divider)
             }
             children.append(contentsOf: dockyOptions)
-            result[optionsIndex] = .submenu("Options", children: children)
+            result[optionsIndex] = .submenu(String(localized: "Options"), children: children)
             return result
         }
 
         if !result.isEmpty, result.last?.kind != .divider {
             result.append(.divider)
         }
-        result.append(.submenu("Options", children: dockyOptions))
+        result.append(.submenu(String(localized: "Options"), children: dockyOptions))
         return result
     }
 
@@ -1410,30 +1410,30 @@ struct TileView: View {
         let canTogglePinned = app.bundleIdentifier != Self.finderBundleIdentifier
         let useForceQuit = modifierFlags.contains(.option)
         var actions: [ContextAction] = [
-            .action("Open") {
+            .action(String(localized: "Open")) {
                 workspace.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
             }
         ]
 
         if isRunning {
-            actions.append(.action("Show All Windows") {
+            actions.append(.action(String(localized: "Show All Windows")) {
                 workspace.showAllWindows(bundleIdentifier: app.bundleIdentifier)
             })
         }
 
         actions.append(.divider)
-        actions.append(.submenu("Options", children: appOptionsActions(for: app, isPinned: isPinned, canTogglePinned: canTogglePinned)))
+        actions.append(.submenu(String(localized: "Options"), children: appOptionsActions(for: app, isPinned: isPinned, canTogglePinned: canTogglePinned)))
 
         if isDockyPinnedTile || isDockyTrailingTile {
             actions.append(.divider)
-            actions.append(.action("Remove from Dock") {
+            actions.append(.action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             })
         }
 
         if isRunning && app.bundleIdentifier != Self.finderBundleIdentifier {
             actions.append(.divider)
-            actions.append(.action("Hide") {
+            actions.append(.action(String(localized: "Hide")) {
                 workspace.hide(bundleIdentifier: app.bundleIdentifier)
             })
             actions.append(.action(
@@ -1454,10 +1454,10 @@ struct TileView: View {
     ) -> [ContextAction] {
         let workspace = WorkspaceService.shared
         return [
-            .action("Restore Window") {
+            .action(String(localized: "Restore Window")) {
                 _ = workspace.restoreMinimizedWindow(window)
             },
-            .action("Close Window") {
+            .action(String(localized: "Close Window")) {
                 _ = workspace.closeMinimizedWindow(window)
             }
         ]
@@ -1471,7 +1471,7 @@ struct TileView: View {
         var actions: [ContextAction] = []
 
         if canTogglePinned {
-            actions.append(.action("Keep in Dock", isOn: isPinned) {
+            actions.append(.action(String(localized: "Keep in Dock"), isOn: isPinned) {
                 _ = TileStore.shared.setPinnedApp(
                     bundleIdentifier: app.bundleIdentifier,
                     pinned: !isPinned
@@ -1487,7 +1487,7 @@ struct TileView: View {
             actions.append(hideInDockyAction)
         }
 
-        actions.append(.action("Show in Finder") {
+        actions.append(.action(String(localized: "Show in Finder")) {
             WorkspaceService.shared.revealApplicationInFinder(bundleIdentifier: app.bundleIdentifier)
         })
 
@@ -1500,7 +1500,7 @@ struct TileView: View {
             return nil
         }
 
-        return .action("Hide in Docky") {
+        return .action(String(localized: "Hide in Docky")) {
             preferences.setAppHiddenInDocky(bundleIdentifier: app.bundleIdentifier, isHidden: true)
         }
     }
@@ -1519,7 +1519,7 @@ struct TileView: View {
         }
 
         var actions: [ContextAction] = [
-            .action("App Icon", isOn: currentKind == nil) {
+            .action(String(localized: "App Icon"), isOn: currentKind == nil) {
                 TileStore.shared.removeAppWidgetDisplay(bundleIdentifier: app.bundleIdentifier)
             }
         ]
@@ -1540,7 +1540,7 @@ struct TileView: View {
             let availableSpans = availableAppWidgetSpans(for: configuredDisplay.kind)
             if availableSpans.count > 1 {
                 actions.append(.divider)
-                actions.append(.submenu("Span", children: availableSpans.map { span in
+                actions.append(.submenu(String(localized: "Span"), children: availableSpans.map { span in
                     .action(spanTitle(for: span), isOn: configuredDisplay.span == span) {
                         TileStore.shared.setAppWidgetDisplaySpan(
                             bundleIdentifier: app.bundleIdentifier,
@@ -1551,7 +1551,7 @@ struct TileView: View {
             }
         }
 
-        return .submenu("Show as Widget", children: actions)
+        return .submenu(String(localized: "Show as Widget"), children: actions)
     }
 
     private func widgetContextActions(for widget: WidgetTile) -> [ContextAction] {
@@ -1560,7 +1560,7 @@ struct TileView: View {
             var actions: [ContextAction] = []
 
             if let quickJoinURL = CalendarService.shared.nextEvent?.quickJoinURL {
-                actions.append(.action("Quick Join") {
+                actions.append(.action(String(localized: "Quick Join")) {
                     NSWorkspace.shared.open(quickJoinURL)
                 })
             }
@@ -1571,11 +1571,11 @@ struct TileView: View {
             }
 
             appendDividerIfNeeded(to: &actions)
-            actions.append(.action("Refresh Calendar") {
+            actions.append(.action(String(localized: "Refresh Calendar")) {
                 CalendarService.shared.refresh(force: true)
             })
             actions.append(.divider)
-            actions.append(.action("Open Calendar") {
+            actions.append(.action(String(localized: "Open Calendar")) {
                 WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.calendar)
             })
             actions.append(.divider)
@@ -1583,7 +1583,7 @@ struct TileView: View {
             return actions
         case .calendarDate:
             return [
-                .action("Open Calendar") {
+                .action(String(localized: "Open Calendar")) {
                     WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.calendar)
                 },
                 .divider,
@@ -1601,7 +1601,7 @@ struct TileView: View {
             } ?? []
 
             if !completionActions.isEmpty {
-                actions.append(.submenu("Complete", children: completionActions))
+                actions.append(.submenu(String(localized: "Complete"), children: completionActions))
             }
 
             if let spanMenuAction = widgetSpanMenuAction(for: widget) {
@@ -1610,11 +1610,11 @@ struct TileView: View {
             }
 
             appendDividerIfNeeded(to: &actions)
-            actions.append(.action("Refresh Reminders") {
+            actions.append(.action(String(localized: "Refresh Reminders")) {
                 RemindersService.shared.refresh(force: true)
             })
             actions.append(.divider)
-            actions.append(.action("Open Reminders") {
+            actions.append(.action(String(localized: "Open Reminders")) {
                 WorkspaceService.shared.activateOrOpen(bundleIdentifier: WidgetOwnerBundleIdentifiers.reminders)
             })
             actions.append(.divider)
@@ -1622,7 +1622,7 @@ struct TileView: View {
             return actions
         case .batteries:
             var actions: [ContextAction] = [
-                .action("Refresh Batteries") {
+                .action(String(localized: "Refresh Batteries")) {
                     BatteriesService.shared.refresh(force: true)
                 }
             ]
@@ -1633,7 +1633,7 @@ struct TileView: View {
             }
 
             actions.append(.divider)
-            actions.append(.action("Open Battery Settings") {
+            actions.append(.action(String(localized: "Open Battery Settings")) {
                 BatteriesService.shared.openInBatterySettings()
             })
             actions.append(.divider)
@@ -1641,7 +1641,7 @@ struct TileView: View {
             return actions
         case .systemStatus:
             var actions: [ContextAction] = [
-                .action("Refresh Status") {
+                .action(String(localized: "Refresh Status")) {
                     SystemStatusService.shared.refresh(force: true)
                 }
             ]
@@ -1652,7 +1652,7 @@ struct TileView: View {
             }
 
             actions.append(.divider)
-            actions.append(.action("Open Activity Monitor") {
+            actions.append(.action(String(localized: "Open Activity Monitor")) {
                 SystemStatusService.shared.openInActivityMonitor()
             })
             actions.append(.divider)
@@ -1662,24 +1662,24 @@ struct TileView: View {
             var actions: [ContextAction] = []
 
             if let bundleIdentifier = mediaPlayback.resolvedBundleIdentifier(for: widget.ownerBundleIdentifier) {
-                actions.append(.action("Open App") {
+                actions.append(.action(String(localized: "Open App")) {
                     WorkspaceService.shared.activateOrOpen(bundleIdentifier: bundleIdentifier)
                 })
                 actions.append(.divider)
             }
 
             actions.append(contentsOf: [
-                .action("Play/Pause") {
+                .action(String(localized: "Play/Pause")) {
                     Task {
                         await mediaPlayback.togglePlayPause(for: widget.ownerBundleIdentifier)
                     }
                 },
-                .action("Previous Track") {
+                .action(String(localized: "Previous Track")) {
                     Task {
                         await mediaPlayback.skipToPrevious(for: widget.ownerBundleIdentifier)
                     }
                 },
-                .action("Next Track") {
+                .action(String(localized: "Next Track")) {
                     Task {
                         await mediaPlayback.skipToNext(for: widget.ownerBundleIdentifier)
                     }
@@ -1704,7 +1704,7 @@ struct TileView: View {
             return actions
         case .weather:
             var actions: [ContextAction] = [
-                .action("Refresh Weather") {
+                .action(String(localized: "Refresh Weather")) {
                     WeatherService.shared.refresh(force: true)
                 }
             ]
@@ -1715,7 +1715,7 @@ struct TileView: View {
             }
 
             actions.append(.divider)
-            actions.append(.action("Open Weather") {
+            actions.append(.action(String(localized: "Open Weather")) {
                 WeatherService.shared.openInWeatherApp()
             })
             actions.append(.divider)
@@ -1734,7 +1734,7 @@ struct TileView: View {
             return nil
         }
 
-        return .submenu("Span", children: availableSpans.map { span in
+        return .submenu(String(localized: "Span"), children: availableSpans.map { span in
             ContextAction.action(spanTitle(for: span), isOn: widget.span == span) {
                 applyWidgetSpan(span)
             }
@@ -1767,7 +1767,7 @@ struct TileView: View {
 
     private func widgetRemovalAction(for widget: WidgetTile, nonDockyTitle: String = "Remove Widget") -> ContextAction {
         if isDockyPinnedTile || isDockyTrailingTile {
-            return .action("Remove from Dock") {
+            return .action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             }
         }
@@ -1829,17 +1829,17 @@ struct TileView: View {
         }
 
         if !widgetVisibilityActions.isEmpty {
-            actions.append(.submenu("Widgets", children: widgetVisibilityActions))
+            actions.append(.submenu(String(localized: "Widgets"), children: widgetVisibilityActions))
         }
 
         if isDockyPinnedTile || isDockyTrailingTile {
             if !actions.isEmpty {
                 actions.append(.divider)
             }
-            actions.append(.action("Edit Dock...") {
+            actions.append(.action(String(localized: "Edit Dock...")) {
                 DockEditModeService.shared.enter()
             })
-            actions.append(.action("Remove from Dock") {
+            actions.append(.action(String(localized: "Remove from Dock")) {
                 removeDockyTile()
             })
         }
@@ -2455,7 +2455,7 @@ private final class FolderPopoverAnchorView: NSView {
 private func folderNavigationContextActions(for folderURL: URL) -> [ContextAction] {
     let snapshot = FolderAccessService.shared.snapshot(of: folderURL)
     guard case .loaded(let items) = snapshot else {
-        return [.action("Can't read folder") {}]
+        return [.action(String(localized: "Can't read folder")) {}]
     }
 
     let sortedItems = FolderAccessService.shared.sortedItems(in: items, sortMode: .name)
@@ -2484,7 +2484,7 @@ private func folderNavigationContextActions(for folderURL: URL) -> [ContextActio
     if !actions.isEmpty {
         actions.append(.divider)
     }
-    actions.append(.action("Open in Finder", image: contextMenuSymbol("folder")) {
+    actions.append(.action(String(localized: "Open in Finder"), image: contextMenuSymbol("folder")) {
         Task {
             _ = await AppleScriptService.shared.openFinderWindow(for: folderURL)
         }
@@ -2497,19 +2497,19 @@ func fileContextActions(for url: URL) -> [ContextAction] {
     [
         .customView(FilePreviewMenuItemView(url: url)),
         .divider,
-        .action("Open", image: contextMenuSymbol("arrow.up.forward.app")) {
+        .action(String(localized: "Open"), image: contextMenuSymbol("arrow.up.forward.app")) {
             NSWorkspace.shared.open(url)
         },
-        .lazySubmenu("Open With", image: contextMenuSymbol("app.badge")) {
+        .lazySubmenu(String(localized: "Open With"), image: contextMenuSymbol("app.badge")) {
             openWithApplicationActions(for: url)
         },
         .divider,
-        .action("Copy", image: contextMenuSymbol("doc.on.doc")) {
+        .action(String(localized: "Copy"), image: contextMenuSymbol("doc.on.doc")) {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.writeObjects([url as NSURL])
         },
-        .lazySubmenu("Share", image: contextMenuSymbol("square.and.arrow.up")) {
+        .lazySubmenu(String(localized: "Share"), image: contextMenuSymbol("square.and.arrow.up")) {
             shareApplicationActions(for: url)
         },
         .divider,
@@ -2591,7 +2591,7 @@ func appWindowMenuTitle(for window: AppWindow) -> String {
 private func openWithApplicationActions(for url: URL) -> [ContextAction] {
     let appURLs = NSWorkspace.shared.urlsForApplications(toOpen: url)
     guard !appURLs.isEmpty else {
-        return [.action("No Applications Available") {}]
+        return [.action(String(localized: "No Applications Available")) {}]
     }
 
     return appURLs.map { appURL in
@@ -2613,7 +2613,7 @@ private func openWithApplicationActions(for url: URL) -> [ContextAction] {
 private func shareApplicationActions(for url: URL) -> [ContextAction] {
     let services = NSSharingService.sharingServices(forItems: [url])
     guard !services.isEmpty else {
-        return [.action("No Sharing Options") {}]
+        return [.action(String(localized: "No Sharing Options")) {}]
     }
 
     return services.map { service in

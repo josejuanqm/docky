@@ -497,7 +497,7 @@ private struct WindowSwitcherListRow: View {
 
         let dismiss = { switcher.dismiss() }
         var actions: [ContextAction] = [
-            .action("Focus Window") {
+            .action(String(localized: "Focus Window")) {
                 dismiss()
                 _ = workspace.focus(window: window)
             },
@@ -506,21 +506,21 @@ private struct WindowSwitcherListRow: View {
         actions.append(contentsOf: windowMenuContextActions(for: window, dismiss: dismiss))
         actions.append(contentsOf: [
             .divider,
-            .action("Close Window", isDestructive: true) {
+            .action(String(localized: "Close Window"), isDestructive: true) {
                 if workspace.close(window: window) {
                     switcher.removeWindow(withIdentifier: window.windowIdentifier)
                 }
             },
             .divider,
-            .action("Focus App") {
+            .action(String(localized: "Focus App")) {
                 dismiss()
                 workspace.focusApplication(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Hide App") {
+            .action(String(localized: "Hide App")) {
                 dismiss()
                 workspace.hide(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Quit") {
+            .action(String(localized: "Quit")) {
                 dismiss()
                 workspace.quit(bundleIdentifier: window.bundleIdentifier)
             },
@@ -651,7 +651,7 @@ private struct WindowSwitcherCard: View {
 
         let dismiss = { switcher.dismiss() }
         var actions: [ContextAction] = [
-            .action("Focus Window") {
+            .action(String(localized: "Focus Window")) {
                 dismiss()
                 _ = workspace.focus(window: window)
             },
@@ -660,21 +660,21 @@ private struct WindowSwitcherCard: View {
         actions.append(contentsOf: windowMenuContextActions(for: window, dismiss: dismiss))
         actions.append(contentsOf: [
             .divider,
-            .action("Close Window", isDestructive: true) {
+            .action(String(localized: "Close Window"), isDestructive: true) {
                 if workspace.close(window: window) {
                     switcher.removeWindow(withIdentifier: window.windowIdentifier)
                 }
             },
             .divider,
-            .action("Focus App") {
+            .action(String(localized: "Focus App")) {
                 dismiss()
                 workspace.focusApplication(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Hide App") {
+            .action(String(localized: "Hide App")) {
                 dismiss()
                 workspace.hide(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Quit") {
+            .action(String(localized: "Quit")) {
                 dismiss()
                 workspace.quit(bundleIdentifier: window.bundleIdentifier)
             },

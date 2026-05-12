@@ -259,16 +259,24 @@ final class AppleScriptService {
         includesSystemEvents: Bool
     ) {
         let alert = NSAlert()
-        alert.messageText = "Automation wasn’t allowed"
+        alert.messageText = String(localized: "Automation wasn’t allowed")
         let appName = displayName(for: targetApp)
         if includesSystemEvents {
-            alert.informativeText = "Allow Docky to control System Events and \(appName) in Privacy & Security > Automation, then try \(actionTitle.lowercased()) again."
+            alert.informativeText = String(
+                format: String(localized: "Allow Docky to control System Events and %1$@ in Privacy & Security > Automation, then try %2$@ again."),
+                appName,
+                actionTitle.lowercased()
+            )
         } else {
-            alert.informativeText = "Allow Docky to control \(appName) in Privacy & Security > Automation, then try \(actionTitle.lowercased()) again."
+            alert.informativeText = String(
+                format: String(localized: "Allow Docky to control %1$@ in Privacy & Security > Automation, then try %2$@ again."),
+                appName,
+                actionTitle.lowercased()
+            )
         }
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Open System Settings"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             PermissionsService.shared.openSystemSettings(for: .finderAutomation)
         }

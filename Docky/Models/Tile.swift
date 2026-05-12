@@ -96,19 +96,19 @@ enum WidgetKind: String, CaseIterable, Codable, Identifiable {
     nonisolated var title: String {
         switch self {
         case .calendar:
-            "Calendar"
+            String(localized: "Calendar")
         case .calendarDate:
-            "Date"
+            String(localized: "Date")
         case .reminders:
-            "Reminders"
+            String(localized: "Reminders")
         case .batteries:
-            "Batteries"
+            String(localized: "Batteries")
         case .systemStatus:
-            "System Status"
+            String(localized: "System Status")
         case .nowPlaying:
-            "Now Playing"
+            String(localized: "Now Playing")
         case .weather:
-            "Weather"
+            String(localized: "Weather")
         }
     }
 

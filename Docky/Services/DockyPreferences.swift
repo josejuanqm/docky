@@ -359,10 +359,10 @@ enum DockWindowPosition: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: "System"
-        case .left: "Left"
-        case .right: "Right"
-        case .bottom: "Bottom"
+        case .system: String(localized: "System")
+        case .left: String(localized: "Left")
+        case .right: String(localized: "Right")
+        case .bottom: String(localized: "Bottom")
         }
     }
 
@@ -392,8 +392,8 @@ enum DockWindowDisplayTarget: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .primaryDisplay: "Primary Display"
-        case .displayContainingPointer: "Display With Pointer"
+        case .primaryDisplay: String(localized: "Primary Display")
+        case .displayContainingPointer: String(localized: "Display With Pointer")
         }
     }
 }
@@ -406,8 +406,8 @@ enum DockWindowSpaceBehavior: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .activeSpace: "Active Space"
-        case .allSpaces: "All Spaces"
+        case .activeSpace: String(localized: "Active Space")
+        case .allSpaces: String(localized: "All Spaces")
         }
     }
 
@@ -433,8 +433,8 @@ enum DockOverflowBehavior: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .rescale: "Rescale"
-        case .scroll: "Scroll"
+        case .rescale: String(localized: "Rescale")
+        case .scroll: String(localized: "Scroll")
         }
     }
 }
@@ -447,8 +447,8 @@ enum DockWindowAxisSizing: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .fitContent: "Fit Content"
-        case .fullAxis: "Full Axis"
+        case .fitContent: String(localized: "Fit Content")
+        case .fullAxis: String(localized: "Full Axis")
         }
     }
 }
@@ -461,8 +461,8 @@ enum DockBackgroundImageMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .fill: "Fill"
-        case .sprite: "Sprite"
+        case .fill: String(localized: "Fill")
+        case .sprite: String(localized: "Sprite")
         }
     }
 }
@@ -476,17 +476,17 @@ enum MaximizedWindowBehavior: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .ignore: "Ignore"
-        case .hideDocky: "Hide Docky"
-        case .resizeWindow: "Resize Windows"
+        case .ignore: String(localized: "Ignore")
+        case .hideDocky: String(localized: "Hide Docky")
+        case .resizeWindow: String(localized: "Resize Windows")
         }
     }
 
     var detail: String {
         switch self {
-        case .ignore: "Maximized windows render under Docky."
-        case .hideDocky: "Slide Docky off-screen while a maximized window is on its display, with edge-dwell to reveal."
-        case .resizeWindow: "When an app maximizes, shrink its window to leave room for Docky. Requires Accessibility permission and may not work for every app."
+        case .ignore: String(localized: "Maximized windows render under Docky.")
+        case .hideDocky: String(localized: "Slide Docky off-screen while a maximized window is on its display, with edge-dwell to reveal.")
+        case .resizeWindow: String(localized: "When an app maximizes, shrink its window to leave room for Docky. Requires Accessibility permission and may not work for every app.")
         }
     }
 }
@@ -499,8 +499,8 @@ enum DockClipShape: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .rounded: "Rounded"
-        case .circle: "Circle"
+        case .rounded: String(localized: "Rounded")
+        case .circle: String(localized: "Circle")
         }
     }
 
@@ -543,10 +543,10 @@ enum AppTileFrontmostClickBehavior: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .none: "Do Nothing"
-        case .hide: "Hide App"
-        case .cycleWindows: "Cycle Windows"
-        case .minimizeAll: "Minimize All Windows"
+        case .none: String(localized: "Do Nothing")
+        case .hide: String(localized: "Hide App")
+        case .cycleWindows: String(localized: "Cycle Windows")
+        case .minimizeAll: String(localized: "Minimize All Windows")
         }
     }
 
@@ -568,10 +568,10 @@ enum DockTileIndicatorShape: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .none: "None"
-        case .dot: "Dot"
-        case .pill: "Pill"
-        case .image: "Custom Image"
+        case .none: String(localized: "None")
+        case .dot: String(localized: "Dot")
+        case .pill: String(localized: "Pill")
+        case .image: String(localized: "Custom Image")
         }
     }
 }
@@ -611,8 +611,8 @@ enum TrashIconState: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .empty: "Empty"
-        case .full: "Full"
+        case .empty: String(localized: "Empty")
+        case .full: String(localized: "Full")
         }
     }
 
@@ -706,8 +706,8 @@ enum FolderTileDisplayMode: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .folder: "Folder"
-        case .contents: "Contents"
+        case .folder: String(localized: "Folder")
+        case .contents: String(localized: "Contents")
         }
     }
 }
@@ -720,8 +720,8 @@ enum AppFolderTileDisplayMode: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .grid: "Grid"
-        case .stack: "Stack"
+        case .grid: String(localized: "Grid")
+        case .stack: String(localized: "Stack")
         }
     }
 }
@@ -735,9 +735,9 @@ enum FolderTileContentViewMode: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .grid: "Grid"
-        case .list: "List"
-        case .inline: "Inline"
+        case .grid: String(localized: "Grid")
+        case .list: String(localized: "List")
+        case .inline: String(localized: "Inline")
         }
     }
 
@@ -775,12 +775,12 @@ enum FolderTileSortMode: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .name: "Name"
-        case .dateModified: "Date Modified"
-        case .dateCreated: "Date Created"
-        case .dateAdded: "Date Added"
-        case .kind: "Kind"
-        case .size: "Size"
+        case .name: String(localized: "Name")
+        case .dateModified: String(localized: "Date Modified")
+        case .dateCreated: String(localized: "Date Created")
+        case .dateAdded: String(localized: "Date Added")
+        case .kind: String(localized: "Kind")
+        case .size: String(localized: "Size")
         }
     }
 }
@@ -793,17 +793,17 @@ enum WindowSwitcherPreviewMode: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .inPlace: "In Place"
-        case .instantFocus: "Instant Focus"
+        case .inPlace: String(localized: "In Place")
+        case .instantFocus: String(localized: "Instant Focus")
         }
     }
 
     var summary: String {
         switch self {
         case .inPlace:
-            "Hold on one selection to preview that window behind the switcher without changing focus until you release the shortcut."
+            String(localized: "Hold on one selection to preview that window behind the switcher without changing focus until you release the shortcut.")
         case .instantFocus:
-            "Focus each selected window immediately while keeping the original cycling order frozen until you release the shortcut."
+            String(localized: "Focus each selected window immediately while keeping the original cycling order frozen until you release the shortcut.")
         }
     }
 }
@@ -817,20 +817,20 @@ enum WindowSwitcherLayout: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: "Auto"
-        case .thumbnails: "Thumbnails"
-        case .list: "List"
+        case .auto: String(localized: "Auto")
+        case .thumbnails: String(localized: "Thumbnails")
+        case .list: String(localized: "List")
         }
     }
 
     var summary: String {
         switch self {
         case .auto:
-            "Use thumbnails when screen recording permission is granted; fall back to a compact list when previews aren't available."
+            String(localized: "Use thumbnails when screen recording permission is granted; fall back to a compact list when previews aren't available.")
         case .thumbnails:
-            "Always show window thumbnails. Requires screen recording permission to render preview images."
+            String(localized: "Always show window thumbnails. Requires screen recording permission to render preview images.")
         case .list:
-            "Always show a compact vertical list with app icons and window titles. No screen recording required."
+            String(localized: "Always show a compact vertical list with app icons and window titles. No screen recording required.")
         }
     }
 

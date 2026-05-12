@@ -514,7 +514,7 @@ private struct WindowPreviewCard: View {
     private func contextActions(modifierFlags: NSEvent.ModifierFlags) -> [ContextAction] {
         let dismiss = { WindowPreviewWindowController.shared.dismissCurrent() }
         var actions: [ContextAction] = [
-            .action("Focus Window") {
+            .action(String(localized: "Focus Window")) {
                 dismiss()
                 _ = workspace.focus(window: window)
             },
@@ -523,21 +523,21 @@ private struct WindowPreviewCard: View {
         actions.append(contentsOf: windowMenuContextActions(for: window, dismiss: dismiss))
         actions.append(contentsOf: [
             .divider,
-            .action("Close Window", isDestructive: true) {
+            .action(String(localized: "Close Window"), isDestructive: true) {
                 if workspace.close(window: window) {
                     preview.removeWindow(withIdentifier: window.windowIdentifier)
                 }
             },
             .divider,
-            .action("Focus App") {
+            .action(String(localized: "Focus App")) {
                 dismiss()
                 workspace.focusApplication(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Hide App") {
+            .action(String(localized: "Hide App")) {
                 dismiss()
                 workspace.hide(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Quit") {
+            .action(String(localized: "Quit")) {
                 dismiss()
                 workspace.quit(bundleIdentifier: window.bundleIdentifier)
             },
@@ -683,7 +683,7 @@ private struct WindowPreviewListRow: View {
     private func contextActions(modifierFlags: NSEvent.ModifierFlags) -> [ContextAction] {
         let dismiss = { WindowPreviewWindowController.shared.dismissCurrent() }
         var actions: [ContextAction] = [
-            .action("Focus Window") {
+            .action(String(localized: "Focus Window")) {
                 dismiss()
                 _ = workspace.focus(window: window)
             },
@@ -692,21 +692,21 @@ private struct WindowPreviewListRow: View {
         actions.append(contentsOf: windowMenuContextActions(for: window, dismiss: dismiss))
         actions.append(contentsOf: [
             .divider,
-            .action("Close Window", isDestructive: true) {
+            .action(String(localized: "Close Window"), isDestructive: true) {
                 if workspace.close(window: window) {
                     preview.removeWindow(withIdentifier: window.windowIdentifier)
                 }
             },
             .divider,
-            .action("Focus App") {
+            .action(String(localized: "Focus App")) {
                 dismiss()
                 workspace.focusApplication(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Hide App") {
+            .action(String(localized: "Hide App")) {
                 dismiss()
                 workspace.hide(bundleIdentifier: window.bundleIdentifier)
             },
-            .action("Quit") {
+            .action(String(localized: "Quit")) {
                 dismiss()
                 workspace.quit(bundleIdentifier: window.bundleIdentifier)
             },

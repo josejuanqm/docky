@@ -349,10 +349,10 @@ struct FolderPopoverView: View {
     private func contextActions(for itemURL: URL) -> [ContextAction] {
         var actions: [ContextAction] = []
         if isNavigableFolder(itemURL) {
-            actions.append(.action("Reveal in Finder", image: contextMenuSymbol("rectangle.stack.badge.plus")) {
+            actions.append(.action(String(localized: "Reveal in Finder"), image: contextMenuSymbol("rectangle.stack.badge.plus")) {
                 revealInFinder(itemURL)
             })
-            actions.append(.action("Open in Finder", image: contextMenuSymbol("folder")) {
+            actions.append(.action(String(localized: "Open in Finder"), image: contextMenuSymbol("folder")) {
                 openInFinder(itemURL)
             })
             return actions
@@ -360,7 +360,7 @@ struct FolderPopoverView: View {
 
         actions = fileContextActions(for: itemURL)
         actions.append(.divider)
-        actions.append(.action("Reveal in Finder", image: contextMenuSymbol("rectangle.stack.badge.plus")) {
+        actions.append(.action(String(localized: "Reveal in Finder"), image: contextMenuSymbol("rectangle.stack.badge.plus")) {
             revealInFinder(itemURL)
         })
         return actions
