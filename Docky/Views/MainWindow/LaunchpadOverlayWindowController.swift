@@ -329,9 +329,13 @@ private struct LaunchpadOverlayView: View {
 
                     Spacer()
 
-                    pageIndicator(pageCount: pages.count, currentIndex: currentPageIndex(in: pages))
-                        .padding(.bottom, 24)
+                    pageIndicator(pageCount: pages.count, currentIndex: currentPageIndex(in: pages)) { index in
+                        scrollToPage(index: index, pageCount: pages.count)
+                    }
+                    .padding(.bottom, 24)
                 }
+
+                pageNavigationChevrons(pageCount: pages.count, currentIndex: currentPageIndex(in: pages))
 
                 if let folder = expandedFolder {
                     ExpandedFolderOverlay(
@@ -484,17 +488,91 @@ private struct LaunchpadOverlayView: View {
     }
 
     @ViewBuilder
-    private func pageIndicator(pageCount: Int, currentIndex: Int) -> some View {
+    private func pageIndicator(
+        pageCount: Int,
+        currentIndex: Int,
+        onSelect: @escaping (Int) -> Void
+    ) -> some View {
         if pageCount > 1 {
             HStack(spacing: 10) {
                 ForEach(0..<pageCount, id: \.self) { index in
+                    // Visual dot stays 7pt but the click target is 22pt
+                    // (via contentShape) so it's reachable with a mouse.
                     Circle()
                         .fill(.primary.opacity(index == currentIndex ? 0.85 : 0.3))
                         .frame(width: 7, height: 7)
+                        .padding(8)
+                        .contentShape(Circle())
+                        .onTapGesture { onSelect(index) }
                         .animation(.easeInOut(duration: 0.18), value: currentIndex)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func pageNavigationChevrons(pageCount: Int, currentIndex: Int) -> some View {
+        if pageCount > 1 {
+            HStack {
+                pageChevronButton(
+                    direction: .previous,
+                    isEnabled: currentIndex > 0
+                ) {
+                    scrollToPage(index: currentIndex - 1, pageCount: pageCount)
+                }
+                Spacer()
+                pageChevronButton(
+                    direction: .next,
+                    isEnabled: currentIndex < pageCount - 1
+                ) {
+                    scrollToPage(index: currentIndex + 1, pageCount: pageCount)
+                }
+            }
+            .padding(.horizontal, 24)
+            .allowsHitTesting(true)
+        }
+    }
+
+    /// Drives paging via the `scrollPosition` binding rather than via
+    /// `ScrollViewReader.scrollTo` — the latter doesn't update the
+    /// binding, so `currentPageIndex` would stay stale and the next
+    /// chevron click would re-target the same page. Wrapped in
+    /// `withAnimation` so the transition is smooth despite the
+    /// `.scrollTargetBehavior(.paging)` snap.
+    private func scrollToPage(index: Int, pageCount: Int) {
+        let clamped = max(0, min(index, pageCount - 1))
+        withAnimation(.easeInOut(duration: 0.22)) {
+            visiblePageID = "page-\(clamped)"
+        }
+    }
+
+    private enum LaunchpadPageChevronDirection {
+        case previous, next
+
+        var systemImage: String {
+            switch self {
+            case .previous: "chevron.left"
+            case .next: "chevron.right"
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pageChevronButton(
+        direction: LaunchpadPageChevronDirection,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: direction.systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary.opacity(isEnabled ? 0.85 : 0.2))
+                .frame(width: 44, height: 44)
+                .background(.thinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
     }
 
     @ViewBuilder
