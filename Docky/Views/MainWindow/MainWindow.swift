@@ -75,12 +75,42 @@ final class MainWindowContainerView: NSView {
     /// the hosting view's top-left origin coordinate space — same as what
     /// SwiftUI sees via `GeometryProxy.frame(in: .global)`. Caller flips Y
     /// when the underlying NSHostingView isn't already flipped.
+    ///
+    /// We only forward when the cursor is within the chrome's cross-axis
+    /// strip. The window is taller (or wider, for side docks) than the
+    /// chrome to make room for magnified icons, so a window-wide tracking
+    /// area would magnify tiles as soon as the pointer entered the empty
+    /// headroom above the chrome — well before it ever touched a tile.
     private func forwardMagnificationPointer(from event: NSEvent) {
         let inHosting = contentView.convert(event.locationInWindow, from: nil)
         let topLeft: CGPoint = contentView.isFlipped
             ? inHosting
             : CGPoint(x: inHosting.x, y: contentView.bounds.height - inHosting.y)
+        guard cursorIsAtChromeFringe(topLeft, hostingSize: contentView.bounds.size) else {
+            DockMagnificationService.shared.clearPointer()
+            return
+        }
         DockMagnificationService.shared.updatePointer(at: topLeft)
+    }
+
+    /// Cross-axis bounds check against the resting chrome. We don't gate
+    /// on the along-axis (proximity to dock edge in that direction is the
+    /// whole point of the cosine falloff), only the cross-axis fringe.
+    private func cursorIsAtChromeFringe(_ point: CGPoint, hostingSize: CGSize) -> Bool {
+        let chromeSize = DockLayoutService.shared.chromeSize
+        guard chromeSize.width > 0, chromeSize.height > 0 else { return true }
+        let position = DockyPreferences.shared.windowPosition
+            .resolved(systemOrientation: DockSettingsService.shared.orientation)
+        switch position {
+        case .bottom:
+            return point.y >= hostingSize.height - chromeSize.height
+        case .top:
+            return point.y <= chromeSize.height
+        case .left:
+            return point.x <= chromeSize.width
+        case .right:
+            return point.x >= hostingSize.width - chromeSize.width
+        }
     }
 }
 

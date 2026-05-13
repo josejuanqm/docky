@@ -112,7 +112,11 @@ struct AppFolderTileView: View {
     }
 
     private var showsBackdrop: Bool {
-        openedAppCount > 0 && preferences.showsGroupedOpenedAppsBackdrop
+        // Magnification reshapes the tile group every frame; the backdrop
+        // sized against rest geometry would visibly lag behind, so hide
+        // it when the user has magnification turned on.
+        guard !dockSettings.magnification else { return false }
+        return openedAppCount > 0 && preferences.showsGroupedOpenedAppsBackdrop
     }
 
     @ViewBuilder

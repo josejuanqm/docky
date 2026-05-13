@@ -16,6 +16,8 @@ struct MainWindowView: View {
     @ObservedObject private var dockSettings = DockSettingsService.shared
     @Bindable private var preferences = DockyPreferences.shared
     @ObservedObject private var layoutService = DockLayoutService.shared
+    @ObservedObject private var magnification = DockMagnificationService.shared
+    @ObservedObject private var chromeMetrics = DockChromeMetricsService.shared
 
     var body: some View {
         #if DEBUG
@@ -31,11 +33,23 @@ struct MainWindowView: View {
                 .frame(width: chromeFrameSize?.width, height: chromeFrameSize?.height)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: dockEdge)
                 .allowsHitTesting(true)
-                .animation(chromeResizeAnimation, value: chromeFrameSize)
+                // Suppress the implicit easeInOut while magnification is
+                // tracking the cursor — chrome growth updates per frame
+                // and a 0.18s tween would visibly lag the pointer. Tile
+                // add/remove and other resting layout changes still
+                // animate normally.
+                .animation(
+                    isTrackingMagnification ? nil : chromeResizeAnimation,
+                    value: chromeFrameSize
+                )
 
             TileContainerView()
         }
         .compositingGroup()
+    }
+
+    private var isTrackingMagnification: Bool {
+        dockSettings.magnification && magnification.pointerLocation != nil
     }
 
     private var dockEdgeAlignment: Alignment {
@@ -148,7 +162,24 @@ struct MainWindowView: View {
             return nil
         }
 
-        return chromeSize
+        // Precise per-frame total growth published by `TileContainerView`
+        // as a byproduct of the tile walk it does for the anchor offset.
+        // This naturally handles edge truncation and non-1×1 widgets in
+        // the influence radius — both of which reduce the effective
+        // total below the closed-form constant.
+        let usesFullAxis = preferences.windowAxisSizing == .fullAxis
+        let chromeGrowth = chromeMetrics.alongAxisGrowth
+        guard dockSettings.magnification, !usesFullAxis, chromeGrowth > 0 else {
+            return chromeSize
+        }
+
+        let isVertical = preferences.windowPosition
+            .resolved(systemOrientation: dockSettings.orientation)
+            .isVertical
+        if isVertical {
+            return CGSize(width: chromeSize.width, height: chromeSize.height + chromeGrowth)
+        }
+        return CGSize(width: chromeSize.width + chromeGrowth, height: chromeSize.height)
     }
 
     private var resolvedBackgroundImage: NSImage? {

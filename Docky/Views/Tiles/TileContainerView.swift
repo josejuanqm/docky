@@ -74,8 +74,13 @@ struct TileContainerView: View {
     private func tileCanvas(in proxy: GeometryProxy) -> some View {
         let scrollableSectionLayout = scrollableSectionLayout(in: proxy)
 
+        let anchorOffset = magnificationAnchorOffset
         return ZStack(alignment: .topLeading) {
             contentStack(scrollableSectionLayout: scrollableSectionLayout)
+                .offset(
+                    x: position.isVertical ? 0 : anchorOffset,
+                    y: position.isVertical ? anchorOffset : 0
+                )
                 .frame(
                     maxWidth: .infinity,
                     maxHeight: .infinity,
@@ -849,12 +854,21 @@ struct TileContainerView: View {
     /// with another interaction (edit mode, active drag) or when there's
     /// no headroom to grow into. Overflow rescaling does NOT disable it —
     /// when the dock is squished, magnification still pops icons up to
-    /// the full `largeSize`, which is how Apple's Dock behaves.
+    /// the full `largeSize`, which is how Apple's Dock behaves. Scroll
+    /// overflow IS disabled though: the section's scroll offset and
+    /// clipped viewport make cursor-to-tile mapping unreliable.
     private var magnificationActive: Bool {
         guard dockSettings.magnification else { return false }
         guard !editMode.isActive else { return false }
         guard draggedTileID == nil else { return false }
         guard dockSettings.largeSize > dockSettings.tileSize else { return false }
+        if preferences.overflowBehavior == .scroll {
+            let canvasAxisLength = projected(size: layout.tileCanvasFrame.size)
+            if canvasAxisLength > 0,
+               totalAxisLength(for: layoutComponents) > canvasAxisLength {
+                return false
+            }
+        }
         return true
     }
 
@@ -970,6 +984,126 @@ struct TileContainerView: View {
             restSize: effectiveTileSize,
             restAxisCenter: center
         )
+    }
+
+    private struct MagnificationWalk {
+        /// Sum of (magnified − rest) extent over every tile along the
+        /// dock axis. Strength is already baked in via the per-tile sizes.
+        let totalGrowth: CGFloat
+        /// Magnified axis position corresponding to the cursor's resting
+        /// position, used by the anchor offset to keep the under-cursor
+        /// icon pinned to the cursor.
+        let anchoredMag: CGFloat
+    }
+
+    /// Walks every tile once. Produces both the per-frame
+    /// `totalGrowth` (needed for chrome sizing) and the magnified cursor
+    /// position (needed for the anchor offset).
+    private func computeMagnificationWalk(cursor: CGFloat) -> MagnificationWalk {
+        let tiles = displayTiles
+        let spacing = effectiveTileSpacing
+        var restCursor: CGFloat = effectiveEdgePadding
+        var magCursor: CGFloat = effectiveEdgePadding
+        var totalGrowth: CGFloat = 0
+        var anchoredMag: CGFloat? = nil
+
+        if cursor < effectiveEdgePadding {
+            anchoredMag = cursor
+        }
+
+        for (index, tile) in tiles.enumerated() {
+            if index > 0 {
+                let restGapStart = restCursor
+                restCursor += spacing
+                magCursor += spacing
+                if anchoredMag == nil, cursor < restCursor {
+                    let denom = spacing > 0 ? spacing : 1
+                    let fraction = (cursor - restGapStart) / denom
+                    anchoredMag = magCursor - spacing + fraction * spacing
+                }
+            }
+
+            let restFrame = Self.size(
+                for: tile,
+                tileSize: effectiveTileSize,
+                tileHeight: tileHeight,
+                tileSpacing: spacing,
+                position: position,
+                compactWidgets: layout.compactsWidgetsForOverflow
+            )
+            let restSize = projected(size: restFrame)
+            let iconSize = magnifiedIconSize(for: tile)
+            let magSize: CGFloat
+            if iconSize > effectiveTileSize {
+                let magHeight = iconSize + (tileHeight - effectiveTileSize)
+                magSize = projected(size: Self.size(
+                    for: tile,
+                    tileSize: iconSize,
+                    tileHeight: magHeight,
+                    tileSpacing: spacing,
+                    position: position,
+                    compactWidgets: layout.compactsWidgetsForOverflow
+                ))
+            } else {
+                magSize = restSize
+            }
+
+            let restTileStart = restCursor
+            let magTileStart = magCursor
+            restCursor += restSize
+            magCursor += magSize
+
+            if anchoredMag == nil, cursor < restCursor {
+                let denom = restSize > 0 ? restSize : 1
+                let fraction = (cursor - restTileStart) / denom
+                anchoredMag = magTileStart + fraction * magSize
+            }
+
+            totalGrowth += magSize - restSize
+        }
+
+        return MagnificationWalk(
+            totalGrowth: totalGrowth,
+            anchoredMag: anchoredMag ?? (cursor + totalGrowth)
+        )
+    }
+
+    /// Shift to apply to the entire tile stack so the icon under the
+    /// cursor stays put as neighbors magnify. Also publishes the
+    /// per-frame total along-axis growth to `DockChromeMetricsService`
+    /// so the chrome can wrap tightly around whatever actually grew
+    /// (handling edges and non-1×1 widgets precisely, not via the 5-icon
+    /// constant approximation).
+    ///
+    /// Centered (small-layout) mode skips the anchor shift: SwiftUI's
+    /// own centering already splits growth across both sides, so adding
+    /// our own offset would double-correct. Total growth is still
+    /// published either way.
+    private var magnificationAnchorOffset: CGFloat {
+        guard magnificationActive,
+              let cursor = cursorAxisLocation else {
+            publishChromeGrowth(0)
+            return 0
+        }
+
+        let walk = computeMagnificationWalk(cursor: cursor)
+        publishChromeGrowth(walk.totalGrowth)
+
+        let canvasAxisLength = projected(size: layout.tileCanvasFrame.size)
+        let contentAxisLength = totalAxisLength(for: layoutComponents)
+        if contentAxisLength <= canvasAxisLength + 0.5 {
+            return 0
+        }
+        return cursor - walk.anchoredMag
+    }
+
+    /// Defers the publish to the next runloop tick so we don't mutate
+    /// shared state mid-render. The service isn't observed by this view,
+    /// so this never re-triggers `TileContainerView`.
+    private func publishChromeGrowth(_ value: CGFloat) {
+        DispatchQueue.main.async {
+            DockChromeMetricsService.shared.setAlongAxisGrowth(value)
+        }
     }
 
     /// Frame to assign to the tile, computed from its magnified icon side.
