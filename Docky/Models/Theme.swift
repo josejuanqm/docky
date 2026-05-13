@@ -19,6 +19,14 @@
 //      configuration — drop a file in with that name and it's picked
 //      up automatically by `InstalledTheme.coverImageURL`.
 //
+//  Optional files inside `assets/` (also convention-only):
+//    - `<bundle-id>.png` (or `.jpg`/`.jpeg`): per-app icon override.
+//      When the theme is active, `effectiveAppIconOverrideURL` on
+//      `DockyPreferences` falls back to this asset for any app whose
+//      bundle identifier matches the filename — so a file named
+//      `com.apple.Safari.png` automatically replaces Safari's icon
+//      while the theme is in use.
+//
 
 import Foundation
 

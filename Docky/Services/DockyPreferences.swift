@@ -1992,7 +1992,14 @@ enum WindowSwitcherLayout: String, CaseIterable, Codable, Identifiable {
     }
 
     func effectiveAppIconOverrideURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
-        appIconOverride(forBundleIdentifier: bundleIdentifier)?.effectiveIconURL
+        if let userURL = appIconOverride(forBundleIdentifier: bundleIdentifier)?.effectiveIconURL {
+            return userURL
+        }
+        // Theme-supplied icons are convention-based: `assets/<bundle-id>.png`
+        // inside the active theme bundle. Not gated by the Pro
+        // `customAppIcons` flag — consistent with how other
+        // theme-supplied appearance values flow through unconditionally.
+        return ThemeManager.shared.activeAppIconURL(forBundleIdentifier: bundleIdentifier)
     }
 
     func setAppIconOverride(bundleIdentifier: String, iconPath: String, paddingFraction: CGFloat? = nil) {

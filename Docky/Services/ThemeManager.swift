@@ -92,6 +92,27 @@ import Observation
         return url
     }
 
+    /// Looks for a theme-supplied app icon at
+    /// `<activeBundleURL>/assets/<bundleIdentifier>.<png|jpg|jpeg>`.
+    /// Convention-based — no manifest declaration needed; drop a file
+    /// named for the app's bundle id and it's picked up when the theme
+    /// is active. Returns `nil` when no theme is active or no matching
+    /// asset exists.
+    func activeAppIconURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
+        guard !bundleIdentifier.isEmpty, let activeBundleURL else { return nil }
+        let assetsDir = activeBundleURL.appending(path: "assets", directoryHint: .isDirectory)
+        for ext in ["png", "jpg", "jpeg"] {
+            let url = assetsDir.appending(
+                path: "\(bundleIdentifier).\(ext)",
+                directoryHint: .notDirectory
+            )
+            if fileManager.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+        return nil
+    }
+
     // MARK: - Mutation
 
     /// Activate an installed theme by id. No-op (logs) when the id
