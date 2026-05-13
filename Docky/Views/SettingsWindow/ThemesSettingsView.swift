@@ -14,11 +14,13 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ThemesSettingsView: View {
     @Bindable private var manager = ThemeManager.shared
     @Bindable private var preferences = DockyPreferences.shared
     @State private var themeIDPendingDeletion: String?
+    @State private var importErrorMessage: String?
 
     var body: some View {
         Form {
@@ -69,6 +71,12 @@ struct ThemesSettingsView: View {
             Section {
                 HStack {
                     Button {
+                        importTheme()
+                    } label: {
+                        Label("Import Theme…", systemImage: "square.and.arrow.down")
+                    }
+
+                    Button {
                         revealThemesFolder()
                     } label: {
                         Label("Reveal Themes Folder", systemImage: "folder")
@@ -97,6 +105,15 @@ struct ThemesSettingsView: View {
             }
         } message: { _ in
             Text("The theme bundle will be removed from disk. This cannot be undone.")
+        }
+        .alert(
+            "Could not import theme",
+            isPresented: importErrorBinding,
+            presenting: importErrorMessage
+        ) { _ in
+            Button("OK", role: .cancel) { importErrorMessage = nil }
+        } message: { message in
+            Text(message)
         }
     }
 
@@ -182,6 +199,23 @@ struct ThemesSettingsView: View {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
+    private func importTheme() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Theme"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = ThemesSettingsView.importContentTypes
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try manager.importTheme(from: url)
+        } catch {
+            importErrorMessage = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
+    }
+
     private var deletionDialogBinding: Binding<Bool> {
         Binding(
             get: { themeIDPendingDeletion != nil },
@@ -190,6 +224,26 @@ struct ThemesSettingsView: View {
             }
         )
     }
+
+    private var importErrorBinding: Binding<Bool> {
+        Binding(
+            get: { importErrorMessage != nil },
+            set: { newValue in
+                if !newValue { importErrorMessage = nil }
+            }
+        )
+    }
+
+    /// File types accepted by the import panel. Accept both the custom
+    /// `.dockytheme` extension and a plain `.zip` so users can grab
+    /// either flavor from a release archive.
+    private static let importContentTypes: [UTType] = {
+        var types: [UTType] = [.zip]
+        if let custom = UTType(filenameExtension: "dockytheme") {
+            types.insert(custom, at: 0)
+        }
+        return types
+    }()
 }
 
 /// Square color/image preview chip used in the installed-themes list.

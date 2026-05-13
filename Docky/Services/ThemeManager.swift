@@ -136,6 +136,125 @@ import Observation
         installedThemes.removeValue(forKey: id)
     }
 
+    /// Imports a `.dockytheme` (zip) bundle from disk. The zip is
+    /// extracted to a temp directory via `/usr/bin/ditto -xk`, the
+    /// manifest is parsed and validated, then the bundle is moved
+    /// atomically into `Themes/<manifest.id>/`.
+    ///
+    /// An existing install with the same id is replaced (the new
+    /// content wins). The active theme is cleared before replacement
+    /// so observers don't briefly read from the swapped-out directory,
+    /// then restored if it pointed at the same id.
+    ///
+    /// Returns the parsed manifest on success.
+    @discardableResult
+    func importTheme(from zipURL: URL) throws -> ThemeManifest {
+        let tempRoot = fileManager.temporaryDirectory
+            .appending(path: "docky-theme-import-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempRoot) }
+
+        try Self.extractZip(at: zipURL, into: tempRoot)
+
+        // Locate the bundle root. Two valid layouts:
+        //  (a) zip extracted directly to manifest+assets at tempRoot
+        //  (b) zip extracted to a single subfolder containing them
+        let bundleRoot = try Self.locateBundleRoot(in: tempRoot)
+
+        let manifestURL = bundleRoot.appending(path: "theme.json", directoryHint: .notDirectory)
+        guard let data = try? Data(contentsOf: manifestURL) else {
+            throw ThemeImportError.missingManifest
+        }
+        let manifest: ThemeManifest
+        do {
+            manifest = try decoder.decode(ThemeManifest.self, from: data)
+        } catch {
+            throw ThemeImportError.invalidManifest(error)
+        }
+
+        guard Self.isValidThemeID(manifest.id) else {
+            throw ThemeImportError.invalidID(manifest.id)
+        }
+
+        let destination = themesDirectoryURL
+            .appending(path: manifest.id, directoryHint: .isDirectory)
+
+        let wasActive = activeThemeID == manifest.id
+        if wasActive {
+            // Clear during the swap so any reactive consumer doesn't
+            // briefly resolve assets against a half-moved directory.
+            clearActive()
+        }
+
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+        try fileManager.moveItem(at: bundleRoot, to: destination)
+
+        refreshInstalled()
+
+        if wasActive {
+            setActive(manifest.id)
+        }
+
+        return manifest
+    }
+
+    private static func extractZip(at zipURL: URL, into destination: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-xk", zipURL.path, destination.path]
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let stderr = String(
+                data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+                encoding: .utf8
+            ) ?? ""
+            throw ThemeImportError.extractionFailed(status: process.terminationStatus, stderr: stderr)
+        }
+    }
+
+    private static func locateBundleRoot(in directory: URL) throws -> URL {
+        let fileManager = FileManager.default
+        let manifestAtRoot = directory.appending(path: "theme.json", directoryHint: .notDirectory)
+        if fileManager.fileExists(atPath: manifestAtRoot.path) {
+            return directory
+        }
+
+        let entries = (try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+
+        // Some zip tools (and macOS Finder's "Compress") wrap content
+        // in a single top-level folder. Walk into it transparently.
+        let directories = entries.filter {
+            (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+        if directories.count == 1 {
+            let nested = directories[0].appending(path: "theme.json", directoryHint: .notDirectory)
+            if fileManager.fileExists(atPath: nested.path) {
+                return directories[0]
+            }
+        }
+
+        throw ThemeImportError.missingManifest
+    }
+
+    /// Validates that a manifest id is safe to use as a folder name.
+    /// Reverse-DNS and lower-case-with-dashes are both accepted.
+    static func isValidThemeID(_ id: String) -> Bool {
+        guard !id.isEmpty, id.count <= 128 else { return false }
+        guard !id.hasPrefix(".") else { return false }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+        return id.unicodeScalars.allSatisfy { allowed.contains($0) }
+    }
+
     // MARK: - Internals
 
     private func ensureThemesDirectoryExists() {
@@ -190,4 +309,25 @@ import Observation
 struct InstalledTheme: Equatable {
     let manifest: ThemeManifest
     let bundleURL: URL
+}
+
+enum ThemeImportError: LocalizedError {
+    case extractionFailed(status: Int32, stderr: String)
+    case missingManifest
+    case invalidManifest(Error)
+    case invalidID(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .extractionFailed(let status, let stderr):
+            let detail = stderr.isEmpty ? "" : " (\(stderr.trimmingCharacters(in: .whitespacesAndNewlines)))"
+            return "Failed to extract theme archive (exit \(status))\(detail)."
+        case .missingManifest:
+            return "The theme archive does not contain a theme.json manifest."
+        case .invalidManifest(let underlying):
+            return "The theme manifest is invalid: \(underlying.localizedDescription)"
+        case .invalidID(let id):
+            return "The theme manifest id \"\(id)\" is not a valid identifier."
+        }
+    }
 }

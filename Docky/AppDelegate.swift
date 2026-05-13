@@ -68,6 +68,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    /// Handles double-clicking a `.dockytheme` bundle (or a plain
+    /// `.zip` of one) in Finder. Imports each via `ThemeManager` and
+    /// opens the Themes settings pane so the user can apply the
+    /// freshly installed theme.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        var importedAny = false
+        var firstError: String?
+
+        for url in urls {
+            do {
+                try ThemeManager.shared.importTheme(from: url)
+                importedAny = true
+            } catch {
+                if firstError == nil {
+                    firstError = (error as? LocalizedError)?.errorDescription
+                        ?? error.localizedDescription
+                }
+            }
+        }
+
+        if importedAny {
+            showSettingsWindow(nil)
+        }
+
+        if let firstError {
+            let alert = NSAlert()
+            alert.messageText = "Could not import theme"
+            alert.informativeText = firstError
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
     func applicationWillTerminate(_ aNotification: Notification) {
         logSessionEnd()
 
