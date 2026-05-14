@@ -7,10 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		036D5F7DCAC41C22E6CA4D5A /* DockyHelperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8349BD7C2A54BA01A9291A7 /* DockyHelperApp.swift */; };
 		11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		1116D2FA2FA3B360006A9DD8 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1116D2F92FA3B360006A9DD8 /* Sentry */; };
 		113717682FA17B980012480C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 113717672FA17B980012480C /* Sparkle */; };
+		14CDAC1494F02043D8D35685 /* HelperListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657AF198B7995ED7DBDCFF72 /* HelperListener.swift */; };
+		1C987C8E26B438777ACDD938 /* gt.quintero.Docky.Helper.plist in Resources */ = {isa = PBXBuildFile; fileRef = DE052AC61E06EE3A986D8BDD /* gt.quintero.Docky.Helper.plist */; };
+		327AF009C081E5D054B9D6EE /* HelperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA66C3CB04127441BF956CEA /* HelperService.swift */; };
+		57F54F7BDC13ED2DC146F9AB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8D85468CF9AE9C2DB609F06 /* Cocoa.framework */; };
 		94DF68C83700F5C02A4D1048 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8D85468CF9AE9C2DB609F06 /* Cocoa.framework */; };
+		B0183ECADE190CE04125901F /* DockyHelperProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA786CF27E4C1408FC9EC5B1 /* DockyHelperProtocol.swift */; };
 		D0C1000C2FA400000000000C /* DockyDockWatchdog.app in Embed Watchdog */ = {isa = PBXBuildFile; fileRef = D0C100012FA4000000000001 /* DockyDockWatchdog.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -53,10 +59,16 @@
 		11051DE72F929079005CE09D /* Docky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		11051E002F929079005CE09D /* MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
 		464BBCA9615BC1DD2FBCBE89 /* Docky (App Store).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky (App Store).app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		657AF198B7995ED7DBDCFF72 /* HelperListener.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelperListener.swift; sourceTree = "<group>"; };
 		C545D5B17B37491C1AFAD8A8 /* Docky.AppStore.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = Docky.AppStore.entitlements; path = Docky/Docky.AppStore.entitlements; sourceTree = "<group>"; };
+		C8349BD7C2A54BA01A9291A7 /* DockyHelperApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockyHelperApp.swift; sourceTree = "<group>"; };
 		D0C100012FA4000000000001 /* DockyDockWatchdog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DockyDockWatchdog.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA66C3CB04127441BF956CEA /* HelperService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelperService.swift; sourceTree = "<group>"; };
+		DE052AC61E06EE3A986D8BDD /* gt.quintero.Docky.Helper.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = gt.quintero.Docky.Helper.plist; sourceTree = "<group>"; };
+		E7A2F9AEA607B3CF83713474 /* Docky Helper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky Helper.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F280476A62C5837A3B44B8BA /* Docky.AppStore.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Docky.AppStore.xcconfig; path = Docky/Docky.AppStore.xcconfig; sourceTree = "<group>"; };
 		F8D85468CF9AE9C2DB609F06 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		FA786CF27E4C1408FC9EC5B1 /* DockyHelperProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockyHelperProtocol.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -83,6 +95,14 @@
 			files = (
 				113717682FA17B980012480C /* Sparkle in Frameworks */,
 				1116D2FA2FA3B360006A9DD8 /* Sentry in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F954FD344B1E1BA102747A4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				57F54F7BDC13ED2DC146F9AB /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,6 +133,7 @@
 				11051DE82F929079005CE09D /* Products */,
 				F280476A62C5837A3B44B8BA /* Docky.AppStore.xcconfig */,
 				C545D5B17B37491C1AFAD8A8 /* Docky.AppStore.entitlements */,
+				3E1CA51E77B85ECED8E7A4BE /* DockyHelper */,
 			);
 			sourceTree = "<group>";
 		};
@@ -122,6 +143,7 @@
 				11051DE72F929079005CE09D /* Docky.app */,
 				D0C100012FA4000000000001 /* DockyDockWatchdog.app */,
 				464BBCA9615BC1DD2FBCBE89 /* Docky (App Store).app */,
+				E7A2F9AEA607B3CF83713474 /* Docky Helper.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -133,6 +155,37 @@
 				5876505BBC798823D1629F1F /* OS X */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		3D46CEF61E59B13210636FEB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				DE052AC61E06EE3A986D8BDD /* gt.quintero.Docky.Helper.plist */,
+			);
+			name = Resources;
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		3E1CA51E77B85ECED8E7A4BE /* DockyHelper */ = {
+			isa = PBXGroup;
+			children = (
+				47C63AEFEF0A92D415EB6BF9 /* Sources */,
+			);
+			name = DockyHelper;
+			path = DockyHelper;
+			sourceTree = "<group>";
+		};
+		47C63AEFEF0A92D415EB6BF9 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C8349BD7C2A54BA01A9291A7 /* DockyHelperApp.swift */,
+				FA786CF27E4C1408FC9EC5B1 /* DockyHelperProtocol.swift */,
+				657AF198B7995ED7DBDCFF72 /* HelperListener.swift */,
+				DA66C3CB04127441BF956CEA /* HelperService.swift */,
+				3D46CEF61E59B13210636FEB /* Resources */,
+			);
+			name = Sources;
+			path = Sources;
 			sourceTree = "<group>";
 		};
 		5876505BBC798823D1629F1F /* OS X */ = {
@@ -196,6 +249,23 @@
 			productReference = 464BBCA9615BC1DD2FBCBE89 /* Docky (App Store).app */;
 			productType = "com.apple.product-type.application";
 		};
+		825C9E786AC1CDD062E9C714 /* Docky Helper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 23BDDAD22A80ABAB0A469879 /* Build configuration list for PBXNativeTarget "Docky Helper" */;
+			buildPhases = (
+				F2500787FBE47092435C6B27 /* Sources */,
+				9F954FD344B1E1BA102747A4 /* Frameworks */,
+				E998BCC59771C2C25558C748 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Docky Helper";
+			productName = "Docky Helper";
+			productReference = E7A2F9AEA607B3CF83713474 /* Docky Helper.app */;
+			productType = "com.apple.product-type.application";
+		};
 		D0C100062FA4000000000006 /* DockyDockWatchdog */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D0C100072FA4000000000007 /* Build configuration list for PBXNativeTarget "DockyDockWatchdog" */;
@@ -256,6 +326,7 @@
 				11051DE62F929079005CE09D /* Docky */,
 				D0C100062FA4000000000006 /* DockyDockWatchdog */,
 				4DB3D5EE81FBED8967D50320 /* Docky (App Store) */,
+				825C9E786AC1CDD062E9C714 /* Docky Helper */,
 			);
 		};
 /* End PBXProject section */
@@ -272,6 +343,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E998BCC59771C2C25558C748 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1C987C8E26B438777ACDD938 /* gt.quintero.Docky.Helper.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -409,6 +488,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F2500787FBE47092435C6B27 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				036D5F7DCAC41C22E6CA4D5A /* DockyHelperApp.swift in Sources */,
+				B0183ECADE190CE04125901F /* DockyHelperProtocol.swift in Sources */,
+				14CDAC1494F02043D8D35685 /* HelperListener.swift in Sources */,
+				327AF009C081E5D054B9D6EE /* HelperService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -420,6 +510,35 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		0A669AD490160C0A38F910A8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2KC3797KP9;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Docky Helper";
+				INFOPLIST_KEY_LSUIElement = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = gt.quintero.Docky.Helper;
+				PRODUCT_NAME = "Docky Helper";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 		11051DF12F92907A005CE09D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -805,6 +924,35 @@
 			};
 			name = Release;
 		};
+		E3ECCBB9BB2347C512AF2751 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2KC3797KP9;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Docky Helper";
+				INFOPLIST_KEY_LSUIElement = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = gt.quintero.Docky.Helper;
+				PRODUCT_NAME = "Docky Helper";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -822,6 +970,15 @@
 			buildConfigurations = (
 				11051DF42F92907A005CE09D /* Debug */,
 				11051DF52F92907A005CE09D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		23BDDAD22A80ABAB0A469879 /* Build configuration list for PBXNativeTarget "Docky Helper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E3ECCBB9BB2347C512AF2751 /* Release */,
+				0A669AD490160C0A38F910A8 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
