@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        LaunchAgent for Docky Helper. Bundled inside the helper
+        .app at Contents/Library/LaunchAgents/, registered at
+        first launch via `SMAppService.agent(plistName:).register()`.
+
+        Once registered, launchd starts the helper on demand whenever
+        any process connects to the `gt.quintero.Docky.Helper` Mach
+        service. Docky.app (MAS) connects on launch via
+        `HelperBridge.startIfNeeded`, which is what kicks the helper
+        awake for the first time per login.
+
+        ProgramArguments are absolute paths SMAppService rewrites at
+        registration time, so the literal value here is a placeholder
+        the system rewrites; don't hand-edit installed copies.
+    -->
+    <key>Label</key>
+    <string>gt.quintero.Docky.Helper</string>
+
+    <key>MachServices</key>
+    <dict>
+        <key>gt.quintero.Docky.Helper</key>
+        <true/>
+    </dict>
+
+    <!--
+        on-demand: launchd starts us when something connects to the
+        Mach service. We don't need RunAtLoad because Docky's bridge
+        opens the connection itself, and we don't want to be alive
+        when nothing's asking.
+    -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!--
+        ProgramArguments are filled in by `SMAppService` at
+        registration; the literal path doesn't matter and would only
+        be used in legacy launchctl bootstrap (which we don't ship).
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>Contents/MacOS/Docky Helper</string>
+    </array>
+
+    <!--
+        Keep alive while Docky has an active connection. launchd
+        terminates the helper after the last connection drops + a
+        short idle timeout, which is fine because the next bridge
+        call relaunches us automatically.
+    -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+</dict>
+</plist>
