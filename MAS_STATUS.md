@@ -69,47 +69,53 @@ the MAS build's UI entirely, rather than shown as disabled:
   HelperService, DockyHelperProtocol). Not yet a separate Xcode
   target; sources are ready to import.
 
-## What needs Xcode UI work (next session)
+## Targets now in the project
 
-Things that can't be done from CLI without project-file surgery:
+Both new targets created programmatically via the `xcodeproj` gem;
+each builds cleanly:
 
-1. **Add the App Store target.**
-   - Duplicate the existing `Docky` target → "Docky (App Store)".
-   - In Project navigator → Project → Info → Configurations, add
-     "Debug (App Store)" and "Release (App Store)" using
-     `Docky/Docky.AppStore.xcconfig` as the base.
-   - Verify `SWIFT_ACTIVE_COMPILATION_CONDITIONS` for the new
-     configurations includes `APP_STORE_SANDBOX`.
-   - Add a matching scheme.
+```bash
+$ xcodebuild -list | grep -A4 Targets:
+    Targets:
+        Docky                  # existing Developer ID build, unchanged
+        DockyDockWatchdog
+        Docky (App Store)      # sandboxed MAS build, APP_STORE_SANDBOX defined
+        Docky Helper           # Developer ID helper, un-sandboxed, faceless
+```
 
-2. **Add the Docky Helper target.**
-   - File → New → Target → macOS → App, name "Docky Helper",
-     bundle id `gt.quintero.Docky.Helper`, no Storyboard.
-   - Add `DockyHelper/Sources/` to that target.
-   - Set signing to Developer ID Application (NOT App Store).
-   - Add `LSUIElement = true` to its Info.plist (faceless agent).
-   - Set `EnableAppSandbox = NO` (helper is the un-sandboxed bit).
-   - Set `EnableHardenedRuntime = YES` (notarization requirement).
-   - Add LaunchAgent plist as a bundled resource at
-     `Contents/Library/LaunchAgents/gt.quintero.Docky.Helper.plist`
-     declaring `MachServices = { "gt.quintero.Docky.Helper" = true }`.
-   - Add `com.apple.security.application-groups` entitlement matching
-     the MAS app's group (`$(TeamIdentifierPrefix)gt.quintero.Docky.shared`).
+- **Docky (App Store)** built with `xcodebuild -scheme 'Docky (App Store)' build` succeeds. Bundle verified to contain no `SkyLight` / `MediaRemote.framework` string references and no embedded `mediaremote-adapter.pl` / `MediaRemoteAdapter.framework`.
+- **Docky Helper** built with `xcodebuild -scheme 'Docky Helper' CODE_SIGNING_ALLOWED=NO build` succeeds locally. For distribution it needs a Developer ID Application signing identity (already configured to use Team `2KC3797KP9`).
 
-3. **App Store Connect setup.**
+To re-create either from scratch (if the project file is ever
+corrupted), the Ruby scripts at `scripts/add-mas-target.rb` and
+`scripts/add-helper-target.rb` are idempotent.
+
+## What still requires external accounts
+
+1. **App Store Connect setup.** Requires Apple Developer Account web access.
    - Register App ID `gt.quintero.Docky.appstore`.
    - Register App Group `gt.quintero.Docky.shared`.
-   - Bind both to the Docky team.
+   - Create App Store distribution provisioning profile.
 
-4. **Replace `<TEAM_ID_PLACEHOLDER>` in
-   `DockyHelper/Sources/HelperListener.swift:75`** with the actual
-   Team ID.
+2. **Helper code-signing identity.** Requires Developer ID Application
+   certificate to be present in the Mac's Keychain. Once present, the
+   helper builds and signs without further config (the Ruby script set
+   `DEVELOPMENT_TEAM = 2KC3797KP9` and `CODE_SIGN_STYLE = Automatic`).
 
-5. **First MAS validation build.** Run the App Store scheme through
-   Archive → Validate to confirm:
-   - No private framework references in the binary.
-   - Entitlements parse cleanly.
-   - Bundle contains no `.pl` / no `MediaRemoteAdapter.framework`.
+3. **App Group entitlements UI in Xcode.** Both the MAS target and the
+   helper target need `com.apple.security.application-groups` ticked
+   in their respective entitlement files with
+   `$(TeamIdentifierPrefix)gt.quintero.Docky.shared`. The
+   `Docky.AppStore.entitlements` file already declares it; the helper
+   needs its own entitlements file added once the group is registered
+   in App Store Connect.
+
+4. **Archive → Validate → Distribute.** From the Xcode menu or via
+   `xcodebuild archive` + `xcodebuild -exportArchive` with an App Store
+   export plist that references the provisioning profile from step 1.
+
+5. **App Store review submission.** Manual upload through App Store
+   Connect or `altool` / `notarytool`.
 
 ## What's next after Xcode setup (Phase 2)
 
