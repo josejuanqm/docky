@@ -1438,6 +1438,15 @@ struct TileView: View {
             isFolderPopoverPresented = true
         case .trash:
             isTooltipPresented = false
+            // Sandboxed build needs a one-time `~/.Trash` bookmark
+            // before it can read/open the trash. First tap (when
+            // access isn't granted yet) routes to the grant flow
+            // instead of the open-Trash action; subsequent taps fall
+            // through normally.
+            if !TrashService.shared.hasAccess {
+                TrashService.shared.requestAccess()
+                return
+            }
             Task {
                 _ = await AppleScriptService.shared.openTrash()
             }

@@ -383,7 +383,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc private func showDebugOnboarding(_ sender: Any?) {
         PermissionsService.shared.refresh()
         showPermissionsWindow(
-            steps: Permission.allCases,
+            steps: Permission.applicableCases,
             marksInitialOnboardingCompleted: false,
             showsMainWindowOnCompletion: false
         )

@@ -7,6 +7,7 @@
 //  granted.
 //
 
+import AppKit
 import Combine
 import Dispatch
 import Foundation
@@ -235,6 +236,43 @@ final class FolderAccessService: ObservableObject {
 
     func invalidateCache() {
         contentsCache.removeAll()
+    }
+
+    /// Open an NSOpenPanel pre-selected to `folderURL` and, if the
+    /// user confirms, persist a security-scoped bookmark under
+    /// `.folderPath(path:)`. Returns `true` when a new bookmark was
+    /// stored so callers can refresh their UI.
+    ///
+    /// Used by the folder popover's "needs access" affordance in the
+    /// MAS build: the original tile URL points to something outside
+    /// the sandbox container, and the only way to read it is for the
+    /// user to re-confirm the same path through an Open panel.
+    @MainActor
+    @discardableResult
+    func requestAccess(to folderURL: URL) -> Bool {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = folderURL
+        panel.prompt = String(localized: "Grant Access")
+        panel.message = String(
+            localized: "Docky needs your permission to read this folder."
+        )
+
+        guard panel.runModal() == .OK, let picked = panel.url else {
+            return false
+        }
+
+        let scope = BookmarkScope.folderPath(folderURL.standardizedFileURL.path)
+        do {
+            try BookmarkedURLStore.shared.store(url: picked, for: scope)
+            invalidateCache(for: folderURL)
+            changeToken &+= 1
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func invalidateCache(for folderURL: URL) {

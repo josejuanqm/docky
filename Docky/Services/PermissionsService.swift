@@ -43,6 +43,29 @@ enum Permission: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Cases applicable to the current build. The MAS / sandboxed
+    /// build drops:
+    ///   - `.userFolders` (Full Disk Access is not available to
+    ///     sandboxed apps; folder access goes through security-scoped
+    ///     bookmarks instead).
+    ///   - `.finderAutomation` / `.systemEventsAutomation` (Apple
+    ///     Events to these bundles require a `temporary-exception`
+    ///     entitlement we deliberately don't request; the same
+    ///     trash/open-folder operations route through NSWorkspace
+    ///     or the side-loaded helper instead).
+    /// `.accessibility` stays in the list: it's a user-granted
+    /// runtime permission (System Settings, Privacy & Security)
+    /// and does NOT require any sandbox entitlement. Window
+    /// enumeration / raise / focus all rely on it.
+    /// Dev ID build keeps the full list.
+    static var applicableCases: [Permission] {
+        #if APP_STORE_SANDBOX
+        return [.accessibility, .screenCapture, .location]
+        #else
+        return allCases
+        #endif
+    }
+
     var title: String {
         switch self {
         case .userFolders: return "Full Disk Access"
@@ -153,15 +176,15 @@ final class PermissionsService: ObservableObject {
     }
 
     var missingPermissions: [Permission] {
-        Permission.allCases.filter { status(for: $0) != .granted }
+        Permission.applicableCases.filter { status(for: $0) != .granted }
     }
 
     var missingRequiredPermissions: [Permission] {
-        Permission.allCases.filter { $0.isRequiredAtLaunch && status(for: $0) != .granted }
+        Permission.applicableCases.filter { $0.isRequiredAtLaunch && status(for: $0) != .granted }
     }
 
     var setupPermissions: [Permission] {
-        Permission.allCases.filter {
+        Permission.applicableCases.filter {
             if hasSkippedPermission($0) {
                 return false
             }

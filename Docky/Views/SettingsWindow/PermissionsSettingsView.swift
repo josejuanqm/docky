@@ -10,11 +10,13 @@ struct PermissionsSettingsView: View {
 
     var body: some View {
         Form {
-            permissionSection(for: .userFolders)
-            permissionSection(for: .finderAutomation)
-            permissionSection(for: .accessibility)
-            permissionSection(for: .screenCapture)
-            permissionSection(for: .location)
+            // Mirrors `Permission.applicableCases` so the MAS build
+            // drops FDA, Apple Events (Finder/System Events), and
+            // Accessibility, none of which are reachable from the
+            // sandbox. Dev ID build shows everything.
+            ForEach(Permission.applicableCases) { permission in
+                permissionSection(for: permission)
+            }
 
             Section {
                 Button("Re-check Permissions") {

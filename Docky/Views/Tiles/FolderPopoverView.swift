@@ -227,6 +227,23 @@ struct FolderPopoverView: View {
             Text(currentEntry.displayName)
                 .font(.callout)
                 .foregroundStyle(.secondary)
+
+            // Sandboxed (MAS) build: the only way to recover read
+            // access is for the user to confirm the folder via an
+            // NSOpenPanel so we can store a security-scoped bookmark.
+            // We surface this button in both builds because the
+            // unreadable state can also happen in the Dev ID build
+            // when FDA was revoked, and re-bookmarking is a valid
+            // workaround there too.
+            Button {
+                if folderAccess.requestAccess(to: currentEntry.url) {
+                    currentEntry = refreshedEntry(for: currentEntry)
+                }
+            } label: {
+                Text("Grant Access")
+            }
+            .controlSize(.large)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(20)
