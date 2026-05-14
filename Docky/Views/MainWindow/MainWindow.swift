@@ -301,11 +301,15 @@ final class MainWindow: NSPanel {
 
     private func applyBackgroundBlur() {
         guard windowNumber > 0 else { return }
+        #if !APP_STORE_SANDBOX
         _ = CGSSetWindowBackgroundBlurRadius(
             CGSMainConnectionID(),
             windowNumber,
             backgroundBlurRadius
         )
+        #endif
+        // MAS path: window-level blur unavailable. Chrome falls back
+        // to its declared SwiftUI material at the view layer.
     }
 
     private func observeFrameInputs() {

@@ -205,11 +205,15 @@ private final class LaunchpadOverlayWindow: NSWindow {
     /// screen, and `orderOut` invalidates it.
     private func applyBackgroundBlur() {
         guard windowNumber > 0 else { return }
+        #if !APP_STORE_SANDBOX
         _ = CGSSetWindowBackgroundBlurRadius(
             CGSMainConnectionID(),
             windowNumber,
             backgroundBlurRadius
         )
+        #endif
+        // MAS path: launchpad overlay falls back to the SwiftUI
+        // material declared at the view layer.
     }
 }
 

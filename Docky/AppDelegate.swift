@@ -46,6 +46,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         _ = ProductService.shared
         _ = LaunchpadHotKeyService.shared
         _ = LaunchpadOverlayService.shared
+        // Probe the optional Docky Helper. Stays unavailable until
+        // the side-loaded helper (and the MAS build that consumes it)
+        // ship, then this is the single point of contact.
+        HelperBridge.shared.startIfNeeded()
         AppUpdateService.shared.checkForUpdatesInBackground()
         WindowReservationService.shared.start()
 

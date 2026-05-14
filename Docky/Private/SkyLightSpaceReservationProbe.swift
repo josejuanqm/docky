@@ -18,7 +18,11 @@
 //  restoreAlpha() before quitting.
 //
 
-#if DEBUG
+// Also gated on `!APP_STORE_SANDBOX`: the file references
+// CGSPrivate.swift symbols (CGSGetWindowAlpha, CGSSetWindowAlpha,
+// CGSMainConnectionID), which are themselves stripped from the MAS
+// build. Without this guard a Debug MAS build would fail to compile.
+#if DEBUG && !APP_STORE_SANDBOX
 
 import AppKit
 import Foundation

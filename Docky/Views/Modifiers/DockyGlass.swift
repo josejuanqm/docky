@@ -168,11 +168,17 @@ private struct SkyLightHostBlurInstaller: NSViewRepresentable {
 
         func applyToHostWindow() {
             guard let window, window.windowNumber > 0 else { return }
+            #if !APP_STORE_SANDBOX
             _ = CGSSetWindowBackgroundBlurRadius(
                 CGSMainConnectionID(),
                 window.windowNumber,
                 blurRadius
             )
+            #endif
+            // MAS path: no-op. The chrome falls back to whatever
+            // SwiftUI material the view declared above; the SkyLight
+            // amplification is what's missing. Helper-routed blur is
+            // a future addition.
         }
     }
 }

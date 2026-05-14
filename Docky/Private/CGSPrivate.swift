@@ -2,8 +2,18 @@
 //  CGSPrivate.swift
 //  Docky
 //
-//  SkyLight (CoreGraphics Services) SPI. Not for App Store submission without review.
+//  SkyLight (CoreGraphics Services) SPI. Compiled out of the App
+//  Store / sandboxed build (gated by `APP_STORE_SANDBOX`) so the
+//  binary contains zero references to private symbols, `dlopen` of
+//  `/System/Library/PrivateFrameworks/SkyLight.framework`, or any
+//  of the @_silgen_name bindings below. Apple's static analyzer
+//  rejects submissions that ship these symbols at all (not just
+//  ones that call them at runtime). The MAS build instead routes
+//  every privileged operation through `HelperBridge` (XPC to the
+//  side-loaded Developer ID helper).
 //
+
+#if !APP_STORE_SANDBOX
 
 import AppKit
 import ApplicationServices
@@ -143,3 +153,5 @@ func slpsMakeKeyWindow(psn: inout ProcessSerialNumber, windowID: CGWindowID) {
     bytes[0x08] = 0x02
     _ = SLPSPostEventRecordTo(&psn, &bytes)
 }
+
+#endif
