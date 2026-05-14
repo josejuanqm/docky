@@ -462,6 +462,16 @@ final class ClickThroughHostingView: NSHostingView<MainWindowView> {
                     return true
                 }
                 guard let index = destinationIndex else { return false }
+                // Capture a security-scoped bookmark while the drag's
+                // sandbox grant is still alive. Without this, sandboxed
+                // builds (MAS) lose access to the folder the moment
+                // the drag completes; the FolderAccessService falls
+                // back to a `.unreadable` tile state. Bookmark failure
+                // is non-fatal: Dev ID builds can still read directly.
+                try? BookmarkedURLStore.shared.store(
+                    url: url,
+                    for: .folderPath(url.standardizedFileURL.path)
+                )
                 TileStore.shared.insertTrailingItem(
                     .folder(url: url, displayName: tile.displayName),
                     at: index

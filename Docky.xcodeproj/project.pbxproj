@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		036D5F7DCAC41C22E6CA4D5A /* DockyHelperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8349BD7C2A54BA01A9291A7 /* DockyHelperApp.swift */; };
-		11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		1116D2FA2FA3B360006A9DD8 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1116D2F92FA3B360006A9DD8 /* Sentry */; };
 		113717682FA17B980012480C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 113717672FA17B980012480C /* Sparkle */; };
 		14CDAC1494F02043D8D35685 /* HelperListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657AF198B7995ED7DBDCFF72 /* HelperListener.swift */; };
@@ -39,7 +39,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */,
+				11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -59,8 +59,8 @@
 
 /* Begin PBXFileReference section */
 		11051DE72F929079005CE09D /* Docky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docky.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		11051E002F929079005CE09D /* MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
-		454DE9CFCF250F3C9C0CD111 /* Docky (App Store).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky (App Store).app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
+		454DE9CFCF250F3C9C0CD111 /* Docky-AppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky-AppStore.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		464BBCA9615BC1DD2FBCBE89 /* Docky-AppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky-AppStore.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		482A6BAA8BA09B8CBD2C24D3 /* Docky (App Store).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky (App Store).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		657AF198B7995ED7DBDCFF72 /* HelperListener.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelperListener.swift; sourceTree = "<group>"; };
@@ -79,15 +79,11 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		11051DE92F929079005CE09D /* Docky */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = Docky;
 			sourceTree = "<group>";
 		};
 		D0C100022FA4000000000002 /* DockyDockWatchdog */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = DockyDockWatchdog;
 			sourceTree = "<group>";
 		};
@@ -153,7 +149,7 @@
 				E7A2F9AEA607B3CF83713474 /* Docky Helper.app */,
 				D245BFFA483554F530ACA9AA /* Docky (App Store).app */,
 				482A6BAA8BA09B8CBD2C24D3 /* Docky (App Store).app */,
-				454DE9CFCF250F3C9C0CD111 /* Docky (App Store).app */,
+				454DE9CFCF250F3C9C0CD111 /* Docky-AppStore.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -161,7 +157,7 @@
 		11051E032F929079005CE09D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				11051E002F929079005CE09D /* MediaRemoteAdapter.framework */,
+				11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */,
 				5876505BBC798823D1629F1F /* OS X */,
 			);
 			name = Frameworks;
@@ -277,7 +273,7 @@
 				1116D2F92FA3B360006A9DD8 /* Sentry */,
 			);
 			productName = "Docky (App Store)";
-			productReference = 454DE9CFCF250F3C9C0CD111 /* Docky (App Store).app */;
+			productReference = 454DE9CFCF250F3C9C0CD111 /* Docky-AppStore.app */;
 			productType = "com.apple.product-type.application";
 		};
 		D0C100062FA4000000000006 /* DockyDockWatchdog */ = {

@@ -180,10 +180,6 @@ final class FolderAccessService: ObservableObject {
             return .loaded(cached.items)
         }
 
-        guard FileManager.default.isReadableFile(atPath: normalizedFolderURL.path) else {
-            return .unreadable
-        }
-
         let keys: [URLResourceKey] = [
             .addedToDirectoryDateKey,
             .contentModificationDateKey,
@@ -194,6 +190,37 @@ final class FolderAccessService: ObservableObject {
             .localizedTypeDescriptionKey,
             .totalFileAllocatedSizeKey
         ]
+
+        // Try the bookmark-resolved path first. In the sandboxed
+        // (MAS) build this is the only path that works for any folder
+        // outside our container; in the Dev ID build it succeeds the
+        // first time the user added a folder and falls through to the
+        // direct read on subsequent launches if the bookmark was
+        // never persisted.
+        let scope = BookmarkScope.folderPath(normalizedFolderURL.path)
+        if BookmarkedURLStore.shared.hasBookmark(for: scope) {
+            do {
+                return try BookmarkedURLStore.shared.withResolvedURL(for: scope) { resolved in
+                    let loaded = try FileManager.default.contentsOfDirectory(
+                        at: resolved,
+                        includingPropertiesForKeys: keys,
+                        options: [.skipsHiddenFiles]
+                    ).sorted(by: { Self.modDate($0) > Self.modDate($1) })
+                    contentsCache[normalizedFolderURL] = (Date(), loaded)
+                    return .loaded(loaded)
+                }
+            } catch {
+                // Bookmark is broken or revoked. Fall through to
+                // direct read which may still work in the Dev ID
+                // build; sandboxed callers see `.unreadable` and the
+                // tile shows a "needs access" affordance.
+            }
+        }
+
+        guard FileManager.default.isReadableFile(atPath: normalizedFolderURL.path) else {
+            return .unreadable
+        }
+
         guard let loaded = try? FileManager.default.contentsOfDirectory(
             at: normalizedFolderURL,
             includingPropertiesForKeys: keys,

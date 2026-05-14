@@ -50,6 +50,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // the side-loaded helper (and the MAS build that consumes it)
         // ship, then this is the single point of contact.
         HelperBridge.shared.startIfNeeded()
+        // Kick off Spotlight-backed app discovery so subsequent
+        // settings panes / Launchpad reads have data immediately.
+        ApplicationBundleScanner.shared.startIfNeeded()
         AppUpdateService.shared.checkForUpdatesInBackground()
         WindowReservationService.shared.start()
 
