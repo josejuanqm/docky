@@ -373,46 +373,46 @@ final class LaunchpadOverlayService: ObservableObject {
     /// becomes a top-level app; any subdirectory containing apps
     /// becomes a named group that the layout service consumes as a
     /// seed for virtual folders. Duplicates across roots are
-    /// deduped by bundle id (first occurrence wins; `/Applications`
-    /// takes precedence over `/System/Applications`).
+    /// deduped by bundle id.
+    ///
+    /// Backed by Spotlight (`ApplicationBundleScanner`) so the scan
+    /// works inside the App Store sandbox without read access to
+    /// `/Applications` etc. Groups are derived from each app's
+    /// containing directory: apps in a canonical root (`/Applications`,
+    /// `/System/Applications`, `~/Applications`) are top-level;
+    /// anything one level deeper (like `/Applications/Utilities`)
+    /// gets grouped under its enclosing folder's name.
+    @MainActor
     private static func scanApplications() -> LaunchpadScan {
-        var seenBundleIDs = Set<String>()
+        let canonicalRoots: Set<String> = Set(applicationDirectories.map { $0.standardizedFileURL.path })
+
         var appsByBundleID: [String: AppTile] = [:]
         var topLevelApps: [AppTile] = []
-        var fsGroups: [LaunchpadScan.SeedGroup] = []
+        var groupedBundleIDsByDirectory: [URL: [String]] = [:]
+        var groupOrder: [URL] = []
 
-        for directory in applicationDirectories {
-            guard let topLevel = try? FileManager.default.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            ) else { continue }
+        for discovered in ApplicationBundleScanner.shared.installedApps {
+            guard let appTile = makeAppTile(from: discovered.url) else { continue }
+            // Self-skip is handled by the scanner / makeAppTile.
+            appsByBundleID[appTile.bundleIdentifier] = appTile
 
-            for url in topLevel {
-                if url.pathExtension == "app" {
-                    if let appTile = makeAppTile(from: url),
-                       seenBundleIDs.insert(appTile.bundleIdentifier).inserted {
-                        appsByBundleID[appTile.bundleIdentifier] = appTile
-                        topLevelApps.append(appTile)
-                    }
-                    continue
+            let containing = discovered.containingDirectory?.standardizedFileURL
+            if let containing, !canonicalRoots.contains(containing.path) {
+                if groupedBundleIDsByDirectory[containing] == nil {
+                    groupOrder.append(containing)
+                    groupedBundleIDsByDirectory[containing] = []
                 }
-
-                let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-                guard isDirectory else { continue }
-
-                let nestedApps = scanSubfolderApps(in: url, seenBundleIDs: &seenBundleIDs)
-                guard !nestedApps.isEmpty else { continue }
-
-                for app in nestedApps {
-                    appsByBundleID[app.bundleIdentifier] = app
-                }
-
-                fsGroups.append(LaunchpadScan.SeedGroup(
-                    name: FileManager.default.displayName(atPath: url.path),
-                    bundleIDs: nestedApps.map(\.bundleIdentifier)
-                ))
+                groupedBundleIDsByDirectory[containing]?.append(appTile.bundleIdentifier)
+            } else {
+                topLevelApps.append(appTile)
             }
+        }
+
+        let fsGroups: [LaunchpadScan.SeedGroup] = groupOrder.map { url in
+            LaunchpadScan.SeedGroup(
+                name: FileManager.default.displayName(atPath: url.path),
+                bundleIDs: groupedBundleIDsByDirectory[url] ?? []
+            )
         }
 
         return LaunchpadScan(

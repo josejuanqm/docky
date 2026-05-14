@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		036D5F7DCAC41C22E6CA4D5A /* DockyHelperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8349BD7C2A54BA01A9291A7 /* DockyHelperApp.swift */; };
-		11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		1116D2FA2FA3B360006A9DD8 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1116D2F92FA3B360006A9DD8 /* Sentry */; };
 		113717682FA17B980012480C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 113717672FA17B980012480C /* Sparkle */; };
 		14CDAC1494F02043D8D35685 /* HelperListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657AF198B7995ED7DBDCFF72 /* HelperListener.swift */; };
@@ -17,6 +17,8 @@
 		4164BDED8227075F447887A4 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 113717672FA17B980012480C /* Sparkle */; };
 		57F54F7BDC13ED2DC146F9AB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8D85468CF9AE9C2DB609F06 /* Cocoa.framework */; };
 		6A7C410F29F066B6AEA66F76 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8D85468CF9AE9C2DB609F06 /* Cocoa.framework */; };
+		7A908B4BA17864261F784024 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = BC83429B033A05DE6337B72A /* ZIPFoundation */; };
+		A7DB7CC8223FD56E7D76C1E3 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 830F9CAF917FE1BFBBE8101F /* ZIPFoundation */; };
 		B0183ECADE190CE04125901F /* DockyHelperProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA786CF27E4C1408FC9EC5B1 /* DockyHelperProtocol.swift */; };
 		D0C1000C2FA400000000000C /* DockyDockWatchdog.app in Embed Watchdog */ = {isa = PBXBuildFile; fileRef = D0C100012FA4000000000001 /* DockyDockWatchdog.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D951E445ACD6C0A827DCDC2E /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 1116D2F92FA3B360006A9DD8 /* Sentry */; };
@@ -39,7 +41,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */,
+				11051E012F929079005CE09D /* MediaRemoteAdapter.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -59,7 +61,7 @@
 
 /* Begin PBXFileReference section */
 		11051DE72F929079005CE09D /* Docky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docky.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
+		11051E002F929079005CE09D /* MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
 		454DE9CFCF250F3C9C0CD111 /* Docky-AppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky-AppStore.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		464BBCA9615BC1DD2FBCBE89 /* Docky-AppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky-AppStore.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		482A6BAA8BA09B8CBD2C24D3 /* Docky (App Store).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Docky (App Store).app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -79,11 +81,15 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		11051DE92F929079005CE09D /* Docky */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = Docky;
 			sourceTree = "<group>";
 		};
 		D0C100022FA4000000000002 /* DockyDockWatchdog */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = DockyDockWatchdog;
 			sourceTree = "<group>";
 		};
@@ -96,6 +102,7 @@
 			files = (
 				113717682FA17B980012480C /* Sparkle in Frameworks */,
 				1116D2FA2FA3B360006A9DD8 /* Sentry in Frameworks */,
+				A7DB7CC8223FD56E7D76C1E3 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -106,6 +113,7 @@
 				6A7C410F29F066B6AEA66F76 /* Cocoa.framework in Frameworks */,
 				4164BDED8227075F447887A4 /* Sparkle in Frameworks */,
 				D951E445ACD6C0A827DCDC2E /* Sentry in Frameworks */,
+				7A908B4BA17864261F784024 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -157,7 +165,7 @@
 		11051E032F929079005CE09D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */,
+				11051E002F929079005CE09D /* MediaRemoteAdapter.framework */,
 				5876505BBC798823D1629F1F /* OS X */,
 			);
 			name = Frameworks;
@@ -227,6 +235,7 @@
 			packageProductDependencies = (
 				113717672FA17B980012480C /* Sparkle */,
 				1116D2F92FA3B360006A9DD8 /* Sentry */,
+				830F9CAF917FE1BFBBE8101F /* ZIPFoundation */,
 			);
 			productName = Docky;
 			productReference = 11051DE72F929079005CE09D /* Docky.app */;
@@ -271,6 +280,7 @@
 			packageProductDependencies = (
 				113717672FA17B980012480C /* Sparkle */,
 				1116D2F92FA3B360006A9DD8 /* Sentry */,
+				BC83429B033A05DE6337B72A /* ZIPFoundation */,
 			);
 			productName = "Docky (App Store)";
 			productReference = 454DE9CFCF250F3C9C0CD111 /* Docky-AppStore.app */;
@@ -327,6 +337,7 @@
 			packageReferences = (
 				113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */,
 				1116D2F82FA3B360006A9DD8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+				92E300C36A99133AE7471AF2 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 11051DE82F929079005CE09D /* Products */;
@@ -1066,6 +1077,14 @@
 				minimumVersion = 2.9.1;
 			};
 		};
+		92E300C36A99133AE7471AF2 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1078,6 +1097,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		830F9CAF917FE1BFBBE8101F /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 92E300C36A99133AE7471AF2 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		BC83429B033A05DE6337B72A /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 92E300C36A99133AE7471AF2 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

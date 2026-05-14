@@ -88,7 +88,7 @@ private struct DockyGlassModifier: ViewModifier {
         if FeatureGate.shared.isAvailable(.liquidGlass), #available(macOS 26.0, *) {
             content.glassEffect(style.glass, in: shape)
         } else {
-            content.background(SkyLightGlassFallback(style: style, shape: shape))
+            content.background(WindowBlurFallback(style: style, shape: shape))
         }
     }
 }
@@ -108,13 +108,13 @@ private extension DockyGlassStyle {
 /// backdrop installed on the host NSWindow. If the host window is opaque
 /// the blur won't be visible — same caveat that applies to the existing
 /// dock chrome.
-private struct SkyLightGlassFallback: View {
+private struct WindowBlurFallback: View {
     let style: DockyGlassStyle
     let shape: AnyShape
 
     var body: some View {
         ZStack {
-            SkyLightHostBlurInstaller()
+            WindowBlurInstaller()
             shape.fill(.primary.opacity(tintOpacity))
         }
     }
@@ -138,7 +138,7 @@ private struct SkyLightGlassFallback: View {
 /// preferred radius on each `order(...)`, so this never wins long-term in
 /// those windows — it only matters for windows that don't otherwise ask
 /// for any window-level blur.
-private struct SkyLightHostBlurInstaller: NSViewRepresentable {
+private struct WindowBlurInstaller: NSViewRepresentable {
     var blurRadius: Int = 30
 
     func makeNSView(context: Context) -> InstallerView {

@@ -1565,36 +1565,14 @@ final class TileStore: ObservableObject {
         "com.apple.systempreferences"
     ]
 
+    @MainActor
     private static func installedApplications() -> [(bundleIdentifier: String, displayName: String)] {
-        var bundleIdentifiersByURL: [URL: String] = [:]
-
-        for directoryURL in appSearchDirectories {
-            guard let enumerator = FileManager.default.enumerator(
-                at: directoryURL,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else {
-                continue
-            }
-
-            for case let appURL as URL in enumerator {
-                guard appURL.pathExtension == "app",
-                      let bundleIdentifier = Bundle(url: appURL)?.bundleIdentifier,
-                      !bundleIdentifier.isEmpty,
-                      bundleIdentifier != finderBundleID,
-                      bundleIdentifier != Bundle.main.bundleIdentifier else {
-                    continue
-                }
-
-                bundleIdentifiersByURL[appURL] = bundleIdentifier
-            }
-        }
-
-        return Array(Set(bundleIdentifiersByURL.values)).map { bundleIdentifier in
-            let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
-            let displayName = url.map { FileManager.default.displayName(atPath: $0.path) } ?? bundleIdentifier
-            return (bundleIdentifier: bundleIdentifier, displayName: displayName)
-        }
+        // Spotlight scan, sandbox-safe; no read access required to
+        // `/Applications`, `/System/Applications`, or `~/Applications`.
+        let selfBundleID = Bundle.main.bundleIdentifier
+        return ApplicationBundleScanner.shared.installedApps
+            .filter { $0.bundleIdentifier != finderBundleID && $0.bundleIdentifier != selfBundleID }
+            .map { (bundleIdentifier: $0.bundleIdentifier, displayName: $0.displayName) }
         .sorted { lhs, rhs in
             let comparison = lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName)
             if comparison == .orderedSame {

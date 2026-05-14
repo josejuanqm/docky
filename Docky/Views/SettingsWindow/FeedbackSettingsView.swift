@@ -17,6 +17,7 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import ZIPFoundation
 
 private let feedbackDestinationEmail = "jose.juan.qm@gmail.com"
 
@@ -254,29 +255,16 @@ private enum FeedbackBundle {
     /// zip (preserves resource forks / extended attrs, deterministic,
     /// no third-party deps).
     private static func ditto(source: URL, destination: URL) throws {
-        #if APP_STORE_SANDBOX
-        // Sandbox blocks /usr/bin/* subprocess launches. The MAS
-        // build's feedback flow ships the staging directory as-is
-        // (the share sheet attaches a folder reference instead of a
-        // single zip). Until we wire up ZIPFoundation, fall back to
-        // attaching the directory tree directly: copy `source` to
-        // `destination` so callers can still hand a single URL to
-        // NSSharingService.
+        // ZIPFoundation: pure Swift, sandbox-safe. Replaces the
+        // `/usr/bin/ditto` subprocess that's blocked in MAS.
         let fileManager = FileManager.default
         try fileManager.removeItemIfExists(at: destination)
-        try fileManager.copyItem(at: source, to: destination)
-        #else
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", source.path, destination.path]
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw NSError(domain: "FeedbackBundle", code: Int(process.terminationStatus), userInfo: [
-                NSLocalizedDescriptionKey: "ditto exited with status \(process.terminationStatus)"
-            ])
-        }
-        #endif
+        try fileManager.zipItem(
+            at: source,
+            to: destination,
+            shouldKeepParent: true,
+            compressionMethod: .deflate
+        )
     }
 }
 

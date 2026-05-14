@@ -116,9 +116,10 @@ struct AppIconsSettingsView: View {
     /// across roots wins (matching `LaunchpadOverlayService`).
     private func refreshOtherApps() async {
         let excluded = Set(appEntries.map(\.bundleIdentifier))
-        let scanned: [AppIconSettingsEntry] = await Task.detached(priority: .userInitiated) {
-            AppIconsInstalledAppScanner.scan()
-        }.value
+        // Spotlight scanner is `@MainActor`; the underlying query is
+        // already async on launchd's own queue so we don't need a
+        // `Task.detached` to keep the UI responsive.
+        let scanned: [AppIconSettingsEntry] = AppIconsInstalledAppScanner.scan()
 
         let filtered = scanned
             .filter { !excluded.contains($0.bundleIdentifier) }
@@ -362,69 +363,22 @@ private struct AppIconSettingsEntry: Identifiable, Sendable {
 /// itself so users can't accidentally override the running app's
 /// own icon. Icons are *not* loaded here — preview rows fetch them
 /// lazily from `IconCacheService` so a 200-app scan stays cheap.
+///
+/// Backed by `ApplicationBundleScanner` (Spotlight) so the scan is
+/// sandbox-safe and doesn't depend on read access to `/Applications`.
+@MainActor
 private enum AppIconsInstalledAppScanner {
     static func scan() -> [AppIconSettingsEntry] {
-        let roots: [URL] = [
-            URL(fileURLWithPath: "/Applications", isDirectory: true),
-            URL(fileURLWithPath: "/System/Applications", isDirectory: true),
-            URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-                .appending(path: "Applications", directoryHint: .isDirectory),
-        ]
-
-        let fileManager = FileManager.default
         let selfBundleIdentifier = Bundle.main.bundleIdentifier
-        var seen: [String: AppIconSettingsEntry] = [:]
-
-        for root in roots {
-            guard let topLevel = try? fileManager.contentsOfDirectory(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            ) else { continue }
-
-            for url in topLevel {
-                if url.pathExtension == "app" {
-                    addEntry(at: url, into: &seen, skipping: selfBundleIdentifier)
-                    continue
-                }
-
-                // One subfolder deep covers `/Applications/Utilities`
-                // and similar collection directories without
-                // wandering into arbitrary user folders.
-                let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-                guard isDirectory else { continue }
-
-                guard let nested = try? fileManager.contentsOfDirectory(
-                    at: url,
-                    includingPropertiesForKeys: nil,
-                    options: [.skipsHiddenFiles]
-                ) else { continue }
-
-                for nestedURL in nested where nestedURL.pathExtension == "app" {
-                    addEntry(at: nestedURL, into: &seen, skipping: selfBundleIdentifier)
-                }
+        return ApplicationBundleScanner.shared.installedApps
+            .filter { $0.bundleIdentifier != selfBundleIdentifier }
+            .map { app in
+                AppIconSettingsEntry(
+                    bundleIdentifier: app.bundleIdentifier,
+                    displayName: app.displayName,
+                    subtitle: app.bundleIdentifier
+                )
             }
-        }
-
-        return Array(seen.values)
-    }
-
-    private static func addEntry(
-        at url: URL,
-        into entries: inout [String: AppIconSettingsEntry],
-        skipping selfBundleIdentifier: String?
-    ) {
-        guard let bundleIdentifier = Bundle(url: url)?.bundleIdentifier,
-              !bundleIdentifier.isEmpty,
-              bundleIdentifier != selfBundleIdentifier,
-              entries[bundleIdentifier] == nil else { return }
-
-        let displayName = FileManager.default.displayName(atPath: url.path)
-        entries[bundleIdentifier] = AppIconSettingsEntry(
-            bundleIdentifier: bundleIdentifier,
-            displayName: displayName,
-            subtitle: bundleIdentifier
-        )
     }
 }
 

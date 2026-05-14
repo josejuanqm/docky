@@ -20,10 +20,17 @@ final class ApplicationInstallService {
 
     @discardableResult
     func promptToMoveToApplicationsIfNeeded() -> Bool {
+        #if APP_STORE_SANDBOX
+        // App Store installs land in /Applications by Apple's machinery;
+        // sandboxed apps also can't write outside their container, so
+        // this whole prompt is meaningless in MAS.
+        return false
+        #else
         guard needsToMoveToApplications else {
             clearPromptDeferral()
             return false
         }
+        #endif
 
         guard deferredBundlePath != currentBundlePath else {
             return false

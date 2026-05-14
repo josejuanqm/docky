@@ -70,12 +70,7 @@ struct ThemesSettingsView: View {
 
             Section {
                 Grid(horizontalSpacing: 12, verticalSpacing: 12) {
-                    #if !APP_STORE_SANDBOX
-                    // Import / export require `/usr/bin/ditto` (zip).
-                    // Hidden in the MAS build until the Swift unzip
-                    // replacement (ZIPFoundation) is wired in. Users
-                    // can still install themes by hand into
-                    // `~/Library/Application Support/Docky/Themes/`.
+                    // ZIPFoundation handles zip in both builds.
                     GridRow {
                         themesActionButton(
                             "Import Theme…",
@@ -88,7 +83,6 @@ struct ThemesSettingsView: View {
                             action: exportTheme
                         )
                     }
-                    #endif
                     GridRow {
                         themesActionButton(
                             "Reveal Themes Folder",
