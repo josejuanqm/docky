@@ -241,7 +241,13 @@ struct TileContainerView: View {
                     )
                 }
             }
-            .gesture(reorderGesture(for: tile), including: isTileDraggable(tile) ? .gesture : .subviews)
+            // simultaneousGesture (not gesture) so the parent reorder drag
+            // shares events with TileView's inner onTapGesture instead of
+            // competing for them. With `.gesture()`, the parent claims
+            // mouse-down and starves the inner tap even when the drag
+            // never recognizes. For non-draggable tiles we mask the
+            // gesture off so only subview gestures run.
+            .simultaneousGesture(reorderGesture(for: tile), including: isTileDraggable(tile) ? .all : .subviews)
             .transition(tileTransition)
     }
 
@@ -1320,7 +1326,10 @@ struct TileContainerView: View {
     }
 
     private func reorderGesture(for tile: Tile) -> some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+        // Non-zero minimum so a pure click (no motion) never claims the
+        // gesture. On Sequoia, minimumDistance: 0 caused mouse-down to
+        // immediately start a drag, eating right-click and tap events.
+        DragGesture(minimumDistance: 4, coordinateSpace: .global)
             .onChanged { value in
                 updateDrag(for: tile, value: value)
             }
@@ -1392,6 +1401,10 @@ struct TileContainerView: View {
     }
 
     private func endDrag(for tile: Tile, value: DragGesture.Value) {
+        let translationMagnitude = sqrt(value.translation.width * value.translation.width + value.translation.height * value.translation.height)
+        Self.logger.info(
+            "endDrag tile=\(tileLogDescription(tile), privacy: .public) translation=(\(value.translation.width, privacy: .public),\(value.translation.height, privacy: .public)) magnitude=\(translationMagnitude, privacy: .public) draggedTileID=\(self.draggedTileID ?? "nil", privacy: .public)"
+        )
         updateDrag(for: tile, value: value)
 
         guard draggedTileID == tile.id else {

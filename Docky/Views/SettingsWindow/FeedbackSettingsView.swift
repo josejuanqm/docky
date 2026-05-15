@@ -18,7 +18,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let feedbackDestinationEmail = "jose.juan.qm@gmail.com"
+private let feedbackDestinationEmail = "hello@quintero.gt"
 
 struct FeedbackSettingsView: View {
     @State private var feedbackText: String = ""
