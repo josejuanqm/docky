@@ -11,6 +11,7 @@ import Sentry
 
 import Combine
 import Sparkle
+import UniformTypeIdentifiers
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
@@ -457,6 +458,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         )
         showOnboardingItem.target = self
 
+        let overrideSettingsItem = NSMenuItem(
+            title: "Override Docky Settings with plist…",
+            action: #selector(overrideSettingsWithPlist(_:)),
+            keyEquivalent: ""
+        )
+        overrideSettingsItem.target = self
+
         let productModeMenu = NSMenu(title: "Product Mode")
 
         let freeModeItem = NSMenuItem(
@@ -514,6 +522,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         debugMenu.addItem(loadDemoLayoutItem)
         debugMenu.addItem(seedDummyWidgetContentItem)
         debugMenu.addItem(showOnboardingItem)
+        debugMenu.addItem(overrideSettingsItem)
         debugMenu.addItem(productModeItem)
 #if DEBUG
         debugMenu.addItem(makeSimulatedOSVersionMenuItem())
@@ -586,6 +595,65 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard let version = sender.representedObject as? OperatingSystemVersion else { return }
         FeatureGate.shared.setPreferredOSVersion(version)
         relaunchApp()
+    }
+
+    /// Replace every `docky.*` UserDefaults key with the contents of
+    /// a plist (e.g. `docky-defaults.plist` from a user's feedback
+    /// bundle). The user is prompted to pick the file; existing
+    /// `docky.*` keys are cleared first so the resulting state is a
+    /// faithful reproduction of the source, not a merge. Docky then
+    /// relaunches so every preference observer re-reads.
+    @objc private func overrideSettingsWithPlist(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.propertyList]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.prompt = "Override"
+        panel.message = "Pick a docky-defaults.plist (from a feedback bundle, etc.) to replace all docky.* UserDefaults keys."
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let raw = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+            guard let dict = raw as? [String: Any] else {
+                throw NSError(domain: "DockyDebugOverride", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Top-level plist value isn't a dictionary."
+                ])
+            }
+
+            let dockyKeys = dict.filter { $0.key.hasPrefix("docky.") }
+            guard !dockyKeys.isEmpty else {
+                throw NSError(domain: "DockyDebugOverride", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: "No docky.* keys found in \(url.lastPathComponent)."
+                ])
+            }
+
+            let confirm = NSAlert()
+            confirm.messageText = "Override \(dockyKeys.count) docky.* keys?"
+            confirm.informativeText = "Existing docky.* UserDefaults will be cleared first, then replaced with the values from \(url.lastPathComponent). Docky will relaunch after."
+            confirm.addButton(withTitle: "Override and Relaunch")
+            confirm.addButton(withTitle: "Cancel")
+            guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+            let defaults = UserDefaults.standard
+            for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("docky.") {
+                defaults.removeObject(forKey: key)
+            }
+            for (key, value) in dockyKeys {
+                defaults.set(value, forKey: key)
+            }
+            defaults.synchronize()
+
+            relaunchApp()
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Couldn't apply override"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
     }
 
     private func relaunchApp() {
