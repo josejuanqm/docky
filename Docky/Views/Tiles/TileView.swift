@@ -1654,7 +1654,18 @@ struct TileView: View {
             folderNavigationContextActions(for: homeURL)
         }
 
-        var result: [ContextAction] = [homeSubmenu]
+        // Touch the singleton so its Spotlight query is running by the
+        // time the user opens the submenu. First-ever right-click may
+        // still produce an empty list until the initial gather finishes.
+        _ = RecentFilesService.shared
+        let recentsSubmenu = ContextAction.lazySubmenu(
+            String(localized: "Recent Files"),
+            image: contextMenuSymbol("clock")
+        ) {
+            recentFilesContextActions()
+        }
+
+        var result: [ContextAction] = [homeSubmenu, recentsSubmenu]
         if let first = actions.first, first.kind != .divider {
             result.append(.divider)
         }
@@ -2855,6 +2866,41 @@ func fileContextActions(for url: URL) -> [ContextAction] {
             try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
         }
     ]
+}
+
+@MainActor
+func recentFilesContextActions() -> [ContextAction] {
+    let urls = RecentFilesService.shared.recentURLs
+    Logger(subsystem: "gt.quintero.Docky", category: "RecentFiles")
+        .info("menu requested urls.count=\(urls.count, privacy: .public)")
+    guard !urls.isEmpty else {
+        return [.action(String(localized: "No Recent Files"), handler: {})]
+    }
+
+    let visibleLimit = 10
+    let visible = urls.prefix(visibleLimit)
+    let overflow = Array(urls.dropFirst(visibleLimit))
+
+    var actions: [ContextAction] = visible.map(recentFileContextAction)
+
+    if !overflow.isEmpty {
+        actions.append(.divider)
+        actions.append(.lazySubmenu(String(localized: "More"), image: contextMenuSymbol("ellipsis")) {
+            overflow.map(recentFileContextAction)
+        })
+    }
+
+    return actions
+}
+
+@MainActor
+private func recentFileContextAction(for url: URL) -> ContextAction {
+    let displayName = (try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName)
+        ?? url.lastPathComponent
+    let icon = IconCacheService.shared.icon(forFileURL: url)
+    return .action(displayName, image: icon) {
+        NSWorkspace.shared.open(url)
+    }
 }
 
 func contextMenuSymbol(_ name: String) -> NSImage? {

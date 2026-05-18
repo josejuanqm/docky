@@ -28,6 +28,55 @@ final class FanAnimationModel: ObservableObject {
 
 struct FolderFanView: View {
     static let maximumItemCount = 10
+    /// Number of items that match the tile preview pile (mirrors
+    /// `FolderTileView.stack(in:)`'s 3-deep render). The first
+    /// `previewSlotCount` fan items are visible at rest; everything
+    /// past that hides at rest and fades in during the open
+    /// animation.
+    static let previewSlotCount = 3
+    /// Along-arc spacing per item. Mirrored from the instance
+    /// property below so the static `contentSize` helper can compute
+    /// the same `deltaTheta` the live view does.
+    static let perItemArcLength: CGFloat = 15
+
+    /// Deterministic content size for the hosting NSWindow. Computing
+    /// it externally avoids depending on `NSHostingView.fittingSize`,
+    /// which can compress the view's explicit `.frame(...)` away
+    /// when invoked before the host has a stable frame — leaving the
+    /// rotated icons clipped on the right.
+    static func contentSize(
+        iconSize: CGFloat,
+        chromeReach: CGFloat,
+        itemCount: Int,
+        screenLongestDimension: CGFloat
+    ) -> NSSize {
+        let theta = computeDeltaTheta(
+            itemCount: itemCount,
+            radius: screenLongestDimension
+        )
+        let maxCurveX = screenLongestDimension * (1 - cos(theta))
+        let maxCurveY = screenLongestDimension * sin(theta)
+        let w = labelMaxWidth + labelIconGap + iconSize
+        let h = iconSize
+        let overshootX = max(0, (w * cos(theta) + h * sin(theta) - w) / 2) + rotationOvershootSafetyPad
+        let overshootY = max(0, (w * sin(theta) + h * cos(theta) - h) / 2) + rotationOvershootSafetyPad
+        return NSSize(
+            width: w + maxCurveX + overshootX,
+            height: h + maxCurveY + bottomPadding + chromeReach + overshootY
+        )
+    }
+
+    /// Mirror of `deltaTheta` for the static `contentSize` path —
+    /// kept in lockstep with the instance computation.
+    private static func computeDeltaTheta(itemCount: Int, radius: CGFloat) -> CGFloat {
+        guard itemCount > 1, radius > 0 else { return 0 }
+        let absoluteMaxSpan = CGFloat.pi * 25 / 180
+        let maxScaledMinSpan = CGFloat.pi * 12.5 / 180
+        let progress = CGFloat(itemCount - 1) / CGFloat(Self.maximumItemCount - 1)
+        let scaledMinSpan = maxScaledMinSpan * progress
+        let natural = CGFloat(itemCount - 1) * perItemArcLength / radius
+        return min(absoluteMaxSpan, max(scaledMinSpan, natural))
+    }
 
     // MARK: Layout constants (exposed for the presenter)
 
@@ -71,8 +120,9 @@ struct FolderFanView: View {
     // for a touch more breathing room. The clamp bounds in
     // `deltaTheta` are bumped in lockstep so the per-item visual
     // spacing actually reflects the increase instead of being held
-    // back by the floor.
-    private let perItemArcLength: CGFloat = 15
+    // back by the floor. Shared with the static `contentSize` path
+    // via `Self.perItemArcLength`.
+    private var perItemArcLength: CGFloat { Self.perItemArcLength }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -109,7 +159,7 @@ struct FolderFanView: View {
         Button(action: { onSelect(url) }) {
             HStack(alignment: .center, spacing: Self.labelIconGap) {
                 Text(displayName(for: url))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.body)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -119,7 +169,8 @@ struct FolderFanView: View {
                     // chrome the rest of Docky uses for tile glass
                     // surfaces. Falls back automatically when glass
                     // is unavailable so the chip stays readable.
-                    .dockyGlass(in: Capsule())
+                    .background(.thickMaterial)
+                    .clipShape(.capsule)
                     .dockyGlassBorder(in: Capsule())
                     .frame(maxWidth: Self.labelMaxWidth, alignment: .trailing)
                     // Chip fades in alongside the position slide and
@@ -138,7 +189,25 @@ struct FolderFanView: View {
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
                     .frame(width: iconSize, height: iconSize)
-                    .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 2)
+                    // Shadow only renders in the expanded state. At
+                    // rest the icons mimic `FolderTileView.stack`'s
+                    // shadowless pile so the fan's collapsed pile
+                    // is visually identical to the tile preview
+                    // underneath. Animates with the rest of the
+                    // open / close transition.
+                    .shadow(
+                        color: .black.opacity(model.isExpanded ? 0.35 : 0),
+                        radius: 4,
+                        x: 0,
+                        y: 2
+                    )
+                    // Match `FolderTileView.stack(in:)`'s depth-based
+                    // opacity ramp on the visible preview slots, so
+                    // the at-rest pile reads exactly like the tile
+                    // preview the user clicked. Items past the
+                    // preview window are invisible at rest and fade
+                    // in during the open animation.
+                    .opacity(iconOpacity(forIndex: index))
             }
             .frame(width: hstackWidth, alignment: .trailing)
         }
@@ -217,7 +286,11 @@ struct FolderFanView: View {
     // MARK: Frame
 
     private var viewWidth: CGFloat {
-        Self.labelMaxWidth + Self.labelIconGap + iconSize + maxCurveX
+        // `rotationOvershootX` reserves room on the right for the
+        // top-of-curve item's `.rotationEffect`. Without it the
+        // rotated bounding box extends past the view's frame and
+        // the hosting NSWindow clips the icon.
+        Self.labelMaxWidth + Self.labelIconGap + iconSize + maxCurveX + rotationOvershootX
     }
 
     private var viewHeight: CGFloat {
@@ -225,33 +298,91 @@ struct FolderFanView: View {
         // that the view occupies so animations can start over the
         // tile. The icon baseline stays at the same screen position
         // because the presenter shifts the window down by exactly
-        // `chromeReach`.
-        iconSize + maxCurveY + Self.bottomPadding + chromeReach
+        // `chromeReach`. `rotationOvershootY` adds matching headroom
+        // *above* the topmost icon so rotation doesn't clip the top
+        // of the bounding box either.
+        iconSize + maxCurveY + Self.bottomPadding + chromeReach + rotationOvershootY
     }
 
     private var anchorIconCenterY: CGFloat {
+        // The rotation overshoot grows `viewHeight` at the *top*
+        // (smaller y in SwiftUI top-down). The icon's resting
+        // position is measured up from the view's bottom, so it
+        // stays anchored to the same screen Y regardless of how
+        // much overshoot we add — meaning the collapsed pile lands
+        // exactly at the tile center the presenter aimed for, and
+        // the extra space sits above the topmost icon as headroom
+        // for rotated rendering.
         viewHeight - Self.bottomPadding - chromeReach - iconSize / 2
+    }
+
+    /// Additional safety margin past the precise rotation-overshoot
+    /// math, in points. Covers shadows on the icon, the capsule
+    /// stroke on the label chip, and any sub-pixel rounding in the
+    /// rotation transform.
+    private static let rotationOvershootSafetyPad: CGFloat = 12
+
+    /// Half of the bounding-box width growth for a rectangle of
+    /// size (hstackWidth × iconSize) rotated by the maximum angle
+    /// any item reaches (`deltaTheta`, only the top-most item).
+    /// Total bbox growth on the rotated axis is `w*cos+h*sin - w`;
+    /// the rotated content extends by half that on each side, plus
+    /// a safety pad for shadows / strokes.
+    private var rotationOvershootX: CGFloat {
+        let w = Self.labelMaxWidth + Self.labelIconGap + iconSize
+        let h = iconSize
+        let theta = deltaTheta
+        let math = max(0, (w * cos(theta) + h * sin(theta) - w) / 2)
+        return math + Self.rotationOvershootSafetyPad
+    }
+
+    /// Vertical mirror of `rotationOvershootX`. Wide rectangles get
+    /// much larger vertical overshoot than horizontal because the
+    /// long edge sweeps top/bottom.
+    private var rotationOvershootY: CGFloat {
+        let w = Self.labelMaxWidth + Self.labelIconGap + iconSize
+        let h = iconSize
+        let theta = deltaTheta
+        let math = max(0, (w * sin(theta) + h * cos(theta) - h) / 2)
+        return math + Self.rotationOvershootSafetyPad
     }
 
     private func displayName(for url: URL) -> String {
         (try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName) ?? url.lastPathComponent
     }
 
-    /// Y offset for the fan's collapsed-onto-tile state. The
-    /// top-landing item (the back of the items list, which flies
-    /// furthest to the top of the arc) sits at the *bottom* of the
-    /// initial stack; the bottom-landing item (newest, closest to
-    /// the tile) sits at the *top* of the initial stack — the
-    /// inverse of `FolderTileView.stack(in:)`'s pile.
+    /// Y offset for the fan's collapsed-onto-tile state. Matches the
+    /// real-world "pile of papers" model: the top sheet (z-top) is
+    /// the *lowest* one (closest to you); the sheets behind peek
+    /// out slightly higher. So the bottom-landing item (newest,
+    /// z-top) gets +4 and the top-landing items (older, z-back) get
+    /// −4 — same mapping as `FolderTileView.stack(in:)`'s preview
+    /// pile, which is what the fan emerges from / collapses back
+    /// into.
     ///
-    /// Mapping by index from the front of the list: index 0 → −4,
-    /// index 1 → 0, index 2+ → +4 (clamped, since the tile preview
+    /// Mapping by index from the front of the list: index 0 → +4,
+    /// index 1 → 0, index 2+ → −4 (clamped, since the tile preview
     /// only spans 3 slots anyway).
+    /// Per-item icon opacity. In the expanded state every visible
+    /// item is fully opaque. In the collapsed state the first three
+    /// slots mirror `FolderTileView.stack(in:)`'s depth-based ramp
+    /// (1.0 / 0.88 / 0.76) so the at-rest pile is indistinguishable
+    /// from the tile preview underneath; items beyond the preview
+    /// window are invisible.
+    private func iconOpacity(forIndex index: Int) -> Double {
+        if model.isExpanded {
+            return 1.0
+        }
+        guard index < Self.previewSlotCount else { return 0 }
+        let depthOpacityStep: Double = 0.12 // matches FolderTileView.stack
+        return 1.0 - Double(index) * depthOpacityStep
+    }
+
     private func stackPreviewOffsetY(for index: Int, total: Int) -> CGFloat {
         let tileStackVerticalStep: CGFloat = 4
-        let cappedIndex = min(index, 2)
-        let centeredBaseOffset: CGFloat = 1 // (3 - 1) / 2
-        return (CGFloat(cappedIndex) - centeredBaseOffset) * tileStackVerticalStep
+        let cappedIndex = min(index, Self.previewSlotCount - 1)
+        let centeredBaseOffset = CGFloat(Self.previewSlotCount - 1) / 2
+        return (centeredBaseOffset - CGFloat(cappedIndex)) * tileStackVerticalStep
     }
 }
 
@@ -393,9 +524,24 @@ struct FolderFanPresenter: NSViewRepresentable {
                 }
             )
 
+            // Compute the window size deterministically. We can't
+            // rely on `NSHostingView.fittingSize` here — it sometimes
+            // compresses the SwiftUI view's explicit `.frame(...)`
+            // away when called before the host is laid out into a
+            // real window, leaving rotated icons clipped on the right.
+            let size = FolderFanView.contentSize(
+                iconSize: iconSize,
+                chromeReach: chromeReach,
+                itemCount: items.count,
+                screenLongestDimension: longest
+            )
             let hostingView = NSHostingView(rootView: rootView)
-            hostingView.layout()
-            let size = hostingView.fittingSize
+            hostingView.frame = NSRect(origin: .zero, size: size)
+            // Belt-and-suspenders: disable layer clipping so any
+            // residual overshoot (shadows, capsule strokes) past the
+            // computed bounds still renders.
+            hostingView.wantsLayer = true
+            hostingView.layer?.masksToBounds = false
 
             let newWindow = NSPanel(
                 contentRect: NSRect(origin: .zero, size: size),
