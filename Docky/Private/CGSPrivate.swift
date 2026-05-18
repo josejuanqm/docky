@@ -156,6 +156,36 @@ func SLPSPostEventRecordTo(
     return fn(psn, bytes)
 }
 
+// MARK: - Dock Notifications (HIServices)
+//
+// `CoreDockSendNotification` is the private function the system Dock invokes
+// when its own menus pick "Show All Windows" / "Mission Control" / etc.
+// Posting via `DistributedNotificationCenter` with the same name string does
+// not route through the Dock and is a no-op. Loaded by dlsym because the
+// symbol is not exported in the SDK.
+
+private typealias CoreDockSendNotificationType = @convention(c) (CFString, Int32) -> Void
+private var hiServicesHandle: UnsafeMutableRawPointer?
+private var coreDockSendNotificationPtr: CoreDockSendNotificationType?
+
+private func loadHIServicesFunctions() {
+    guard hiServicesHandle == nil else { return }
+
+    let hiServicesPath = "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/HIServices"
+    guard let handle = dlopen(hiServicesPath, RTLD_LAZY) else { return }
+    hiServicesHandle = handle
+
+    if let symbol = dlsym(handle, "CoreDockSendNotification") {
+        coreDockSendNotificationPtr = unsafeBitCast(symbol, to: CoreDockSendNotificationType.self)
+    }
+}
+
+func CoreDockSendNotification(_ message: String) {
+    loadHIServicesFunctions()
+    guard let fn = coreDockSendNotificationPtr else { return }
+    fn(message as CFString, 0)
+}
+
 /// Posts the two synthetic events SkyLight expects after `SLPSSetFrontProcess`
 /// so the targeted window also receives keyboard focus. Without this, the
 /// window comes up visually but typing still routes to the previous app —

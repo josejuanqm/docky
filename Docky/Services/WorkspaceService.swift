@@ -491,7 +491,18 @@ final class WorkspaceService: ObservableObject {
     }
 
     func showAllWindows(bundleIdentifier: String) {
-        focusApplication(bundleIdentifier: bundleIdentifier)
+        guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+            return
+        }
+
+        runningApp.unhide()
+        _ = runningApp.activate()
+        // The Dock targets App Exposé at whatever app is frontmost when the
+        // call arrives. The small delay lets activation land first so Exposé
+        // surfaces the correct app's windows.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            CoreDockSendNotification("com.apple.expose.front.awake")
+        }
     }
 
     @discardableResult
