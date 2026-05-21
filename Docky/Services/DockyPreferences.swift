@@ -2349,6 +2349,31 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Single-key (no modifier — switcher's own modifier is already held)
+    /// pressed inside the open switcher to minimize the selected window.
+    var switcherMinimizeKeyCode: UInt16 {
+        didSet {
+            guard switcherMinimizeKeyCode != oldValue else { return }
+            defaults.set(Int(switcherMinimizeKeyCode), forKey: Keys.switcherMinimizeKeyCode)
+        }
+    }
+
+    /// Single-key pressed inside the open switcher to close the selected window.
+    var switcherCloseKeyCode: UInt16 {
+        didSet {
+            guard switcherCloseKeyCode != oldValue else { return }
+            defaults.set(Int(switcherCloseKeyCode), forKey: Keys.switcherCloseKeyCode)
+        }
+    }
+
+    /// Single-key pressed inside the open switcher to zoom (green-button) the selected window.
+    var switcherZoomKeyCode: UInt16 {
+        didSet {
+            guard switcherZoomKeyCode != oldValue else { return }
+            defaults.set(Int(switcherZoomKeyCode), forKey: Keys.switcherZoomKeyCode)
+        }
+    }
+
     /// Docky-owned ordered pinned app bundle identifiers.
     var pinnedAppBundleIdentifiers: [String] {
         didSet {
@@ -3344,6 +3369,9 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         static let showsWindowSwitcherFocusPreview = "docky.showsWindowSwitcherFocusPreview"
         static let windowSwitcherPreviewMode = "docky.windowSwitcherPreviewMode"
         static let windowSwitcherLayout = "docky.windowSwitcherLayout"
+        static let switcherMinimizeKeyCode = "docky.switcherMinimizeKeyCode"
+        static let switcherCloseKeyCode = "docky.switcherCloseKeyCode"
+        static let switcherZoomKeyCode = "docky.switcherZoomKeyCode"
         static let pinnedAppBundleIdentifiers = "docky.pinnedAppBundleIdentifiers"
         static let pinnedItems = "docky.pinnedItems"
         static let widgetPlacements = "docky.widgetPlacements"
@@ -3438,6 +3466,9 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         static let showsWindowSwitcherFocusPreview = true
         static let windowSwitcherPreviewMode: WindowSwitcherPreviewMode = .inPlace
         static let windowSwitcherLayout: WindowSwitcherLayout = .auto
+        static let switcherMinimizeKeyCode: UInt16 = 46
+        static let switcherCloseKeyCode: UInt16 = 13
+        static let switcherZoomKeyCode: UInt16 = 6
         static let pinnedAppBundleIdentifiers: [String] = []
         static let pinnedItems: [PinnedTileItem] = []
         static let widgetPlacements: [WidgetPlacement] = []
@@ -3551,6 +3582,9 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         let storedShowsWindowSwitcherFocusPreview = defaults.object(forKey: Keys.showsWindowSwitcherFocusPreview) as? Bool
         let storedWindowSwitcherPreviewMode = defaults.string(forKey: Keys.windowSwitcherPreviewMode)
         let storedWindowSwitcherLayout = defaults.string(forKey: Keys.windowSwitcherLayout)
+        let storedSwitcherMinimizeKeyCode = defaults.object(forKey: Keys.switcherMinimizeKeyCode) as? Int
+        let storedSwitcherCloseKeyCode = defaults.object(forKey: Keys.switcherCloseKeyCode) as? Int
+        let storedSwitcherZoomKeyCode = defaults.object(forKey: Keys.switcherZoomKeyCode) as? Int
         let storedPinnedAppBundleIdentifiers = defaults.stringArray(forKey: Keys.pinnedAppBundleIdentifiers)
         let storedPinnedItems = defaults.data(forKey: Keys.pinnedItems)
         let storedWidgetPlacements = defaults.data(forKey: Keys.widgetPlacements)
@@ -3674,6 +3708,9 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         self.showsWindowSwitcherFocusPreview = storedShowsWindowSwitcherFocusPreview ?? DefaultValues.showsWindowSwitcherFocusPreview
         self.windowSwitcherPreviewMode = storedWindowSwitcherPreviewMode.flatMap(WindowSwitcherPreviewMode.init(rawValue:)) ?? DefaultValues.windowSwitcherPreviewMode
         self.windowSwitcherLayout = storedWindowSwitcherLayout.flatMap(WindowSwitcherLayout.init(rawValue:)) ?? DefaultValues.windowSwitcherLayout
+        self.switcherMinimizeKeyCode = storedSwitcherMinimizeKeyCode.map(UInt16.init) ?? DefaultValues.switcherMinimizeKeyCode
+        self.switcherCloseKeyCode = storedSwitcherCloseKeyCode.map(UInt16.init) ?? DefaultValues.switcherCloseKeyCode
+        self.switcherZoomKeyCode = storedSwitcherZoomKeyCode.map(UInt16.init) ?? DefaultValues.switcherZoomKeyCode
         self.pinnedAppBundleIdentifiers = initialPinnedAppBundleIdentifiers
         self.pinnedItems = initialPinnedItems
         self.widgetPlacements = Self.decodeWidgetPlacements(from: storedWidgetPlacements) ?? DefaultValues.widgetPlacements
@@ -3952,6 +3989,9 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         showsWindowSwitcherFocusPreview = DefaultValues.showsWindowSwitcherFocusPreview
         windowSwitcherPreviewMode = DefaultValues.windowSwitcherPreviewMode
         windowSwitcherLayout = DefaultValues.windowSwitcherLayout
+        switcherMinimizeKeyCode = DefaultValues.switcherMinimizeKeyCode
+        switcherCloseKeyCode = DefaultValues.switcherCloseKeyCode
+        switcherZoomKeyCode = DefaultValues.switcherZoomKeyCode
         appWidgetDisplays = DefaultValues.appWidgetDisplays
         hasSeenDockEditorHint = DefaultValues.hasSeenDockEditorHint
     }

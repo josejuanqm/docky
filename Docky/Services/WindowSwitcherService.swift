@@ -199,7 +199,9 @@ final class WindowSwitcherService: ObservableObject {
 
     func minimizeSelectedWindow() {
         guard let window = selectedWindow else { return }
-        _ = WorkspaceService.shared.minimize(window: window)
+        if WorkspaceService.shared.minimize(window: window) {
+            removeWindow(withIdentifier: window.windowIdentifier)
+        }
     }
 
     func closeSelectedWindow() {
@@ -207,6 +209,14 @@ final class WindowSwitcherService: ObservableObject {
         if WorkspaceService.shared.close(window: window) {
             removeWindow(withIdentifier: window.windowIdentifier)
         }
+    }
+
+    func zoomSelectedWindow() {
+        guard let window = selectedWindow else { return }
+        // Bypass WorkspaceService.zoom's focus side-effect: focusing the target
+        // window would yank key status from the switcher overlay and break the
+        // local key monitor, so subsequent shortcuts would stop working.
+        _ = WindowRegistry.shared.zoom(window)
     }
 
     func removeWindow(withIdentifier identifier: String) {
@@ -317,11 +327,23 @@ final class WindowSwitcherService: ObservableObject {
             case 124, 125:
                 self.moveSelection(delta: 1)
                 return nil
-            case 46:
+            default:
+                break
+            }
+
+            // User-configurable action keys. Navigation cases above take
+            // precedence — if a user rebinds an action onto an arrow / Escape /
+            // Return key, the built-in nav wins and the action never fires.
+            let prefs = DockyPreferences.shared
+            switch event.keyCode {
+            case prefs.switcherMinimizeKeyCode:
                 self.minimizeSelectedWindow()
                 return nil
-            case 13:
+            case prefs.switcherCloseKeyCode:
                 self.closeSelectedWindow()
+                return nil
+            case prefs.switcherZoomKeyCode:
+                self.zoomSelectedWindow()
                 return nil
             default:
                 return event

@@ -10,6 +10,9 @@ struct WindowManagementSettingsView: View {
     @ObservedObject private var product = ProductService.shared
     @ObservedObject private var permissions = PermissionsService.shared
     @State private var isRecordingShortcut = false
+    @State private var isRecordingMinimizeKey = false
+    @State private var isRecordingCloseKey = false
+    @State private var isRecordingZoomKey = false
 
     private var resolvedLayout: WindowSwitcherLayout {
         preferences.windowSwitcherLayout
@@ -137,6 +140,39 @@ struct WindowManagementSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Action Keys")
+                            .font(.headline)
+                        Text("Single-key shortcuts that fire while the switcher is open and you're still holding its modifier. Re-bind to any key; navigation keys (Tab, arrows, Escape, Return) always win over a conflicting binding.")
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    actionKeyRow(
+                        title: "Minimize",
+                        keyCode: preferences.switcherMinimizeKeyCode,
+                        isRecording: $isRecordingMinimizeKey,
+                        defaultKeyCode: 46
+                    ) { preferences.switcherMinimizeKeyCode = $0 }
+
+                    actionKeyRow(
+                        title: "Close Window",
+                        keyCode: preferences.switcherCloseKeyCode,
+                        isRecording: $isRecordingCloseKey,
+                        defaultKeyCode: 13
+                    ) { preferences.switcherCloseKeyCode = $0 }
+
+                    actionKeyRow(
+                        title: "Zoom",
+                        keyCode: preferences.switcherZoomKeyCode,
+                        isRecording: $isRecordingZoomKey,
+                        defaultKeyCode: 6
+                    ) { preferences.switcherZoomKeyCode = $0 }
+                }
+                .padding(.vertical, 4)
+                .disabled(!product.isUnlocked(.windowSwitcher) || !preferences.enablesWindowSwitcher)
             }
 
             Section("Window Preview") {
@@ -199,5 +235,119 @@ struct WindowManagementSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func actionKeyRow(
+        title: String,
+        keyCode: UInt16,
+        isRecording: Binding<Bool>,
+        defaultKeyCode: UInt16,
+        onChange: @escaping (UInt16) -> Void
+    ) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            SingleKeyRecorderControl(
+                keyCode: keyCode,
+                isRecording: isRecording,
+                defaultKeyCode: defaultKeyCode,
+                onChange: onChange
+            )
+        }
+    }
+}
+
+private struct SingleKeyRecorderControl: View {
+    let keyCode: UInt16
+    @Binding var isRecording: Bool
+    let defaultKeyCode: UInt16
+    let onChange: (UInt16) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(isRecording ? "Press Key" : KeyboardShortcut.keyDisplayString(for: keyCode)) {
+                isRecording = true
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button("Reset") {
+                onChange(defaultKeyCode)
+                isRecording = false
+            }
+            .buttonStyle(.bordered)
+            .disabled(keyCode == defaultKeyCode)
+        }
+        .background {
+            SingleKeyRecorderMonitor(
+                isRecording: isRecording,
+                onKey: { event in
+                    onChange(event.keyCode)
+                    isRecording = false
+                },
+                onCancel: { isRecording = false }
+            )
+        }
+    }
+}
+
+private struct SingleKeyRecorderMonitor: NSViewRepresentable {
+    let isRecording: Bool
+    let onKey: (NSEvent) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onKey: onKey, onCancel: onCancel)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.update(isRecording: isRecording)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onKey = onKey
+        context.coordinator.onCancel = onCancel
+        context.coordinator.update(isRecording: isRecording)
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    final class Coordinator {
+        var onKey: (NSEvent) -> Void
+        var onCancel: () -> Void
+        private var localKeyMonitor: Any?
+
+        init(onKey: @escaping (NSEvent) -> Void, onCancel: @escaping () -> Void) {
+            self.onKey = onKey
+            self.onCancel = onCancel
+        }
+
+        func update(isRecording: Bool) {
+            isRecording ? start() : stop()
+        }
+
+        func start() {
+            guard localKeyMonitor == nil else { return }
+            localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self else { return event }
+
+                if event.keyCode == 53 {
+                    self.onCancel()
+                    return nil
+                }
+
+                self.onKey(event)
+                return nil
+            }
+        }
+
+        func stop() {
+            guard let localKeyMonitor else { return }
+            NSEvent.removeMonitor(localKeyMonitor)
+            self.localKeyMonitor = nil
+        }
     }
 }
