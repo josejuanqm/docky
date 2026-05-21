@@ -60,6 +60,7 @@ struct MainWindowView: View {
         }
     }
 
+
     @ViewBuilder
     private func chromeBackground() -> some View {
         let radii = chromeCornerRadii

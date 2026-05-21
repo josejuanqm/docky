@@ -7,6 +7,7 @@ import SwiftUI
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case docky
+    case profiles
     case appearanceGeneral
     case appearanceIndicators
     case appearanceTileLayout
@@ -37,6 +38,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .docky: "Docky"
+        case .profiles: "Profiles"
         case .appearanceGeneral: "General"
         case .appearanceIndicators: "Indicators"
         case .appearanceTileLayout: "Tile Layout"
@@ -67,6 +69,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .docky: "shippingbox"
+        case .profiles: "person.crop.rectangle.stack"
         case .appearanceGeneral: "slider.horizontal.3"
         case .appearanceIndicators: "circle.bottomhalf.filled"
         case .appearanceTileLayout: "square.grid.3x3"
@@ -97,6 +100,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     var tileColor: Color {
         switch self {
         case .docky: .purple
+        case .profiles: .indigo
         case .appearanceGeneral: .teal
         case .appearanceIndicators: .green
         case .appearanceTileLayout: .orange
@@ -142,6 +146,7 @@ private struct SettingsSection: Identifiable {
 
 private let settingsSections: [SettingsSection] = [
     SettingsSection(id: "product", title: "Product", panes: [.docky]),
+    SettingsSection(id: "profiles", title: "Profiles", panes: [.profiles]),
     SettingsSection(id: "appearance", title: "Appearance", panes: [
         .appearanceThemes,
         .appearanceGeneral,
@@ -350,6 +355,8 @@ private struct SettingsDetailView: View {
         switch pane {
         case .docky:
             ProductSettingsView()
+        case .profiles:
+            ProfilesSettingsView()
         case .appearanceGeneral:
             AppearanceSettingsView(subsection: .general)
         case .appearanceIndicators:

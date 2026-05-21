@@ -53,6 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         DockyPreferences.shared.applySystemDockVisibilityPreference()
         DockyPreferences.shared.applyOpenAtLoginPreference()
         TileStore.shared.syncPreferencesFromSystemDockIfNeeded()
+        ProfileTriggerEngine.shared.start()
 
         PermissionsService.shared.refresh()
         logSessionStart()

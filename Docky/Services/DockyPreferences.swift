@@ -2177,6 +2177,7 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
             }
 
             defaults.set(normalizedIdentifiers, forKey: Keys.hiddenAppBundleIdentifiers)
+            mirrorToActiveProfile { $0.hiddenAppBundleIdentifiers = normalizedIdentifiers }
         }
     }
 
@@ -2387,6 +2388,8 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         didSet {
             guard pinnedItems != oldValue else { return }
             persistPinnedItems(pinnedItems)
+            let snapshot = pinnedItems
+            mirrorToActiveProfile { $0.pinnedItems = snapshot }
 
             let appBundleIdentifiers = pinnedItems.compactMap { item in
                 item.kind == .app ? item.bundleIdentifier : nil
@@ -2402,6 +2405,8 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         didSet {
             guard widgetPlacements != oldValue else { return }
             persistWidgetPlacements(widgetPlacements)
+            let snapshot = widgetPlacements
+            mirrorToActiveProfile { $0.widgetPlacements = snapshot }
         }
     }
 
@@ -2410,6 +2415,8 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         didSet {
             guard appWidgetDisplays != oldValue else { return }
             persistAppWidgetDisplays(appWidgetDisplays)
+            let snapshot = appWidgetDisplays
+            mirrorToActiveProfile { $0.appWidgetDisplays = snapshot }
         }
     }
 
@@ -2418,6 +2425,8 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         didSet {
             guard trailingItems != oldValue else { return }
             persistTrailingItems(trailingItems)
+            let snapshot = trailingItems
+            mirrorToActiveProfile { $0.trailingItems = snapshot }
         }
     }
 
@@ -2433,6 +2442,33 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var isSyncingOpenAtLoginPreference = false
+
+    /// When `true`, tile-store didSet observers skip the push to
+    /// `ProfileService`. Used by `applyProfile(_:)` so loading a profile
+    /// doesn't immediately overwrite it with the values just loaded.
+    private var isApplyingProfile = false
+
+    /// Swap the active profile's tile-store fields into this preferences
+    /// object. Each assignment fires its didSet — those still persist to
+    /// the legacy top-level keys (which now act as a snapshot of the
+    /// active profile) but skip mirroring back to `ProfileService` while
+    /// `isApplyingProfile` is set.
+    func applyProfile(_ profile: DockProfile) {
+        isApplyingProfile = true
+        defer { isApplyingProfile = false }
+        pinnedItems = profile.pinnedItems
+        trailingItems = profile.trailingItems
+        widgetPlacements = profile.widgetPlacements
+        appWidgetDisplays = profile.appWidgetDisplays
+        hiddenAppBundleIdentifiers = profile.hiddenAppBundleIdentifiers
+    }
+
+    /// Mirror a tile-store edit to the active profile so it survives the
+    /// next profile switch. No-op while a profile is being applied.
+    fileprivate func mirrorToActiveProfile(_ mutate: @escaping (inout DockProfile) -> Void) {
+        guard !isApplyingProfile else { return }
+        ProfileService.shared.updateActiveProfile(mutate)
+    }
 
     // MARK: - Effective appearance values (theme override layer)
     //
