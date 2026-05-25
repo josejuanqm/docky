@@ -2301,6 +2301,59 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Icon edge length used by the Launchpad overlay at the 1440p
+    /// reference height. Doubles as the upper bound (smaller displays
+    /// scale down linearly from here; larger displays are clamped to
+    /// this value). Range comes from `DefaultValues.launchpadBaseIconSize`
+    /// bookends; the setter clamps so a corrupt stored value can't push
+    /// the icon outside that range.
+    var launchpadBaseIconSize: CGFloat {
+        didSet {
+            let clampedValue = min(
+                max(launchpadBaseIconSize, DefaultValues.launchpadBaseIconSizeMin),
+                DefaultValues.launchpadBaseIconSizeMax
+            )
+            guard clampedValue != oldValue else {
+                if launchpadBaseIconSize != clampedValue {
+                    launchpadBaseIconSize = clampedValue
+                }
+                return
+            }
+
+            if launchpadBaseIconSize != clampedValue {
+                launchpadBaseIconSize = clampedValue
+                return
+            }
+
+            defaults.set(Double(clampedValue), forKey: Keys.launchpadBaseIconSize)
+        }
+    }
+
+    /// Horizontal gap between Launchpad cells at the reference height.
+    /// Scaled down on smaller displays with the same screen-height
+    /// factor as the icon. Clamped to the bookends below.
+    var launchpadColumnSpacing: CGFloat {
+        didSet {
+            let clampedValue = min(
+                max(launchpadColumnSpacing, DefaultValues.launchpadSpacingMin),
+                DefaultValues.launchpadSpacingMax
+            )
+            guard clampedValue != oldValue else {
+                if launchpadColumnSpacing != clampedValue {
+                    launchpadColumnSpacing = clampedValue
+                }
+                return
+            }
+
+            if launchpadColumnSpacing != clampedValue {
+                launchpadColumnSpacing = clampedValue
+                return
+            }
+
+            defaults.set(Double(clampedValue), forKey: Keys.launchpadColumnSpacing)
+        }
+    }
+
     /// Scroll axis for the Launchpad overlay. `.horizontal` keeps the
     /// classic Apple paged layout; `.vertical` renders a single
     /// continuous grid (matches macOS Tahoe's Apps view). Row count is
@@ -3411,6 +3464,8 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         static let launchpadOverlayTransparency = "docky.launchpadOverlayTransparency"
         static let launchpadGridColumnCount = "docky.launchpadGridColumnCount"
         static let launchpadGridRowCount = "docky.launchpadGridRowCount"
+        static let launchpadBaseIconSize = "docky.launchpadBaseIconSize"
+        static let launchpadColumnSpacing = "docky.launchpadColumnSpacing"
         static let launchpadLayoutAxis = "docky.launchpadLayoutAxis"
         static let launchpadShortcut = "docky.launchpadShortcut"
         static let enablesWindowSwitcher = "docky.enablesWindowSwitcher"
@@ -3506,9 +3561,15 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         static let enablesLaunchpadOverlay = true
         static let enablesStartMenuOverlay = true
         static let opensStartMenuFromFinderTile = false
-        static let launchpadOverlayTransparency: CGFloat = 0.4
+        static let launchpadOverlayTransparency: CGFloat = 0.75
         static let launchpadGridColumnCount = 7
         static let launchpadGridRowCount = 5
+        static let launchpadBaseIconSize: CGFloat = 128
+        static let launchpadBaseIconSizeMin: CGFloat = 48
+        static let launchpadBaseIconSizeMax: CGFloat = 192
+        static let launchpadColumnSpacing: CGFloat = 96
+        static let launchpadSpacingMin: CGFloat = 0
+        static let launchpadSpacingMax: CGFloat = 96
         static let launchpadLayoutAxis: LaunchpadLayoutAxis = .defaultForCurrentOS
         static let launchpadShortcut = KeyboardShortcut.empty
         static let enablesWindowSwitcher = true
@@ -3626,6 +3687,8 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         let storedLaunchpadOverlayTransparency = defaults.object(forKey: Keys.launchpadOverlayTransparency) as? Double
         let storedLaunchpadGridColumnCount = defaults.object(forKey: Keys.launchpadGridColumnCount) as? Int
         let storedLaunchpadGridRowCount = defaults.object(forKey: Keys.launchpadGridRowCount) as? Int
+        let storedLaunchpadBaseIconSize = defaults.object(forKey: Keys.launchpadBaseIconSize) as? Double
+        let storedLaunchpadColumnSpacing = defaults.object(forKey: Keys.launchpadColumnSpacing) as? Double
         let storedLaunchpadLayoutAxis = defaults.string(forKey: Keys.launchpadLayoutAxis)
         let storedLaunchpadShortcut = defaults.data(forKey: Keys.launchpadShortcut)
         let storedEnablesWindowSwitcher = defaults.object(forKey: Keys.enablesWindowSwitcher) as? Bool
@@ -3751,6 +3814,20 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         ), 1)
         self.launchpadGridColumnCount = max(storedLaunchpadGridColumnCount ?? DefaultValues.launchpadGridColumnCount, 1)
         self.launchpadGridRowCount = max(storedLaunchpadGridRowCount ?? DefaultValues.launchpadGridRowCount, 1)
+        self.launchpadBaseIconSize = min(
+            max(
+                storedLaunchpadBaseIconSize.map { CGFloat($0) } ?? DefaultValues.launchpadBaseIconSize,
+                DefaultValues.launchpadBaseIconSizeMin
+            ),
+            DefaultValues.launchpadBaseIconSizeMax
+        )
+        self.launchpadColumnSpacing = min(
+            max(
+                storedLaunchpadColumnSpacing.map { CGFloat($0) } ?? DefaultValues.launchpadColumnSpacing,
+                DefaultValues.launchpadSpacingMin
+            ),
+            DefaultValues.launchpadSpacingMax
+        )
         self.launchpadLayoutAxis = storedLaunchpadLayoutAxis
             .flatMap(LaunchpadLayoutAxis.init(rawValue:))
             ?? DefaultValues.launchpadLayoutAxis

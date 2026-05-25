@@ -6,27 +6,35 @@
 import SwiftUI
 
 struct LaunchpadSettingsView: View {
+    /// Hides the "Availability" section (Pro upsell + global enable
+    /// toggle). The detached inspector that floats over the launchpad
+    /// sets this so users live-tuning the grid don't see a switch that
+    /// would hide the very surface they're standing on.
+    var hidesAvailabilitySection: Bool = false
+
     @Bindable private var preferences = DockyPreferences.shared
     @ObservedObject private var product = ProductService.shared
     @State private var isRecordingShortcut = false
 
     var body: some View {
         Form {
-            Section("Availability") {
-                if !product.isUnlocked(.launchpad) {
-                    ProFeatureNotice(feature: .launchpad)
-                }
+            if !hidesAvailabilitySection {
+                Section("Availability") {
+                    if !product.isUnlocked(.launchpad) {
+                        ProFeatureNotice(feature: .launchpad)
+                    }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Enable Launchpad", isOn: $preferences.enablesLaunchpadOverlay)
-                        .font(.headline)
-                        .disabled(!product.isUnlocked(.launchpad))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Enable Launchpad", isOn: $preferences.enablesLaunchpadOverlay)
+                            .font(.headline)
+                            .disabled(!product.isUnlocked(.launchpad))
 
-                    Text("Turn Docky's Launchpad overlay on or off without removing its shortcut or layout preferences.")
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        Text("Turn Docky's Launchpad overlay on or off without removing its shortcut or layout preferences.")
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
             }
 
             Section("Shortcut") {
@@ -112,6 +120,54 @@ struct LaunchpadSettingsView: View {
                     }
 
                     Text("Sets the Launchpad grid dimensions. Docky uses these counts when the icons fit on screen, defaulting to 7 columns × 5 rows. Row count is ignored when scroll direction is continuous.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Divider()
+
+                    HStack {
+                        Text("Icon Size")
+                            .font(.headline)
+
+                        Spacer()
+
+                        Text("\(Int(preferences.launchpadBaseIconSize)) pt")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    Slider(
+                        value: $preferences.launchpadBaseIconSize,
+                        in: 48...192,
+                        step: 1
+                    )
+                    .disabled(!product.isUnlocked(.launchpad) || !preferences.enablesLaunchpadOverlay)
+
+                    Text("Maximum icon edge on a 1440p screen. Smaller displays scale down from this value; larger ones are clamped to it. Default is 128 pt.")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Divider()
+
+                    HStack {
+                        Text("Column Spacing")
+                            .font(.headline)
+
+                        Spacer()
+
+                        Text("\(Int(preferences.launchpadColumnSpacing)) pt")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    Slider(
+                        value: $preferences.launchpadColumnSpacing,
+                        in: 0...96,
+                        step: 1
+                    )
+                    .disabled(!product.isUnlocked(.launchpad) || !preferences.enablesLaunchpadOverlay)
+
+                    Text("Horizontal gap between icons at the reference height. Lower values pack icons tighter, higher values spread them out.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

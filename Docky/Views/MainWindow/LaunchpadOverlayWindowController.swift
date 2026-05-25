@@ -252,6 +252,11 @@ private struct LaunchpadOverlayView: View {
     @State private var expandedFolderID: String?
     @State private var renamingFolderID: String?
     @State private var renamingFolderDraft: String = ""
+    /// Drives in-place rename of the expanded folder's title. Lifted to
+    /// the parent so `handleKeyDown` can route Enter to commit and Esc
+    /// to cancel before the launchpad-level monitor consumes them.
+    @State private var isRenamingExpandedFolder: Bool = false
+    @State private var expandedFolderRenameDraft: String = ""
     @State private var dragState: LaunchpadDragState?
     @State private var cellFrames: [String: CGRect] = [:]
     @FocusState private var isSearchFocused: Bool
@@ -259,13 +264,14 @@ private struct LaunchpadOverlayView: View {
 
     private static let launchpadGridCoordinateSpace = "launchpadGrid"
 
-    private let searchBarWidth: CGFloat = 350
+    private let searchBarWidth: CGFloat = 280
     private let searchBarTopInset: CGFloat = 56
-    private let searchBarHeight: CGFloat = 56
-    private let columnSpacing: CGFloat = 48
+    private let searchBarHeight: CGFloat = 64
     /// Minimum inter-row spacing. The actual spacing grows past this when
     /// the configured rows don't fill the available height, so the grid
-    /// stretches vertically to fit the chrome.
+    /// stretches vertically to fit the chrome. Kept hardcoded because
+    /// exposing it as a preference produced no perceivable change in the
+    /// common case (the stretch-to-fill almost always wins).
     private let minRowSpacing: CGFloat = 32
     private let horizontalInset: CGFloat = 80
     /// Padding between the grid edge and the surrounding chrome — applied
@@ -282,10 +288,6 @@ private struct LaunchpadOverlayView: View {
     /// and gaps at the configured `columnSpacing` / `rowSpacing` values.
     /// Taller or shorter screens scale linearly off this baseline.
     private let referenceScreenHeight: CGFloat = 1440
-    /// Icon edge length at the reference screen height. Doubles as the
-    /// hard upper bound — the screen-derived scale is clamped to 1.0 so
-    /// icons never grow past this size on very tall displays.
-    private let baseIconSize: CGFloat = 128
     /// Reference label height below the icon, scaled with the icon.
     private let baseLabelHeight: CGFloat = 22
 
@@ -304,10 +306,10 @@ private struct LaunchpadOverlayView: View {
             // 0.5 so very small displays don't shrink the cell math
             // beyond legibility.
             let scale = max(0.5, min(1.0, proxy.size.height / referenceScreenHeight))
-            let iconSize = baseIconSize * scale
+            let iconSize = preferences.launchpadBaseIconSize * scale
             let labelHeight = baseLabelHeight * scale
             let cellSpacing = iconSize * 0.04
-            let scaledColumnSpacing = columnSpacing * scale
+            let scaledColumnSpacing = preferences.launchpadColumnSpacing * scale
             let scaledMinRowSpacing = minRowSpacing * scale
             let scaledHorizontalInset = horizontalInset * scale
             // Square cells: the cell side equals the natural card height
@@ -408,9 +410,22 @@ private struct LaunchpadOverlayView: View {
                 }
 
                 VStack {
-                    searchField
-                        .frame(width: searchBarWidth)
-                        .padding(.top, searchBarTopInset)
+                    // ZStack so the surrounding band acts as a dismiss
+                    // target. The full-width clear layer sits behind the
+                    // capsule, so taps on the capsule (text field, clear,
+                    // gear) still route to their owners and only clicks
+                    // in the empty strip flow through to `overlay.dismiss`.
+                    // The capsule is bottom-anchored so it lands at the
+                    // same y-position the previous `.padding(.top:)` gave it.
+                    ZStack(alignment: .bottom) {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { overlay.dismiss() }
+                        searchField
+                            .frame(width: searchBarWidth, height: searchBarHeight)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: searchBarHeight + searchBarTopInset)
 
                     Spacer()
 
@@ -440,11 +455,16 @@ private struct LaunchpadOverlayView: View {
                         sourceIconSide: iconSize,
                         columnsPerPage: pageColumns,
                         rowsPerPage: pageRows,
+                        isRenaming: $isRenamingExpandedFolder,
+                        renameDraft: $expandedFolderRenameDraft,
                         onLaunch: { app in
                             launch(app)
                         },
                         onDismiss: {
                             dismissExpandedFolder()
+                        },
+                        onCommitRename: {
+                            commitExpandedFolderRename()
                         }
                     )
                     // Scale 1.3 → 1.0 with a fade gives the "falling on top"
@@ -477,7 +497,11 @@ private struct LaunchpadOverlayView: View {
             .ignoresSafeArea()
             .environment(\.colorScheme, preferredColorScheme)
             .onExitCommand {
-                if expandedFolder != nil {
+                if isRenamingExpandedFolder {
+                    cancelExpandedFolderRename()
+                } else if renamingFolderID != nil {
+                    dismissRename(save: false)
+                } else if expandedFolder != nil {
                     dismissExpandedFolder()
                 } else {
                     overlay.dismiss()
@@ -1109,9 +1133,31 @@ private struct LaunchpadOverlayView: View {
     }
 
     private func dismissExpandedFolder() {
+        // Drop rename state alongside the folder so the next expand
+        // starts in display mode with no stale draft.
+        isRenamingExpandedFolder = false
+        expandedFolderRenameDraft = ""
         withAnimation(.easeInOut(duration: 0.22)) {
             expandedFolderID = nil
         }
+    }
+
+    private func commitExpandedFolderRename() {
+        guard isRenamingExpandedFolder, let expandedFolderID else {
+            isRenamingExpandedFolder = false
+            return
+        }
+        let trimmed = expandedFolderRenameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            LaunchpadLayoutService.shared.renameFolder(id: expandedFolderID, to: trimmed)
+        }
+        isRenamingExpandedFolder = false
+        expandedFolderRenameDraft = ""
+    }
+
+    private func cancelExpandedFolderRename() {
+        isRenamingExpandedFolder = false
+        expandedFolderRenameDraft = ""
     }
 
     /// Derives the currently-expanded folder from the live entries so
@@ -1191,7 +1237,7 @@ private struct LaunchpadOverlayView: View {
 
             TextField("Search Applications", text: $searchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 20, weight: .medium))
+                .font(.headline.weight(.regular))
                 .foregroundStyle(.primary.opacity(0.95))
                 .focused($isSearchFocused)
 
@@ -1205,11 +1251,20 @@ private struct LaunchpadOverlayView: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            Button {
+                LaunchpadInspectorService.shared.toggle()
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help("Launchpad Settings")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .dockyGlass(in: Capsule())
-        .dockyGlassBorder(in: Capsule())
     }
 
     private func handleKeyDown(_ event: NSEvent, columnCount: Int, rowCount: Int) -> Bool {
@@ -1218,6 +1273,41 @@ private struct LaunchpadOverlayView: View {
         // guard, Enter while Docky is frontmost for any other reason (NSAlert,
         // settings, permissions, Cmd-Tab back) launches the first launchpad app.
         guard overlay.isPresented, event.type == .keyDown else { return false }
+
+        // Renaming the expanded folder's title intercepts a small set of
+        // keys (commit / cancel) and lets everything else fall through to
+        // the TextField's field editor.
+        if isRenamingExpandedFolder {
+            switch event.keyCode {
+            case 53:
+                cancelExpandedFolderRename()
+                return true
+            case 36, 76:
+                commitExpandedFolderRename()
+                return true
+            default:
+                return false
+            }
+        }
+
+        // Same deal for the right-click "Rename…" modal: while it's up,
+        // only Enter / Esc are ours (commit / cancel); arrows and
+        // editing keys belong to the field editor.
+        if renamingFolderID != nil {
+            switch event.keyCode {
+            case 53:
+                dismissRename(save: false)
+                return true
+            case 36, 76:
+                let trimmed = renamingFolderDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    dismissRename(save: true)
+                }
+                return true
+            default:
+                return false
+            }
+        }
 
         switch event.keyCode {
         case 53:
@@ -1530,10 +1620,20 @@ private struct ExpandedFolderOverlay: View {
     /// of the screen.
     let columnsPerPage: Int
     let rowsPerPage: Int
+    /// Inline title rename state, lifted to the parent so Enter / Esc
+    /// can be routed via the launchpad-wide key monitor before SwiftUI
+    /// sees them.
+    @Binding var isRenaming: Bool
+    @Binding var renameDraft: String
     let onLaunch: (AppTile) -> Void
     let onDismiss: () -> Void
+    /// Invoked when the user commits the rename (Enter or focus loss).
+    /// Parent applies the change to `LaunchpadLayoutService` and clears
+    /// `isRenaming`.
+    let onCommitRename: () -> Void
 
     @State private var visiblePageID: String?
+    @FocusState private var isRenameFieldFocused: Bool
 
     private let titleSpacing: CGFloat = 20
     private let indicatorAreaHeight: CGFloat = 32
@@ -1594,11 +1694,7 @@ private struct ExpandedFolderOverlay: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 VStack(spacing: titleSpacing) {
-                    Text(folder.displayName)
-                        .font(.largeTitle.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.center)
-                        .frame(width: cardWidth)
+                    titleView(width: cardWidth)
 
                     folderCard(
                         width: cardWidth,
@@ -1611,6 +1707,39 @@ private struct ExpandedFolderOverlay: View {
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
             }
+        }
+    }
+
+    /// Folder title that flips to an inline `TextField` on double-click.
+    /// Enter commits via `onCommitRename`; Esc cancels via the parent
+    /// view's key monitor (which flips `isRenaming` back off).
+    @ViewBuilder
+    private func titleView(width: CGFloat) -> some View {
+        if isRenaming {
+            TextField("Folder name", text: $renameDraft)
+                .font(.largeTitle.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .textFieldStyle(.plain)
+                .focused($isRenameFieldFocused)
+                .frame(width: width)
+                .onSubmit { onCommitRename() }
+                .onAppear {
+                    isRenameFieldFocused = true
+                }
+                .onChange(of: isRenaming) { _, nowRenaming in
+                    isRenameFieldFocused = nowRenaming
+                }
+        } else {
+            Text(folder.displayName)
+                .font(.largeTitle.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+                .frame(width: width)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    renameDraft = folder.displayName
+                    isRenaming = true
+                }
         }
     }
 

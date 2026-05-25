@@ -626,6 +626,70 @@ final class TileStore: ObservableObject {
         rebuildTiles()
     }
 
+    /// Moves `movingBundleIdentifier` to the slot currently occupied by
+    /// `targetBundleIdentifier` inside the app folder identified by
+    /// `tileID`. No-op when either id isn't in the folder, when both ids
+    /// are the same, or when the relative order is already correct.
+    func reorderAppsInFolder(
+        tileID: String,
+        movingBundleIdentifier: String,
+        toIndexOfTargetBundleIdentifier targetBundleIdentifier: String
+    ) {
+        guard movingBundleIdentifier != targetBundleIdentifier else { return }
+        guard let itemIndex = preferences.pinnedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == tileID }),
+              preferences.pinnedItems[itemIndex].kind == .appFolder else {
+            return
+        }
+
+        let existingItem = preferences.pinnedItems[itemIndex]
+        let ids = existingItem.folderBundleIdentifiers
+        guard ids.contains(movingBundleIdentifier),
+              let targetIndex = ids.firstIndex(of: targetBundleIdentifier) else {
+            return
+        }
+        reorderAppsInFolder(
+            tileID: tileID,
+            movingBundleIdentifier: movingBundleIdentifier,
+            toIndex: targetIndex
+        )
+    }
+
+    /// Moves `movingBundleIdentifier` to absolute position `targetIndex`
+    /// in the folder's current ordering. `targetIndex` is interpreted in
+    /// the post-removal coordinate space, matching the convention used
+    /// by the launchpad reorder gesture.
+    func reorderAppsInFolder(
+        tileID: String,
+        movingBundleIdentifier: String,
+        toIndex targetIndex: Int
+    ) {
+        guard let itemIndex = preferences.pinnedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == tileID }),
+              preferences.pinnedItems[itemIndex].kind == .appFolder else {
+            return
+        }
+
+        let existingItem = preferences.pinnedItems[itemIndex]
+        var ids = existingItem.folderBundleIdentifiers
+        guard let currentIndex = ids.firstIndex(of: movingBundleIdentifier) else { return }
+
+        ids.remove(at: currentIndex)
+        let clampedTarget = max(0, min(targetIndex, ids.count))
+        ids.insert(movingBundleIdentifier, at: clampedTarget)
+        guard ids != existingItem.folderBundleIdentifiers else { return }
+
+        var pinnedItems = preferences.pinnedItems
+        pinnedItems[itemIndex] = .appFolder(
+            id: existingItem.id,
+            displayName: existingItem.folderDisplayName ?? "Folder",
+            bundleIdentifiers: ids,
+            displayMode: existingItem.appFolderDisplayMode ?? .grid,
+            contentViewMode: existingItem.folderContentViewMode ?? .grid
+        )
+        preferences.pinnedItems = pinnedItems
+        refreshPinnedTilesFromPreferences()
+        rebuildTiles()
+    }
+
     func setAppFolderContentViewMode(tileID: String, mode: FolderTileContentViewMode) {
         guard let itemIndex = preferences.pinnedItems.firstIndex(where: { Self.pinnedTileID(for: $0) == tileID }),
               preferences.pinnedItems[itemIndex].kind == .appFolder else {

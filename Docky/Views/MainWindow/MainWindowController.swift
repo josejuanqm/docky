@@ -15,6 +15,7 @@ final class MainWindowController: NSWindowController {
     private var windowSwitcherOverlayWindowController: WindowSwitcherOverlayWindowController?
     private var startMenuOverlayWindowController: StartMenuOverlayWindowController?
     private var profileSwitcherWindowController: ProfileSwitcherWindowController?
+    private var launchpadInspectorWindowController: LaunchpadInspectorWindowController?
 
     override init(window: NSWindow?) {
         super.init(window: window)
@@ -30,6 +31,7 @@ final class MainWindowController: NSWindowController {
         windowSwitcherOverlayWindowController = WindowSwitcherOverlayWindowController(mainWindow: mainWindow)
         startMenuOverlayWindowController = StartMenuOverlayWindowController(mainWindow: mainWindow)
         profileSwitcherWindowController = ProfileSwitcherWindowController(mainWindow: mainWindow)
+        launchpadInspectorWindowController = LaunchpadInspectorWindowController()
         _ = StartMenuService.shared
     }
 

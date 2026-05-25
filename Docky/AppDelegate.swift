@@ -79,15 +79,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Handles two entry points:
     ///  - Double-clicking a `.dockytheme` bundle (or `.zip` of one) in
     ///    Finder → imports each via `ThemeManager` and opens Settings.
-    ///  - `docky://install-widget?url=<downloadURL>` deep links from
-    ///    the Widget Store website → downloads + installs the widget.
+    ///  - `docky://<host>/<path>` deep links from automation tools
+    ///    (BTT, Raycast, Shortcuts, Stream Deck, ...). See
+    ///    `handleDockyURL` for the routing table.
     func application(_ application: NSApplication, open urls: [URL]) {
         guard !urls.isEmpty else { return }
 
-        let widgetInstallURLs = urls.filter { $0.scheme == "docky" }
+        let dockyURLs = urls.filter { $0.scheme == "docky" }
         let themeURLs = urls.filter { $0.scheme != "docky" }
 
-        for url in widgetInstallURLs {
+        for url in dockyURLs {
             handleDockyURL(url)
         }
 
@@ -122,11 +123,121 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    /// Routes a `docky://` URL to the matching handler.
+    ///
+    /// Routing table:
+    ///  - `docky://install-widget?url=<https://...>` — Widget Store install.
+    ///  - `docky://launchpad[/show|/hide|/toggle]` — launchpad overlay.
+    ///  - `docky://start-menu[/show|/hide|/toggle]` — start menu overlay.
+    ///  - `docky://dock[/show|/hide|/toggle]` — flips `autohidesWindow`.
+    ///  - `docky://profile/next` or `/previous` — cycle the active profile.
+    ///  - `docky://profile/<id-or-name>` or `?id=…` / `?name=…` — set the
+    ///    active profile directly.
+    ///
+    /// Bare host with no path defaults to toggle for the overlay actions.
+    /// Unknown actions are ignored silently so external automations don't
+    /// surface user-visible errors when Docky doesn't recognize the URL.
+    private func handleDockyURL(_ url: URL) {
+        let action = (url.host ?? "").lowercased()
+        let path = url.path.lowercased()
+        let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+
+        switch action {
+        case "install-widget":
+            handleInstallWidgetURL(url)
+        case "launchpad":
+            applyOverlayAction(
+                path: path,
+                show: { LaunchpadOverlayService.shared.present() },
+                hide: { LaunchpadOverlayService.shared.dismiss() },
+                toggle: { LaunchpadOverlayService.shared.toggle() }
+            )
+        case "start-menu":
+            applyOverlayAction(
+                path: path,
+                show: { StartMenuService.shared.present() },
+                hide: { StartMenuService.shared.dismiss() },
+                toggle: { StartMenuService.shared.toggle() }
+            )
+        case "dock":
+            applyDockAction(path: path)
+        case "profile":
+            applyProfileAction(path: path, queryItems: queryItems)
+        default:
+            break
+        }
+    }
+
+    private func applyOverlayAction(
+        path: String,
+        show: () -> Void,
+        hide: () -> Void,
+        toggle: () -> Void
+    ) {
+        switch path {
+        case "/show", "/present":
+            show()
+        case "/hide", "/dismiss":
+            hide()
+        default:
+            toggle()
+        }
+    }
+
+    private func applyDockAction(path: String) {
+        let preferences = DockyPreferences.shared
+        switch path {
+        case "/show":
+            preferences.autohidesWindow = false
+        case "/hide":
+            preferences.autohidesWindow = true
+        default:
+            preferences.autohidesWindow.toggle()
+        }
+    }
+
+    private func applyProfileAction(path: String, queryItems: [URLQueryItem]) {
+        let service = ProfileService.shared
+        let profiles = service.profiles
+        guard !profiles.isEmpty else { return }
+
+        if let id = queryItems.first(where: { $0.name == "id" })?.value,
+           profiles.contains(where: { $0.id == id }) {
+            service.setActiveProfile(id: id)
+            return
+        }
+
+        if let name = queryItems.first(where: { $0.name == "name" })?.value,
+           let match = profiles.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            service.setActiveProfile(id: match.id)
+            return
+        }
+
+        let currentIndex = profiles.firstIndex(where: { $0.id == service.activeProfileID }) ?? 0
+        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        switch trimmedPath {
+        case "next":
+            let next = profiles[(currentIndex + 1) % profiles.count]
+            service.setActiveProfile(id: next.id)
+        case "previous", "prev":
+            let prev = profiles[(currentIndex - 1 + profiles.count) % profiles.count]
+            service.setActiveProfile(id: prev.id)
+        case "":
+            break
+        default:
+            if let exact = profiles.first(where: { $0.id == trimmedPath }) {
+                service.setActiveProfile(id: exact.id)
+            } else if let nameMatch = profiles.first(where: { $0.name.caseInsensitiveCompare(trimmedPath) == .orderedSame }) {
+                service.setActiveProfile(id: nameMatch.id)
+            }
+        }
+    }
+
     /// `docky://install-widget?url=<downloadURL>` from the marketplace
     /// website. Gated on Pro tier; surfaces an alert with the install
     /// outcome so the user knows whether to restart Docky.
-    private func handleDockyURL(_ url: URL) {
-        guard url.host == "install-widget" else { return }
+    private func handleInstallWidgetURL(_ url: URL) {
         guard
             let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
             let downloadString = components.queryItems?.first(where: { $0.name == "url" })?.value,

@@ -311,16 +311,43 @@ struct AppFolderTileView: View {
     }
 }
 
+/// In-flight reorder state for the launchpad-style folder rearrange.
+/// `targetIndex` is interpreted in the post-removal coordinate space so
+/// the reflow math matches what `TileStore.reorderAppsInFolder(...
+/// toIndex:)` will eventually apply.
+private struct AppFolderReorderDragState: Equatable {
+    let bundleIdentifier: String
+    let originIndex: Int
+    var targetIndex: Int
+    var location: CGPoint
+}
+
+/// Aggregates per-cell frames keyed by bundle identifier so the drag
+/// handler can convert the cursor location into an insertion index.
+private struct AppFolderCellFramePreference: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
 struct AppFolderPopoverView: View {
     let tile: AppFolderTile
     let tileID: String
     @Binding var isPresented: Bool
     let onPopoverSizeChange: (CGSize) -> Void
     @Bindable private var preferences = DockyPreferences.shared
-    @State private var hoveredBundleIdentifier: String?
     @State private var isEditingTitle = false
     @State private var editingTitle = ""
     @State private var isTitleHovered = false
+    /// Launchpad-style edit mode. Toggled by the header's Reorder/Done
+    /// button. When on, taps no longer launch apps and the in-popover
+    /// drag-and-drop reorder is enabled; drag-out to the dock is
+    /// suppressed so a slightly-too-long click can't accidentally pop an
+    /// app out of the folder.
+    @State private var isReorderMode = false
+    @State private var dragState: AppFolderReorderDragState?
+    @State private var cellFrames: [String: CGRect] = [:]
     @FocusState private var isTitleFieldFocused: Bool
 
     fileprivate static let columns = 3
@@ -330,13 +357,10 @@ struct AppFolderPopoverView: View {
     fileprivate static let contentPadding: CGFloat = 20
     fileprivate static let headerHeight: CGFloat = 42
     fileprivate static let maxHeight: CGFloat = 620
-    // At rest the ring is inset 8pt from the cell edge so it sits inside
-    // the visible icon squircle. On hover the inset goes negative, pushing
-    // the ring `hoverOverflow` past the cell on each side for a clear pop.
-    // The radius matches Docky's widget tile shape (`tileSize * 0.225`).
-    private let iconChromeInset: CGFloat = 8
-    private let hoverOverflow: CGFloat = 4
-    private var iconBorderRadius: CGFloat { Self.itemWidth * 0.225 }
+    /// Local coordinate space the grid uses to compute drag insertion
+    /// indices. The DragGesture reports cursor location in this space so
+    /// the math doesn't have to chase the popover's screen origin.
+    private static let gridCoordinateSpace = "appFolderGrid"
 
     init(
         tile: AppFolderTile,
@@ -360,64 +384,37 @@ struct AppFolderPopoverView: View {
                 titleView
 
                 Spacer(minLength: 0)
+
+                reorderToggle
             }
             .padding(.horizontal, Self.contentPadding)
             .padding(.top, 16)
             .frame(height: Self.headerHeight)
 
             ScrollView(showsIndicators: false) {
-                LazyVGrid(columns: gridColumns, spacing: Self.itemSpacing) {
-                    ForEach(tile.apps, id: \.bundleIdentifier) { app in
-                        let isHovered = hoveredBundleIdentifier == app.bundleIdentifier
-                        Button {
-                            WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
-                            isPresented = false
-                        } label: {
-                            Image(nsImage: icon(forBundleIdentifier: app.bundleIdentifier))
-                                .resizable()
-                                .interpolation(.high)
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: Self.itemWidth, height: Self.itemHeight)
-                                .padding(overrideIconPadding(for: app.bundleIdentifier, side: Self.itemWidth))
-                                .background {
-                                    // Border lives in an overlay whose inset
-                                    // tracks hover state — at rest the ring
-                                    // hugs the visible icon squircle, on hover
-                                    // it pushes `hoverOverflow` past the cell
-                                    // edge for a clear pop.
-                                    RoundedRectangle(cornerRadius: iconBorderRadius, style: .continuous)
-                                        .fill(Color.primary.opacity(0.35))
-                                        .padding(isHovered ? -hoverOverflow : iconChromeInset)
-                                }
-                                .animation(.easeInOut(duration: 0.15), value: isHovered)
-                        }
-                        .buttonStyle(.plain)
-                        .onHover { hovering in
-                            if hovering {
-                                hoveredBundleIdentifier = app.bundleIdentifier
-                            } else if hoveredBundleIdentifier == app.bundleIdentifier {
-                                hoveredBundleIdentifier = nil
-                            }
-                        }
-                        .onDrag {
-                            beginDragOutOfFolder(for: app)
-                        }
-                        .onDrop(
-                            of: [UTType.fileURL.identifier],
-                            isTargeted: dropTargetBinding(for: app),
-                            perform: { providers in
-                                openDroppedFiles(providers: providers, with: app)
-                                return true
-                            }
-                        )
-                        .background {
-                            ContextActionMenuPresenter { modifierFlags in
-                                appContextActions(for: app, modifierFlags: modifierFlags)
-                            }
+                ZStack(alignment: .topLeading) {
+                    LazyVGrid(columns: gridColumns, spacing: Self.itemSpacing) {
+                        ForEach(displayedApps, id: \.bundleIdentifier) { app in
+                            gridCell(for: app)
                         }
                     }
+                    .padding(Self.contentPadding)
+                    .coordinateSpace(name: Self.gridCoordinateSpace)
+                    .onPreferenceChange(AppFolderCellFramePreference.self) { frames in
+                        cellFrames = frames
+                    }
+
+                    // The dragged icon renders as a free-floating overlay
+                    // that follows the cursor. Its grid slot is hidden so
+                    // siblings can reflow into the freed space without a
+                    // ghost placeholder.
+                    if let dragState,
+                       let app = tile.apps.first(where: { $0.bundleIdentifier == dragState.bundleIdentifier }) {
+                        iconImage(for: app)
+                            .position(dragState.location)
+                            .allowsHitTesting(false)
+                    }
                 }
-                .padding(Self.contentPadding)
             }
         }
         .frame(width: popoverSize.width, height: popoverSize.height)
@@ -427,6 +424,168 @@ struct AppFolderPopoverView: View {
         .onChange(of: tile.apps.count) { _ in
             onPopoverSizeChange(popoverSize)
         }
+        .onChange(of: isPresented) { presented in
+            // Reset reorder mode when the popover closes so re-opening
+            // always starts in the standard launch-on-tap state.
+            if !presented, isReorderMode {
+                isReorderMode = false
+            }
+        }
+    }
+
+    /// Apps in the order they should be rendered right now. With no
+    /// active drag this is just `tile.apps`; mid-drag the dragged app
+    /// is removed from its origin and re-inserted at `dragState.targetIndex`
+    /// so siblings shift to make way.
+    private var displayedApps: [AppTile] {
+        guard let dragState else { return tile.apps }
+        var apps = tile.apps
+        guard let currentIndex = apps.firstIndex(where: { $0.bundleIdentifier == dragState.bundleIdentifier }) else {
+            return apps
+        }
+        let item = apps.remove(at: currentIndex)
+        let clamped = max(0, min(dragState.targetIndex, apps.count))
+        apps.insert(item, at: clamped)
+        return apps
+    }
+
+    @ViewBuilder
+    private func gridCell(for app: AppTile) -> some View {
+        let isBeingDragged = dragState?.bundleIdentifier == app.bundleIdentifier
+
+        Button {
+            guard !isReorderMode else { return }
+            WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
+            isPresented = false
+        } label: {
+            iconImage(for: app)
+                .opacity(isBeingDragged ? 0 : (isReorderMode ? 0.85 : 1))
+        }
+        .buttonStyle(.plain)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: AppFolderCellFramePreference.self,
+                    value: [app.bundleIdentifier: proxy.frame(in: .named(Self.gridCoordinateSpace))]
+                )
+            }
+        }
+        .modifier(AppFolderItemDragModifier(
+            app: app,
+            tileID: tileID,
+            isReorderMode: isReorderMode,
+            beginDragOutOfFolder: beginDragOutOfFolder,
+            openDroppedFiles: { providers, target in
+                openDroppedFiles(providers: providers, with: target)
+            }
+        ))
+        .modifier(AppFolderReorderGestureModifier(
+            isReorderMode: isReorderMode,
+            coordinateSpace: Self.gridCoordinateSpace,
+            onChange: { value in
+                handleReorderChange(bundleIdentifier: app.bundleIdentifier, value: value)
+            },
+            onEnd: { value in
+                handleReorderEnd(bundleIdentifier: app.bundleIdentifier, value: value)
+            }
+        ))
+        .background {
+            ContextActionMenuPresenter { modifierFlags in
+                appContextActions(for: app, modifierFlags: modifierFlags)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func iconImage(for app: AppTile) -> some View {
+        Image(nsImage: icon(forBundleIdentifier: app.bundleIdentifier))
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: Self.itemWidth, height: Self.itemHeight)
+            .padding(overrideIconPadding(for: app.bundleIdentifier, side: Self.itemWidth))
+    }
+
+    private func handleReorderChange(bundleIdentifier: String, value: DragGesture.Value) {
+        if dragState == nil {
+            guard let originIndex = tile.apps.firstIndex(where: { $0.bundleIdentifier == bundleIdentifier }) else { return }
+            dragState = AppFolderReorderDragState(
+                bundleIdentifier: bundleIdentifier,
+                originIndex: originIndex,
+                targetIndex: originIndex,
+                location: value.location
+            )
+        }
+        guard var state = dragState else { return }
+        state.location = value.location
+        state.targetIndex = resolveInsertionIndex(at: value.location, draggedBundleIdentifier: bundleIdentifier)
+        withAnimation(.spring(duration: 0.32, bounce: 0.18)) {
+            dragState = state
+        }
+    }
+
+    private func handleReorderEnd(bundleIdentifier: String, value: DragGesture.Value) {
+        defer {
+            withAnimation(.spring(duration: 0.28, bounce: 0.2)) {
+                dragState = nil
+            }
+        }
+        guard let state = dragState, state.bundleIdentifier == bundleIdentifier else { return }
+        guard state.targetIndex != state.originIndex else { return }
+        TileStore.shared.reorderAppsInFolder(
+            tileID: tileID,
+            movingBundleIdentifier: bundleIdentifier,
+            toIndex: state.targetIndex
+        )
+    }
+
+    /// Maps the cursor location to the post-removal insertion index.
+    /// Excludes the dragged cell so it can't flag itself as the target.
+    /// Falls back to "end of list" when no cell is found in range, which
+    /// covers drags that drift below the last row.
+    private func resolveInsertionIndex(at location: CGPoint, draggedBundleIdentifier: String) -> Int {
+        let apps = tile.apps
+        guard !apps.isEmpty else { return 0 }
+
+        var directHit: (index: Int, frame: CGRect)?
+        var nearestHit: (index: Int, frame: CGRect, distance: CGFloat)?
+
+        for (index, app) in apps.enumerated() {
+            guard app.bundleIdentifier != draggedBundleIdentifier,
+                  let frame = cellFrames[app.bundleIdentifier] else { continue }
+            if frame.contains(location) {
+                directHit = (index, frame)
+                break
+            }
+            let dx = location.x - frame.midX
+            let dy = location.y - frame.midY
+            let distance = sqrt(dx * dx + dy * dy)
+            if nearestHit == nil || distance < nearestHit!.distance {
+                nearestHit = (index, frame, distance)
+            }
+        }
+
+        let hit = directHit ?? nearestHit.map { (index: $0.index, frame: $0.frame) }
+        guard let hit else { return apps.count - 1 }
+
+        // Insert before the hit cell when the cursor is on its leading
+        // half, after when on the trailing half. Works row-by-row because
+        // each cell's frame already encodes its own row.
+        let insertion = location.x < hit.frame.midX ? hit.index : hit.index + 1
+        return max(0, min(insertion, apps.count - 1))
+    }
+
+    @ViewBuilder
+    private var reorderToggle: some View {
+        Button {
+            isReorderMode.toggle()
+        } label: {
+            Text(isReorderMode ? "Done" : "Reorder")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(isReorderMode ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help(isReorderMode ? "Stop rearranging icons" : "Drag icons to rearrange them")
     }
 
     @ViewBuilder
@@ -559,21 +718,6 @@ struct AppFolderPopoverView: View {
         return result
     }
 
-    /// Reuses the hover state for drop-target highlighting so the ring pops
-    /// out the same way it does on mouse hover when a drag is over the icon.
-    private func dropTargetBinding(for app: AppTile) -> Binding<Bool> {
-        Binding(
-            get: { hoveredBundleIdentifier == app.bundleIdentifier },
-            set: { newValue in
-                if newValue {
-                    hoveredBundleIdentifier = app.bundleIdentifier
-                } else if hoveredBundleIdentifier == app.bundleIdentifier {
-                    hoveredBundleIdentifier = nil
-                }
-            }
-        )
-    }
-
     private func openDroppedFiles(providers: [NSItemProvider], with app: AppTile) {
         // The "open file with app" drop fires for any file URL dropped on a
         // sibling icon — including ours. When the active drag started by
@@ -619,18 +763,20 @@ struct AppFolderPopoverView: View {
     /// and the source-folder fields tell the drop handler to remove the app
     /// from this folder before pinning it at the destination.
     ///
-    /// Closes the popover immediately so the user can see the dock and
-    /// pick a drop position. The AppKit drag session survives the popover
-    /// dismissal because the drag image is owned at the screen level.
+    /// The popover intentionally stays open through the drag so the user
+    /// can drop on a sibling icon to reorder. Drag-out flows still work
+    /// because the popover is anchored above its source tile and leaves
+    /// the rest of the dock visible; the AppKit drag image is owned at
+    /// the screen level so dropping on the desktop or another dock tile
+    /// is unaffected by the popover's visibility.
     private func beginDragOutOfFolder(for app: AppTile) -> NSItemProvider {
         let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleIdentifier)
         DockDragService.shared.sourceFolderTileID = tileID
         DockDragService.shared.sourceFolderBundleIdentifier = app.bundleIdentifier
         // Set kind synchronously so the dock's autohide gate ([[shouldRemainVisible]])
-        // engages before the popover closes. Otherwise the dock starts to
-        // fade while the cursor is still over where the popover was.
-        // draggingEntered will overwrite kind with the same value once the
-        // cursor reaches the dock window.
+        // engages before the popover would otherwise close. draggingEntered
+        // overwrites kind with the same value once the cursor reaches the
+        // dock window.
         if let url {
             DockDragService.shared.kind = .app(url, app)
         }
@@ -639,7 +785,6 @@ struct AppFolderPopoverView: View {
         // this is what eventually clears the kind+source-folder state and
         // lets the dock auto-hide again.
         DockDragService.shared.armMouseReleaseCleanup()
-        isPresented = false
 
         if let url {
             return NSItemProvider(object: url as NSURL)
@@ -1052,5 +1197,57 @@ struct AppFolderPopoverPresenter: NSViewRepresentable {
 final class AppFolderPopoverAnchorView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+}
+
+/// Carries the normal-mode drag/drop behavior on each app-folder grid
+/// item: drag begins the "remove from folder" flow that hands the app
+/// off to the dock, drop opens files with the app. In reorder mode the
+/// modifier becomes a no-op so the launchpad-style `DragGesture` owns
+/// the gesture path without competing handlers.
+private struct AppFolderItemDragModifier: ViewModifier {
+    let app: AppTile
+    let tileID: String
+    let isReorderMode: Bool
+    let beginDragOutOfFolder: (AppTile) -> NSItemProvider
+    let openDroppedFiles: ([NSItemProvider], AppTile) -> Void
+
+    func body(content: Content) -> some View {
+        if isReorderMode {
+            content
+        } else {
+            content
+                .onDrag { beginDragOutOfFolder(app) }
+                .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil) { providers in
+                    openDroppedFiles(providers, app)
+                    return true
+                }
+        }
+    }
+}
+
+/// Conditionally attaches the launchpad-style reorder `DragGesture`.
+/// `.highPriorityGesture` so a movement past `minimumDistance` consumes
+/// the event and the Button's tap action stays inert during reorder mode.
+private struct AppFolderReorderGestureModifier: ViewModifier {
+    let isReorderMode: Bool
+    let coordinateSpace: String
+    let onChange: (DragGesture.Value) -> Void
+    let onEnd: (DragGesture.Value) -> Void
+
+    func body(content: Content) -> some View {
+        if isReorderMode {
+            content
+                .highPriorityGesture(
+                    DragGesture(
+                        minimumDistance: 6,
+                        coordinateSpace: .named(coordinateSpace)
+                    )
+                    .onChanged { onChange($0) }
+                    .onEnded { onEnd($0) }
+                )
+        } else {
+            content
+        }
     }
 }

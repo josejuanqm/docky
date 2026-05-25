@@ -50,7 +50,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>Docky Widget Install</string>
+			<string>Docky</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>docky</string>
