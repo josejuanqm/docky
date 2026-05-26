@@ -2381,6 +2381,16 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Whether minimized windows appear alongside visible ones in the
+    /// switcher. When on, the switcher view dims them and labels them
+    /// "(minimized)" so the user can still tell them apart at a glance.
+    var includesMinimizedWindows: Bool {
+        didSet {
+            guard includesMinimizedWindows != oldValue else { return }
+            defaults.set(includesMinimizedWindows, forKey: Keys.includesMinimizedWindows)
+        }
+    }
+
     /// Global shortcut that opens Docky's window switcher.
     var windowSwitcherShortcut: KeyboardShortcut {
         didSet {
@@ -3469,6 +3479,7 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         static let launchpadLayoutAxis = "docky.launchpadLayoutAxis"
         static let launchpadShortcut = "docky.launchpadShortcut"
         static let enablesWindowSwitcher = "docky.enablesWindowSwitcher"
+        static let includesMinimizedWindows = "docky.includesMinimizedWindows"
         static let windowSwitcherShortcut = "docky.windowSwitcherShortcut"
         static let showsWindowSwitcherFocusPreview = "docky.showsWindowSwitcherFocusPreview"
         static let windowSwitcherPreviewMode = "docky.windowSwitcherPreviewMode"
@@ -3573,6 +3584,7 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         static let launchpadLayoutAxis: LaunchpadLayoutAxis = .defaultForCurrentOS
         static let launchpadShortcut = KeyboardShortcut.empty
         static let enablesWindowSwitcher = true
+        static let includesMinimizedWindows = true
         static let windowSwitcherShortcut = KeyboardShortcut(keyCode: 48, modifierFlags: [.option])
         static let showsWindowSwitcherFocusPreview = true
         static let windowSwitcherPreviewMode: WindowSwitcherPreviewMode = .inPlace
@@ -3692,6 +3704,7 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         let storedLaunchpadLayoutAxis = defaults.string(forKey: Keys.launchpadLayoutAxis)
         let storedLaunchpadShortcut = defaults.data(forKey: Keys.launchpadShortcut)
         let storedEnablesWindowSwitcher = defaults.object(forKey: Keys.enablesWindowSwitcher) as? Bool
+        let storedIncludesMinimizedWindows = defaults.object(forKey: Keys.includesMinimizedWindows) as? Bool
         let storedWindowSwitcherShortcut = defaults.data(forKey: Keys.windowSwitcherShortcut)
         let storedShowsWindowSwitcherFocusPreview = defaults.object(forKey: Keys.showsWindowSwitcherFocusPreview) as? Bool
         let storedWindowSwitcherPreviewMode = defaults.string(forKey: Keys.windowSwitcherPreviewMode)
@@ -3833,6 +3846,7 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
             ?? DefaultValues.launchpadLayoutAxis
         self.launchpadShortcut = Self.decodeKeyboardShortcut(from: storedLaunchpadShortcut) ?? DefaultValues.launchpadShortcut
         self.enablesWindowSwitcher = storedEnablesWindowSwitcher ?? DefaultValues.enablesWindowSwitcher
+        self.includesMinimizedWindows = storedIncludesMinimizedWindows ?? DefaultValues.includesMinimizedWindows
         self.windowSwitcherShortcut = Self.decodeKeyboardShortcut(from: storedWindowSwitcherShortcut) ?? DefaultValues.windowSwitcherShortcut
         self.showsWindowSwitcherFocusPreview = storedShowsWindowSwitcherFocusPreview ?? DefaultValues.showsWindowSwitcherFocusPreview
         self.windowSwitcherPreviewMode = storedWindowSwitcherPreviewMode.flatMap(WindowSwitcherPreviewMode.init(rawValue:)) ?? DefaultValues.windowSwitcherPreviewMode
@@ -4114,6 +4128,7 @@ enum LaunchpadLayoutAxis: String, CaseIterable, Codable, Identifiable {
         launchpadGridRowCount = DefaultValues.launchpadGridRowCount
         launchpadShortcut = DefaultValues.launchpadShortcut
         enablesWindowSwitcher = DefaultValues.enablesWindowSwitcher
+        includesMinimizedWindows = DefaultValues.includesMinimizedWindows
         windowSwitcherShortcut = DefaultValues.windowSwitcherShortcut
         showsWindowSwitcherFocusPreview = DefaultValues.showsWindowSwitcherFocusPreview
         windowSwitcherPreviewMode = DefaultValues.windowSwitcherPreviewMode

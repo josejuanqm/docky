@@ -517,7 +517,21 @@ private struct WindowPreviewCard: View {
             }
         }
         .frame(width: previewWidth, height: previewHeight)
+        // Desaturate stale minimized captures so they read as suspended,
+        // matching the switcher card treatment.
+        .saturation(window.isMinimized ? 0 : 1)
+        .opacity(window.isMinimized ? 0.7 : 1)
         .clipShape(RoundedRectangle(cornerRadius: innerPreviewCornerRadius / 4, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            if window.isMinimized {
+                Image(systemName: "minus.diamond.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .black.opacity(0.55))
+                    .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+                    .padding(6)
+            }
+        }
     }
 
     private func contextActions(modifierFlags: NSEvent.ModifierFlags) -> [ContextAction] {
@@ -657,7 +671,7 @@ private struct WindowPreviewListRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if window.isMinimized {
-                Image(systemName: "minus.rectangle.fill")
+                Image(systemName: "minus.diamond.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.55))
             }

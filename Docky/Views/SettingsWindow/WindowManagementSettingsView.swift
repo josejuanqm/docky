@@ -122,6 +122,7 @@ struct WindowManagementSettingsView: View {
                 }
                 .padding(.vertical, 4)
 
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Preview Mode")
                         .font(.headline)

@@ -702,7 +702,13 @@ final class WorkspaceService: ObservableObject {
             minimizedWindows = nextMinimized
         }
         refreshMinimizedWindowPreviews(for: nextMinimized)
-        refreshAppWindowPreviews(for: registry.visible)
+        // Source set deliberately includes minimized windows so a
+        // previously-captured preview survives the minimize event.
+        // `refreshAppWindowPreviews` skips capture-attempts for
+        // minimized windows but keeps any existing image around, so the
+        // switcher / hover popover can show a stale-but-useful thumbnail
+        // instead of nothing.
+        refreshAppWindowPreviews(for: registry.switchable(includeMinimized: true))
     }
 
     private func refreshMinimizedWindowPreviews(for windows: [AppWindow]) {
@@ -791,10 +797,14 @@ final class WorkspaceService: ObservableObject {
             didChange = true
         }
 
-        // Evict cached previews whose source window's title changed or whose
-        // age exceeded the TTL, the cached image is no longer representative.
+        // Evict cached previews whose source window's title changed or
+        // whose age exceeded the TTL — the cached image is no longer
+        // representative. Minimized windows are exempt: we can't
+        // refresh their capture anyway, and a stale thumbnail beats no
+        // thumbnail when showing them in the switcher/preview UI.
         let staleIdentifiers: [String] = appWindowPreviewMetadata.compactMap { id, metadata in
             guard let window = windowsByIdentifier[id] else { return nil }
+            if window.isMinimized { return nil }
             let titleChanged = metadata.capturedTitle != window.windowTitle
             let expired = now.timeIntervalSince(metadata.capturedAt) > appWindowPreviewTTL
             return (titleChanged || expired) ? id : nil
@@ -810,7 +820,11 @@ final class WorkspaceService: ObservableObject {
         var windowsToCapture: [AppWindow] = []
 
         for window in windows {
-            guard updatedPreviews[window.windowIdentifier] == nil,
+            // Don't attempt to capture minimized windows; ScreenCaptureKit
+            // can't render them. Any existing cached preview survives
+            // because the eviction loop above skips minimized entries.
+            guard !window.isMinimized,
+                  updatedPreviews[window.windowIdentifier] == nil,
                   !attemptedAppWindowPreviewIDs.contains(window.windowIdentifier) else {
                 continue
             }

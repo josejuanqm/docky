@@ -61,13 +61,19 @@ final class WindowPreviewService: ObservableObject {
         var seen = Set<String>()
         var aggregated: [AppWindow] = []
         let registry = WindowRegistry.shared
+        let includesMinimized = DockyPreferences.shared.includesMinimizedWindows
         for bundleID in bundleIDs where !bundleID.isEmpty {
             for window in WorkspaceService.shared.appWindows(bundleIdentifier: bundleID) {
-                // Hover popover keeps minimized windows (user expects
-                // them listed so they can restore), but still drops
-                // anything the switcher / preview pipeline can't
-                // represent — no CGWindowID, no CG bounds, < 100x100.
-                guard registry.isCapturable(window) else { continue }
+                // Minimized windows skip the strict capture check —
+                // CGWindowServer often hides their bounds and we don't
+                // need a live preview for them anyway. They're still
+                // gated on the user preference and a valid cgWindowID
+                // so AX entries for long-gone windows don't slip in.
+                if window.isMinimized {
+                    guard includesMinimized, window.cgWindowID != nil else { continue }
+                } else {
+                    guard registry.isCapturable(window) else { continue }
+                }
                 guard seen.insert(window.windowIdentifier).inserted else { continue }
                 aggregated.append(window)
             }

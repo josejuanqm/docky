@@ -140,6 +140,21 @@ final class WindowRegistry: ObservableObject {
         }
     }
 
+    /// Same as `visible` but optionally folds minimized windows back in
+    /// so the switcher / hover preview can present them under a
+    /// "(minimized)" badge. Minimized windows skip the strict
+    /// `isCapturable` test (CGWindowServer often omits bounds for them,
+    /// which would otherwise filter them out) and are kept whenever
+    /// they have a `cgWindowID` to identify them.
+    func switchable(includeMinimized: Bool) -> [AppWindow] {
+        windows.filter { window in
+            if window.isMinimized {
+                return includeMinimized && window.cgWindowID != nil
+            }
+            return isCapturable(window)
+        }
+    }
+
     /// True when a window has a working CGWindowID, the WindowServer
     /// still reports bounds for it, and those bounds are large enough
     /// to be a real content window (>= 100x100). Filters out auxiliary

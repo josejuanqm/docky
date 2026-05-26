@@ -109,7 +109,9 @@ final class WindowSwitcherService: ObservableObject {
             return
         }
 
-        let latestWindows = WindowRegistry.shared.visible
+        let latestWindows = WindowRegistry.shared.switchable(
+            includeMinimized: DockyPreferences.shared.includesMinimizedWindows
+        )
 
         windows = latestWindows
         freezeWindowPreviews(for: latestWindows)
@@ -153,9 +155,18 @@ final class WindowSwitcherService: ObservableObject {
         cancelFocusedPreview()
         isPresented = false
         isContextMenuPresented = false
-        windows = []
-        windowPreviews = [:]
         selectedWindowIdentifier = nil
+        // Defer the windows/previews wipe past the overlay's fade-out
+        // (0.18s in WindowSwitcherOverlayWindowController) so the chrome
+        // keeps rendering its last frame and doesn't flash to the
+        // "No windows available" card mid-dismiss. The next show pass
+        // overwrites both arrays anyway, so this only matters as a
+        // visual cushion.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self, !self.isPresented else { return }
+            self.windows = []
+            self.windowPreviews = [:]
+        }
     }
 
     func moveSelection(delta: Int) {

@@ -437,6 +437,12 @@ private struct WindowSwitcherListRow: View {
         )
     }
 
+    private var displayTitle: String {
+        window.isMinimized
+            ? "\(window.windowTitle) \(String(localized: "(minimized)"))"
+            : window.windowTitle
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Image(nsImage: IconCacheService.shared.icon(forBundleIdentifier: window.bundleIdentifier))
@@ -445,7 +451,7 @@ private struct WindowSwitcherListRow: View {
                 .frame(width: iconSize, height: iconSize)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(window.windowTitle)
+                Text(displayTitle)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary.opacity(isSelected ? 1 : 0.85))
                     .lineLimit(1)
@@ -460,7 +466,7 @@ private struct WindowSwitcherListRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if window.isMinimized {
-                Image(systemName: "minus.rectangle.fill")
+                Image(systemName: "minus.diamond.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.55))
             }
@@ -582,12 +588,18 @@ private struct WindowSwitcherCard: View {
         )
     }
 
+    private var displayTitle: String {
+        window.isMinimized
+            ? "\(window.windowTitle) \(String(localized: "(minimized)"))"
+            : window.windowTitle
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             previewSurface
 
             VStack(spacing: 4) {
-                Text(window.windowTitle)
+                Text(displayTitle)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.96))
                     .lineLimit(1)
@@ -641,7 +653,26 @@ private struct WindowSwitcherCard: View {
             }
         }
         .frame(width: previewWidth, height: previewHeight)
+        // Desaturate the thumbnail for minimized windows so a stale
+        // capture reads as "suspended" at a glance, paired with the
+        // diamond badge in the bottom-right corner.
+        .saturation(window.isMinimized ? 0 : 1)
+        .opacity(window.isMinimized ? 0.7 : 1)
         .clipShape(RoundedRectangle(cornerRadius: innerPreviewCornerRadius/4, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            if window.isMinimized {
+                minimizedBadge
+            }
+        }
+    }
+
+    private var minimizedBadge: some View {
+        Image(systemName: "minus.diamond.fill")
+            .font(.system(size: 14, weight: .semibold))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, .black.opacity(0.55))
+            .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+            .padding(6)
     }
 
     private func contextActions(modifierFlags: NSEvent.ModifierFlags) -> [ContextAction] {
