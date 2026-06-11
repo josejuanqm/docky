@@ -57,6 +57,20 @@ final class WorkspaceService: ObservableObject {
     private var attemptedAppWindowPreviewIDs: Set<String> = []
     private var liveFocusPreviewSession: LiveWindowPreviewSession?
 
+    /// A minimized-window capture can miss on its first try — the genie
+    /// animation leaves the offscreen content briefly unavailable, or the
+    /// SCWindow match hasn't settled. Rather than mark the window done
+    /// after one miss (which left it permanently thumbnail-less), retry a
+    /// few times with a short delay before giving up.
+    private let maxMinimizedPreviewAttempts = 3
+    private let minimizedPreviewRetryDelay: Duration = .milliseconds(400)
+
+    /// Delay between focusing a window and grabbing a fresh thumbnail of
+    /// it. Long enough for the window to finish coming forward and render
+    /// its current content, short enough to land before the user flips
+    /// back to the switcher.
+    private let postFocusPreviewCaptureDelay: Duration = .milliseconds(250)
+
     /// Backstop refresh interval for app-window thumbnails. Title-change
     /// invalidation handles the common case (browsers, IDEs); this catches
     /// content-only changes (editor scroll, in-page navigation) where the
@@ -264,7 +278,47 @@ final class WorkspaceService: ObservableObject {
 
     @discardableResult
     func focus(window: AppWindow) -> Bool {
-        WindowRegistry.shared.focus(window)
+        let didFocus = WindowRegistry.shared.focus(window)
+        if didFocus {
+            refreshPreviewAfterFocus(for: window)
+        }
+        return didFocus
+    }
+
+    /// Grabs a fresh thumbnail right after a window is focused so the
+    /// switcher and hover popover show current content the next time they
+    /// open, instead of a stale cached frame. The window is on screen and
+    /// frontmost at this point, so this is the best chance for an accurate
+    /// capture. Overwrites any cached preview unconditionally. Gated on the
+    /// same Pro entitlement as the periodic producer so free users never
+    /// enter the capture path.
+    private func refreshPreviewAfterFocus(for window: AppWindow) {
+        guard ProductService.shared.isUnlocked(.windowSwitcher),
+              PermissionsService.shared.screenCapture == .granted else {
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: self.postFocusPreviewCaptureDelay)
+            guard let preview = await self.captureAppWindowPreview(for: window) else { return }
+
+            var updatedPreviews = self.appWindowPreviews
+            updatedPreviews[window.windowIdentifier] = preview
+            self.appWindowPreviews = updatedPreviews
+            self.appWindowPreviewMetadata[window.windowIdentifier] = PreviewMetadata(
+                capturedAt: Date(),
+                capturedTitle: window.windowTitle
+            )
+
+            // The window is no longer minimized; drop any stale minimized
+            // thumbnail so it doesn't linger once the window is back up.
+            if self.minimizedWindowPreviews[window.windowIdentifier] != nil {
+                var minimized = self.minimizedWindowPreviews
+                minimized.removeValue(forKey: window.windowIdentifier)
+                self.minimizedWindowPreviews = minimized
+            }
+        }
     }
 
     func focusApplication(bundleIdentifier: String) {
@@ -738,7 +792,7 @@ final class WorkspaceService: ObservableObject {
             }
 
             attemptedMinimizedWindowPreviewIDs.insert(window.windowIdentifier)
-            captureMinimizedWindowPreviewIfNeeded(for: window)
+            captureMinimizedWindowPreviewIfNeeded(for: window, attempt: 1)
         }
 
         if didChange {
@@ -746,21 +800,37 @@ final class WorkspaceService: ObservableObject {
         }
     }
 
-    private func captureMinimizedWindowPreviewIfNeeded(for window: AppWindow) {
+    private func captureMinimizedWindowPreviewIfNeeded(for window: AppWindow, attempt: Int) {
         Task { [weak self] in
-            guard let self,
-                  let preview = await self.captureMinimizedWindowPreview(for: window) else {
+            guard let self else { return }
+            let preview = await self.captureMinimizedWindowPreview(for: window)
+
+            // Bail if the window came back on screen while we were
+            // capturing; `refreshMinimizedWindowPreviews` has already
+            // pruned its id, so a new chain can start cleanly next time.
+            guard self.minimizedWindows.contains(where: { $0.windowIdentifier == window.windowIdentifier }) else {
                 return
             }
 
+            if let preview {
+                guard self.minimizedWindowPreviews[window.windowIdentifier] == nil else { return }
+                var updatedPreviews = self.minimizedWindowPreviews
+                updatedPreviews[window.windowIdentifier] = preview
+                self.minimizedWindowPreviews = updatedPreviews
+                return
+            }
+
+            // Capture missed (commonly a genie-animation race where the
+            // offscreen content isn't ready yet). Retry a bounded number
+            // of times before giving up instead of leaving the window
+            // permanently thumbnail-less after a single miss.
+            guard attempt < self.maxMinimizedPreviewAttempts else { return }
+            try? await Task.sleep(for: self.minimizedPreviewRetryDelay)
             guard self.minimizedWindows.contains(where: { $0.windowIdentifier == window.windowIdentifier }),
                   self.minimizedWindowPreviews[window.windowIdentifier] == nil else {
                 return
             }
-
-            var updatedPreviews = self.minimizedWindowPreviews
-            updatedPreviews[window.windowIdentifier] = preview
-            self.minimizedWindowPreviews = updatedPreviews
+            self.captureMinimizedWindowPreviewIfNeeded(for: window, attempt: attempt + 1)
         }
     }
 
@@ -881,11 +951,11 @@ final class WorkspaceService: ObservableObject {
             return nil
         }
 
-        if let windowNumber = window.windowNumber,
+        if let cgWindowID = window.cgWindowID,
            let cgImage = CGWindowListCreateImagePrivate(
                .null,
                [.optionIncludingWindow],
-               CGWindowID(windowNumber),
+               cgWindowID,
                [.boundsIgnoreFraming, .bestResolution]
            ),
            isCaptureShapeReasonable(cgImage, expectedFrame: window.frame) {
@@ -1025,8 +1095,14 @@ final class WorkspaceService: ObservableObject {
     }
 
     private func matchingShareableWindow(for window: AppWindow, in windows: [SCWindow]) -> SCWindow? {
-        if let windowNumber = window.windowNumber,
-           let exactMatch = windows.first(where: { Int($0.windowID) == windowNumber }) {
+        // Exact identity match on the CGWindowID. `SCWindow.windowID` is a
+        // CGWindowID, as is `cgWindowID` (resolved via `_AXUIElementGetWindow`).
+        // The old code compared `windowNumber` here — that's the `AXWindowNumber`
+        // attribute, a *different* value — so the exact match silently failed and
+        // two same-titled windows (e.g. two Helium windows) fell through to the
+        // title+index fallback and got swapped.
+        if let cgWindowID = window.cgWindowID,
+           let exactMatch = windows.first(where: { $0.windowID == cgWindowID }) {
             return exactMatch
         }
 

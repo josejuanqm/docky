@@ -490,7 +490,7 @@ final class WindowSwitcherService: ObservableObject {
             return
         }
 
-        _ = WindowRegistry.shared.focus(window)
+        _ = WorkspaceService.shared.focus(window: window)
     }
 
     private func scheduleFocusedPreview(forWindowIdentifier identifier: String) {
