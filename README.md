@@ -90,6 +90,16 @@ Optionally show running apps inline so a folder doubles as a live workspace.
 Get the latest notarized build from [getdocky.com](https://getdocky.com), or grab
 a release from the [Releases page](https://github.com/josejuanqm/docky/releases).
 
+### Homebrew
+
+```sh
+brew install --cask josejuanqm/tap/docky
+```
+
+Updates are delivered in-app via Sparkle. No tap trust step is needed for a normal
+install. If you run Homebrew with `HOMEBREW_REQUIRE_TAP_TRUST=1`, trust the cask
+first with `brew trust --cask josejuanqm/tap/docky`.
+
 Docky needs **Accessibility** and **Screen Recording** permissions to manage
 windows and render previews. It prompts for these on first launch.
 
