@@ -1479,6 +1479,14 @@ struct TileView: View {
         case .folder(let folder):
             isTooltipPresented = false
 
+            if folderContentViewMode == .finder {
+                isFolderPopoverPresented = false
+                Task {
+                    _ = await AppleScriptService.shared.openFinderWindow(for: folder.url)
+                }
+                return
+            }
+
             if folderContentViewMode == .list {
                 isFolderPopoverPresented = false
                 guard !isFolderListMenuPresented else { return }
@@ -1542,6 +1550,13 @@ struct TileView: View {
                 }
             )
         }
+
+        children.append(.divider)
+        children.append(
+            .action(String(localized: "Finder Window"), isOn: folderContentViewMode == .finder) {
+                TileStore.shared.setFolderContentViewMode(tileID: tile.id, folderURL: folder.url, mode: .finder)
+            }
+        )
 
         return children
     }
