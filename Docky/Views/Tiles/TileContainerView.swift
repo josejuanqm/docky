@@ -1752,14 +1752,25 @@ struct TileContainerView: View {
     }
 
     private func isPointInPinnedDropRegion(_ positionValue: CGFloat) -> Bool {
-        guard let finderFrame = tileFrames["pinned:com.apple.finder"],
-              let trailingBoundaryFrame = tileFrames[pinnedTrailingBoundaryTileID] else {
+        guard let trailingBoundaryFrame = tileFrames[pinnedTrailingBoundaryTileID],
+              let lowerBound = pinnedDropRegionLowerBound else {
             return false
         }
 
-        let lowerBound = projected(point: finderFrame.origin) + projected(size: finderFrame.size)
         let upperBound = projected(point: trailingBoundaryFrame.origin)
         return positionValue >= lowerBound && positionValue <= upperBound
+    }
+
+    /// Leading edge of the pinned drop region. Normally this is the trailing
+    /// edge of the fixed Finder fixture, so drops never land before it. Shelve
+    /// mode can hide the Finder tile, in which case there's nothing to anchor
+    /// against, so fall back to the dock's leading content edge. Without this
+    /// fallback the whole pinned section becomes undroppable (issue #13).
+    private var pinnedDropRegionLowerBound: CGFloat? {
+        if let finderFrame = tileFrames["pinned:com.apple.finder"] {
+            return projected(point: finderFrame.origin) + projected(size: finderFrame.size)
+        }
+        return tileFrames.values.map { projected(point: $0.origin) }.min()
     }
 
     private var pinnedTrailingBoundaryTileID: String {
@@ -1767,10 +1778,21 @@ struct TileContainerView: View {
     }
 
     private func isPointInTrailingDropRegion(_ positionValue: CGFloat) -> Bool {
-        guard let dividerFrame = tileFrames["divider:trailing"],
-              let lastTrailingTileID = previewTrailingTiles.last?.id,
-              let trailingBoundaryFrame = tileFrames[lastTrailingTileID] else {
+        guard let dividerFrame = tileFrames["divider:trailing"] else {
             return false
+        }
+
+        // With trailing tiles present the region spans from the divider's
+        // trailing edge to the last tile's trailing edge. Shelve mode can hide
+        // Trash and leave the trailing section empty, so there's no tile past
+        // the divider to anchor against, and the dock shrinks to content,
+        // leaving no empty space either. Treat the divider tile itself as the
+        // drop target so widgets can still be dropped there (issue #13).
+        guard let lastTrailingTileID = previewTrailingTiles.last?.id,
+              let trailingBoundaryFrame = tileFrames[lastTrailingTileID] else {
+            let lowerBound = projected(point: dividerFrame.origin)
+            let upperBound = projected(point: dividerFrame.origin) + projected(size: dividerFrame.size)
+            return positionValue >= lowerBound && positionValue <= upperBound
         }
 
         let lowerBound = projected(point: dividerFrame.origin) + projected(size: dividerFrame.size)
