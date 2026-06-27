@@ -499,6 +499,14 @@ struct TileView: View {
         case .app(let app):
             return dockBadges.badge(forBundleIdentifier: app.bundleIdentifier)
         case .appFolder(let folder):
+            // In per-app mode the badges are painted on the individual
+            // preview icons instead of rolled up here — but the grid
+            // preview is the only layout that can show them. Stack mode
+            // can't badge buried icons, so it falls back to the combined
+            // total like `.combined` does.
+            if preferences.folderBadgeMode == .perApp, appFolderDisplayMode == .grid {
+                return nil
+            }
             let total = folder.apps.reduce(0) { sum, app in
                 sum + (dockBadges.badge(forBundleIdentifier: app.bundleIdentifier).flatMap(Int.init) ?? 0)
             }

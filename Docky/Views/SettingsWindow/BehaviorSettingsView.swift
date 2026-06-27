@@ -315,6 +315,52 @@ struct BehaviorSettingsView: View {
             .padding(.vertical, 4)
 
             VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Folder Badges")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Picker("Folder Badges", selection: $preferences.folderBadgeMode) {
+                        ForEach(FolderBadgeMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+
+                Text("How an app folder shows its apps' badges: one combined total on the folder tile, or a badge on each app inside it.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+            .disabled(!preferences.showsAppBadges)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Per-App Badge Style")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Picker("Per-App Badge Style", selection: $preferences.folderBadgePreviewStyle) {
+                        ForEach(FolderBadgePreviewStyle.allCases) { style in
+                            Text(style.title).tag(style)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+
+                Text("On the folder tile preview, show a plain dot or the full count on each badged app. The opened folder always shows the count.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+            .disabled(!preferences.showsAppBadges || preferences.folderBadgeMode != .perApp)
+
+            VStack(alignment: .leading, spacing: 8) {
                 Toggle("Disable Recent Apps", isOn: $preferences.hidesRecentApps)
                     .font(.headline)
 

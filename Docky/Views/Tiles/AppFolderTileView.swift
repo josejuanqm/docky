@@ -17,6 +17,7 @@ struct AppFolderTileView: View {
     @Bindable private var preferences = DockyPreferences.shared
     @ObservedObject private var store = TileStore.shared
     @ObservedObject private var workspace = WorkspaceService.shared
+    @ObservedObject private var dockBadges = DockBadgeService.shared
 
     init(
         tile: AppFolderTile,
@@ -30,6 +31,7 @@ struct AppFolderTileView: View {
         self._preferences = Bindable(wrappedValue: DockyPreferences.shared)
         self._store = ObservedObject(wrappedValue: TileStore.shared)
         self._workspace = ObservedObject(wrappedValue: WorkspaceService.shared)
+        self._dockBadges = ObservedObject(wrappedValue: DockBadgeService.shared)
     }
 
     var openedAppCount: Int {
@@ -270,12 +272,36 @@ struct AppFolderTileView: View {
 
     @ViewBuilder
     private func gridIcon(forBundleIdentifier bundleIdentifier: String, side: CGFloat) -> some View {
-        if shouldApplyCircleClip(to: bundleIdentifier) {
-            baseGridIcon(forBundleIdentifier: bundleIdentifier, side: side)
-                .dockyGlass(in: Circle())
-                .clipShape(Circle())
-        } else {
-            baseGridIcon(forBundleIdentifier: bundleIdentifier, side: side)
+        Group {
+            if shouldApplyCircleClip(to: bundleIdentifier) {
+                baseGridIcon(forBundleIdentifier: bundleIdentifier, side: side)
+                    .dockyGlass(in: Circle())
+                    .clipShape(Circle())
+            } else {
+                baseGridIcon(forBundleIdentifier: bundleIdentifier, side: side)
+            }
+        }
+        // Painted after the clip so the badge can sit outside a circular
+        // icon's edge without being cut off.
+        .overlay(alignment: .topTrailing) {
+            previewBadge(forBundleIdentifier: bundleIdentifier)
+        }
+    }
+
+    /// Per-app notification badge for the dock-tile grid preview. Only shown
+    /// when badges are on and the folder is in per-app mode; the dot/number
+    /// form follows `folderBadgePreviewStyle`.
+    @ViewBuilder
+    private func previewBadge(forBundleIdentifier bundleIdentifier: String) -> some View {
+        if preferences.showsAppBadges,
+           preferences.folderBadgeMode == .perApp,
+           let badge = dockBadges.badge(forBundleIdentifier: bundleIdentifier) {
+            switch preferences.folderBadgePreviewStyle {
+            case .dot:
+                DockBadgeDotView(scale: 1.35, verticalOffsetFactor: -0.20)
+            case .number:
+                DockBadgeView(text: badge, scale: 1.35, verticalOffsetFactor: -0.20)
+            }
         }
     }
 
@@ -334,6 +360,7 @@ struct AppFolderPopoverView: View {
     @Binding var isPresented: Bool
     let onPopoverSizeChange: (CGSize) -> Void
     @Bindable private var preferences = DockyPreferences.shared
+    @ObservedObject private var dockBadges = DockBadgeService.shared
     @State private var isEditingTitle = false
     @State private var editingTitle = ""
     @State private var isTitleHovered = false
@@ -501,6 +528,15 @@ struct AppFolderPopoverView: View {
             .aspectRatio(contentMode: .fit)
             .frame(width: Self.itemWidth, height: Self.itemHeight)
             .padding(overrideIconPadding(for: app.bundleIdentifier, side: Self.itemWidth))
+            // The opened folder always shows the real per-app count,
+            // regardless of the tile's combined/per-app preference — these
+            // icons are full size, so the number is always legible.
+            .overlay(alignment: .topTrailing) {
+                if preferences.showsAppBadges,
+                   let badge = dockBadges.badge(forBundleIdentifier: app.bundleIdentifier) {
+                    DockBadgeView(text: badge)
+                }
+            }
     }
 
     private func handleReorderChange(bundleIdentifier: String, value: DragGesture.Value) {
@@ -868,8 +904,16 @@ struct AppFolderListMenuPresenter: NSViewRepresentable {
         private func buildMenu() -> NSMenu {
             let menu = NSMenu(title: tile.displayName)
 
+            let showsBadges = DockyPreferences.shared.showsAppBadges
             for app in tile.apps {
-                let item = NSMenuItem(title: app.displayName, action: #selector(openApp(_:)), keyEquivalent: "")
+                var title = app.displayName
+                // Surface each app's unread count inline, e.g. "Mail (5)".
+                // Plain text keeps the native menu look (no red pill).
+                if showsBadges,
+                   let badge = DockBadgeService.shared.badge(forBundleIdentifier: app.bundleIdentifier) {
+                    title += " (\(badge))"
+                }
+                let item = NSMenuItem(title: title, action: #selector(openApp(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = app.bundleIdentifier
                 item.image = listMenuIcon(for: app.bundleIdentifier)

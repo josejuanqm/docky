@@ -773,6 +773,40 @@ enum AppFolderTileDisplayMode: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+/// How an app folder surfaces its contained apps' notification badges on the
+/// dock tile: a single rolled-up total, or a badge on each individual app
+/// icon. See `DockyPreferences.folderBadgeMode`.
+enum FolderBadgeMode: String, CaseIterable, Codable, Identifiable {
+    case combined
+    case perApp
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .combined: String(localized: "Combined total")
+        case .perApp: String(localized: "On each app")
+        }
+    }
+}
+
+/// When per-app folder badges are shown on the dock-tile preview, whether each
+/// badged app icon gets a plain dot or the full numeric count. Only affects the
+/// tile preview; the expanded popover always shows the numeric count.
+enum FolderBadgePreviewStyle: String, CaseIterable, Codable, Identifiable {
+    case dot
+    case number
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dot: String(localized: "Dot")
+        case .number: String(localized: "Number")
+        }
+    }
+}
+
 enum FolderTileContentViewMode: String, CaseIterable, Codable, Identifiable {
     case grid
     case list
@@ -1673,6 +1707,26 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         didSet {
             guard showsAppBadges != oldValue else { return }
             defaults.set(showsAppBadges, forKey: Keys.showsAppBadges)
+        }
+    }
+
+    /// Whether app folders roll their contained apps' badges into a single
+    /// total on the group tile, or paint a badge on each app icon. Only
+    /// meaningful when `showsAppBadges` is on.
+    var folderBadgeMode: FolderBadgeMode {
+        didSet {
+            guard folderBadgeMode != oldValue else { return }
+            defaults.set(folderBadgeMode.rawValue, forKey: Keys.folderBadgeMode)
+        }
+    }
+
+    /// With per-app folder badges, whether the dock-tile preview shows a plain
+    /// dot or the numeric count on each badged app. Only meaningful when
+    /// `folderBadgeMode` is `.perApp`.
+    var folderBadgePreviewStyle: FolderBadgePreviewStyle {
+        didSet {
+            guard folderBadgePreviewStyle != oldValue else { return }
+            defaults.set(folderBadgePreviewStyle.rawValue, forKey: Keys.folderBadgePreviewStyle)
         }
     }
 
@@ -3451,6 +3505,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowSpaceBehavior = "docky.windowSpaceBehavior"
         static let autohidesWindow = "docky.autohidesWindow"
         static let showsAppBadges = "docky.showsAppBadges"
+        static let folderBadgeMode = "docky.folderBadgeMode"
+        static let folderBadgePreviewStyle = "docky.folderBadgePreviewStyle"
         static let opensAtLogin = "docky.opensAtLogin"
         static let autohideWindowDelay = "docky.autohideWindowDelay"
         static let fullscreenRevealDelay = "docky.fullscreenRevealDelay"
@@ -3556,6 +3612,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowSpaceBehavior: DockWindowSpaceBehavior = .allSpaces
         static let autohidesWindow = false
         static let showsAppBadges = true
+        static let folderBadgeMode: FolderBadgeMode = .combined
+        static let folderBadgePreviewStyle: FolderBadgePreviewStyle = .dot
         static let opensAtLogin = true
         static let autohideWindowDelay: TimeInterval = 0.5
         static let fullscreenRevealDelay: TimeInterval = 0.5
@@ -3685,6 +3743,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedWindowSpaceBehavior = defaults.string(forKey: Keys.windowSpaceBehavior)
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
         let storedShowsAppBadges = defaults.object(forKey: Keys.showsAppBadges) as? Bool
+        let storedFolderBadgeMode = defaults.string(forKey: Keys.folderBadgeMode)
+        let storedFolderBadgePreviewStyle = defaults.string(forKey: Keys.folderBadgePreviewStyle)
         let storedOpensAtLogin = defaults.object(forKey: Keys.opensAtLogin) as? Bool
         let storedAutohideWindowDelay = defaults.object(forKey: Keys.autohideWindowDelay) as? Double
         let storedFullscreenRevealDelay = defaults.object(forKey: Keys.fullscreenRevealDelay) as? Double
@@ -3808,6 +3868,12 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         self.windowSpaceBehavior = (storedWindowSpaceBehavior.flatMap(DockWindowSpaceBehavior.init(rawValue:)) ?? DefaultValues.windowSpaceBehavior)
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
         self.showsAppBadges = storedShowsAppBadges ?? DefaultValues.showsAppBadges
+        self.folderBadgeMode = storedFolderBadgeMode
+            .flatMap(FolderBadgeMode.init(rawValue:))
+            ?? DefaultValues.folderBadgeMode
+        self.folderBadgePreviewStyle = storedFolderBadgePreviewStyle
+            .flatMap(FolderBadgePreviewStyle.init(rawValue:))
+            ?? DefaultValues.folderBadgePreviewStyle
         self.opensAtLogin = storedOpensAtLogin ?? LaunchAtLoginService.shared.isEnabled
         self.autohideWindowDelay = max(storedAutohideWindowDelay ?? DefaultValues.autohideWindowDelay, 0)
         self.fullscreenRevealDelay = max(storedFullscreenRevealDelay ?? DefaultValues.fullscreenRevealDelay, 0)
@@ -4073,6 +4139,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         // Visibility
         autohidesWindow = DefaultValues.autohidesWindow
         showsAppBadges = DefaultValues.showsAppBadges
+        folderBadgeMode = DefaultValues.folderBadgeMode
+        folderBadgePreviewStyle = DefaultValues.folderBadgePreviewStyle
         autohideWindowDelay = DefaultValues.autohideWindowDelay
         hidesDuringFullscreen = DefaultValues.hidesDuringFullscreen
         fullscreenRevealDelay = DefaultValues.fullscreenRevealDelay
@@ -4129,6 +4197,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         windowSpaceBehavior = DefaultValues.windowSpaceBehavior
         autohidesWindow = DefaultValues.autohidesWindow
         showsAppBadges = DefaultValues.showsAppBadges
+        folderBadgeMode = DefaultValues.folderBadgeMode
+        folderBadgePreviewStyle = DefaultValues.folderBadgePreviewStyle
         opensAtLogin = DefaultValues.opensAtLogin
         autohideWindowDelay = DefaultValues.autohideWindowDelay
         fullscreenRevealDelay = DefaultValues.fullscreenRevealDelay
