@@ -890,12 +890,10 @@ private struct LaunchpadOverlayView: View {
         )
         .contextMenu {
             switch entry {
-            case .app(let app) where !isSearching:
+            case .app(let app):
                 appContextMenu(for: app)
-            case .folder(let folder) where !isSearching:
+            case .folder(let folder):
                 folderContextMenu(for: folder)
-            default:
-                EmptyView()
             }
         }
     }
@@ -2035,6 +2033,13 @@ private struct ExpandedFolderOverlay: View {
                         }
                     )
                     .contextMenu {
+                        let isPinned = TileStore.shared.isPinned(bundleIdentifier: app.bundleIdentifier)
+                        Button(isPinned ? "Remove from Docky" : "Add to Docky") {
+                            _ = TileStore.shared.setPinnedApp(
+                                bundleIdentifier: app.bundleIdentifier,
+                                pinned: !isPinned
+                            )
+                        }
                         Button("Remove from Folder", role: .destructive) {
                             LaunchpadLayoutService.shared.removeFromFolder(bundleID: app.bundleIdentifier)
                         }
