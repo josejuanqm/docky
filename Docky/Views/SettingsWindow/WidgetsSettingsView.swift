@@ -386,7 +386,7 @@ struct WidgetsSettingsView: View {
 
     private func installWidget() {
         let panel = NSOpenPanel()
-        panel.title = "Install Widget"
+        panel.title = String(localized: "Install Widget")
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
         panel.canChooseDirectories = false

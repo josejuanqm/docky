@@ -73,8 +73,8 @@ final class MenuClickService {
 
     private func presentUnavailableAlert(targetApp: String, actionTitle: String) {
         let alert = NSAlert()
-        alert.messageText = "Menu action unavailable"
-        alert.informativeText = "Docky couldn't find a running process for \(targetApp) to perform \(actionTitle.lowercased())."
+        alert.messageText = String(localized: "Menu action unavailable")
+        alert.informativeText = String(localized: "Docky couldn't find a running process for \(targetApp) to perform \(actionTitle.lowercased()).")
         alert.alertStyle = .warning
         alert.runModal()
     }

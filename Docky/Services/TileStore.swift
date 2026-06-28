@@ -569,15 +569,15 @@ final class TileStore: ObservableObject {
         }
 
         let alert = NSAlert()
-        alert.messageText = "Rename Folder"
-        alert.informativeText = "Choose a name for this app folder."
+        alert.messageText = String(localized: "Rename Folder")
+        alert.informativeText = String(localized: "Choose a name for this app folder.")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Rename")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Rename"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
 
         let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        textField.stringValue = item.folderDisplayName ?? "Folder"
-        textField.placeholderString = "Folder"
+        textField.stringValue = item.folderDisplayName ?? String(localized: "Folder")
+        textField.placeholderString = String(localized: "Folder")
         alert.accessoryView = textField
 
         guard alert.runModal() == .alertFirstButtonReturn else {

@@ -218,7 +218,7 @@ struct ThemesSettingsView: View {
 
     private func importTheme() {
         let panel = NSOpenPanel()
-        panel.title = "Import Theme"
+        panel.title = String(localized: "Import Theme")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
@@ -235,7 +235,7 @@ struct ThemesSettingsView: View {
 
     private func exportTheme() {
         let panel = NSSavePanel()
-        panel.title = "Export Theme"
+        panel.title = String(localized: "Export Theme")
         panel.nameFieldStringValue = defaultExportName()
         panel.allowedContentTypes = ThemesSettingsView.importContentTypes
         panel.canCreateDirectories = true
