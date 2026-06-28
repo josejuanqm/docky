@@ -378,10 +378,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item.target = self
         }
 
-        let checkForUpdatesTitle = String(localized: "Check for Updates…")
-        if appMenu?.item(withTitle: checkForUpdatesTitle) == nil {
+        let hasCheckForUpdates = appMenu?.items.contains { $0.action == #selector(checkForUpdates(_:)) } ?? false
+        if !hasCheckForUpdates {
             let item = NSMenuItem(
-                title: checkForUpdatesTitle,
+                title: String(localized: "Check for Updates…"),
                 action: #selector(checkForUpdates(_:)),
                 keyEquivalent: ""
             )

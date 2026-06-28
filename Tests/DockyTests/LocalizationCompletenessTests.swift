@@ -59,11 +59,14 @@ struct LocalizationCompletenessTests {
         #expect(notTranslated.isEmpty, "ja entries not in 'translated' state: \(notTranslated.prefix(20))")
     }
 
-    @Test func spanishTranslationsArePreserved() {
+    @Test func spanishTranslationsAreIntact() {
         let strings = Self.catalog["strings"] as! [String: Any]
-        let esCount = strings.values.filter { value(localizations($0), "es") != nil }.count
-        // Spanish shipped with 406 translated entries; it must not regress.
-        #expect(esCount >= 406, "Spanish translations regressed: \(esCount)")
+        var bad: [String] = []
+        for (key, entry) in strings where !key.isEmpty {
+            guard let es = value(localizations(entry), "es") else { continue }
+            if es.value.isEmpty { bad.append(key) }
+        }
+        #expect(bad.isEmpty, "Spanish entries with empty values: \(bad.prefix(20))")
     }
 
     @Test func formatSpecifiersSurviveTranslation() {

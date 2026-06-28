@@ -15,7 +15,9 @@ struct LanguageSettingsView: View {
     @State private var showRelaunchPrompt = false
 
     init() {
-        _selection = State(initialValue: LanguageController.currentSelection())
+        let current = LanguageController.currentSelection()
+        let clamped = LanguageController.validated(current, available: LanguageController.availableCodes())
+        _selection = State(initialValue: clamped)
     }
 
     var body: some View {

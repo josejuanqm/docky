@@ -59,6 +59,17 @@ enum LanguageController {
         return .language(code: code)
     }
 
+    /// Returns `selection` unchanged if it refers to a code present in
+    /// `available`, or `.system` when the stored code is no longer shipped.
+    /// Guards the picker's initial value against stale user-defaults entries
+    /// (e.g. a language removed in a future build).
+    static func validated(_ selection: DisplayLanguage, available: [String]) -> DisplayLanguage {
+        if case .language(let code) = selection, !available.contains(code) {
+            return .system
+        }
+        return selection
+    }
+
     /// Persists the selection. `.system` clears the override so macOS decides.
     /// Writes both Docky's own key (for the picker) and `AppleLanguages` in the
     /// app domain (which macOS honors on the next launch).

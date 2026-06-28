@@ -55,4 +55,10 @@ struct LanguageControllerTests {
     @Test func availableCodesExcludeBase() {
         #expect(!LanguageController.availableCodes().contains("Base"))
     }
+
+    @Test func validatedFallsBackForUnavailableCode() {
+        #expect(LanguageController.validated(.language(code: "xx"), available: ["ja", "en"]) == .system)
+        #expect(LanguageController.validated(.language(code: "ja"), available: ["ja", "en"]) == .language(code: "ja"))
+        #expect(LanguageController.validated(.system, available: []) == .system)
+    }
 }
