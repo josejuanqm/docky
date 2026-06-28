@@ -84,6 +84,8 @@ Optionally show running apps inline so a folder doubles as a live workspace.
   plus curated commands.
 - **Themes and profiles:** themeable appearance and switchable configuration
   profiles.
+- **Localization:** available in English, Spanish, and Japanese. Pick a language
+  under Settings → System → Display Language, or follow the system default.
 
 ## Download
 
