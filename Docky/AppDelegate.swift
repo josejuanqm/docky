@@ -109,10 +109,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         if let firstError {
             let alert = NSAlert()
-            alert.messageText = "Could not import theme"
+            alert.messageText = String(localized: "Could not import theme")
             alert.informativeText = firstError
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: String(localized: "OK"))
             alert.runModal()
         }
     }
@@ -250,17 +250,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 try? FileManager.default.removeItem(at: staged.deletingLastPathComponent())
 
                 let alert = NSAlert()
-                alert.messageText = "Widget installed"
-                alert.informativeText = "Restart Docky to start using \(downloadURL.lastPathComponent)."
+                alert.messageText = String(localized: "Widget installed")
+                alert.informativeText = String(localized: "Restart Docky to start using \(downloadURL.lastPathComponent).")
                 alert.alertStyle = .informational
-                alert.addButton(withTitle: "Restart Docky")
-                alert.addButton(withTitle: "Later")
+                alert.addButton(withTitle: String(localized: "Restart Docky"))
+                alert.addButton(withTitle: String(localized: "Later"))
                 if alert.runModal() == .alertFirstButtonReturn {
                     NSApp.terminate(nil)
                 }
             } catch {
                 presentInstallAlert(
-                    title: "Couldn't install widget",
+                    title: String(localized: "Couldn't install widget"),
                     message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription,
                     style: .warning
                 )
@@ -273,7 +273,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = style
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 
@@ -369,15 +369,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     private func configureMainMenu() {
         let appMenu = NSApp.mainMenu?.items.first?.submenu
-        if let item = appMenu?.item(withTitle: "Preferences…") ?? appMenu?.item(withTitle: "Settings…") {
-            item.title = "Settings…"
+        // Locate the standard Preferences/Settings item by its "," key equivalent
+        // rather than its title, so the lookup keeps working once the menu is
+        // localized (a title-based lookup would miss the translated item).
+        if let item = appMenu?.items.first(where: { $0.keyEquivalent == "," }) {
+            item.title = String(localized: "Settings…")
             item.action = #selector(showSettingsWindow(_:))
             item.target = self
         }
 
-        if appMenu?.item(withTitle: "Check for Updates…") == nil {
+        let hasCheckForUpdates = appMenu?.items.contains { $0.action == #selector(checkForUpdates(_:)) } ?? false
+        if !hasCheckForUpdates {
             let item = NSMenuItem(
-                title: "Check for Updates…",
+                title: String(localized: "Check for Updates…"),
                 action: #selector(checkForUpdates(_:)),
                 keyEquivalent: ""
             )

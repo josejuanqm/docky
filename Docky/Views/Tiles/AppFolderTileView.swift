@@ -924,7 +924,7 @@ struct AppFolderListMenuPresenter: NSViewRepresentable {
                 menu.addItem(.separator())
             }
 
-            let openAll = NSMenuItem(title: "Open All", action: #selector(openAllApps), keyEquivalent: "")
+            let openAll = NSMenuItem(title: String(localized: "Open All"), action: #selector(openAllApps), keyEquivalent: "")
             openAll.target = self
             openAll.isEnabled = !tile.apps.isEmpty
             menu.addItem(openAll)

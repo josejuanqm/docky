@@ -45,29 +45,29 @@ enum Permission: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .userFolders: return "Full Disk Access"
-        case .finderAutomation: return "Automation (Finder)"
-        case .accessibility: return "Accessibility"
-        case .systemEventsAutomation: return "Automation (System Events)"
-        case .screenCapture: return "Screen Recording"
-        case .location: return "Location"
+        case .userFolders: return String(localized: "Full Disk Access")
+        case .finderAutomation: return String(localized: "Automation (Finder)")
+        case .accessibility: return String(localized: "Accessibility")
+        case .systemEventsAutomation: return String(localized: "Automation (System Events)")
+        case .screenCapture: return String(localized: "Screen Recording")
+        case .location: return String(localized: "Location")
         }
     }
 
     var explanation: String {
         switch self {
         case .userFolders:
-            return "Grant Full Disk Access so Docky can preview recent items from folders pinned to the Dock, including protected locations like Downloads, Documents, and Desktop. No data leaves your Mac."
+            return String(localized: "Grant Full Disk Access so Docky can preview recent items from folders pinned to the Dock, including protected locations like Downloads, Documents, and Desktop. No data leaves your Mac.")
         case .finderAutomation:
-            return "Docky uses Finder automation for reveal-in-Finder, open-folder, and Trash actions. macOS grants this separately from Full Disk Access, and you can request it here without waiting for the first Finder action to fail."
+            return String(localized: "Docky uses Finder automation for reveal-in-Finder, open-folder, and Trash actions. macOS grants this separately from Full Disk Access, and you can request it here without waiting for the first Finder action to fail.")
         case .accessibility:
-            return "Accessibility access lets Docky click menu bar items for curated menuClick actions, inspect app windows for Dock-like reopen behavior and window menus, and restore minimized windows beside the Trash. These actions are slower and more fragile than built-in actions, so Docky requests this only when needed."
+            return String(localized: "Accessibility access lets Docky click menu bar items for curated menuClick actions, inspect app windows for Dock-like reopen behavior and window menus, and restore minimized windows beside the Trash. These actions are slower and more fragile than built-in actions, so Docky requests this only when needed.")
         case .systemEventsAutomation:
-            return "Docky uses System Events automation for curated menuClick actions. Requesting it here lets Docky click supported app menus without waiting for the first action to trigger a macOS prompt. Menu-click actions still require Accessibility too."
+            return String(localized: "Docky uses System Events automation for curated menuClick actions. Requesting it here lets Docky click supported app menus without waiting for the first action to trigger a macOS prompt. Menu-click actions still require Accessibility too.")
         case .screenCapture:
-            return "Grant Screen Recording so Docky can show thumbnail previews for minimized windows. Docky only captures the minimized window itself for its dock tile, and nothing leaves your Mac. macOS may require quitting and reopening Docky after you allow this."
+            return String(localized: "Grant Screen Recording so Docky can show thumbnail previews for minimized windows. Docky only captures the minimized window itself for its dock tile, and nothing leaves your Mac. macOS may require quitting and reopening Docky after you allow this.")
         case .location:
-            return "Grant location access so Docky can show local weather in the Weather widget. Your location is used on-device to fetch the forecast and is not stored by Docky."
+            return String(localized: "Grant location access so Docky can show local weather in the Weather widget. Your location is used on-device to fetch the forecast and is not stored by Docky.")
         }
     }
 
@@ -270,10 +270,10 @@ final class PermissionsService: ObservableObject {
 
     func presentPermissionAlert(for permission: Permission, actionTitle: String) {
         let alert = NSAlert()
-        alert.messageText = permission.title + " is required"
-        alert.informativeText = "Allow Docky in Privacy & Security so it can perform \(actionTitle.lowercased())."
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = String(localized: "\(permission.title) is required")
+        alert.informativeText = String(localized: "Allow Docky in Privacy & Security so it can perform \(actionTitle).")
+        alert.addButton(withTitle: String(localized: "Open System Settings"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             openSystemSettings(for: permission)
         }
