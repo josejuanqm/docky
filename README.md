@@ -120,10 +120,32 @@ open Docky.xcodeproj
 Build and run the `Docky` scheme. Swift Package dependencies (Sparkle) resolve
 automatically on first build.
 
+You can also build from the command line:
+
+```sh
+xcodebuild -project Docky.xcodeproj -scheme Docky \
+  -configuration Debug -destination 'platform=macOS' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
 ### Requirements
 
 - macOS 14.0 (Sonoma) or later
-- Xcode 16 or later to build from source
+- The full **Xcode 16 or later** — the Command Line Tools alone are **not** enough
+  (the build needs `xcodebuild` plus Xcode's bundled components)
+
+> [!NOTE]
+> **First-time Xcode setup.** On a machine where Xcode was just installed, finish
+> its one-time setup before building, or the build fails on a missing toolchain:
+>
+> ```sh
+> sudo xcodebuild -license accept
+> sudo xcodebuild -runFirstLaunch
+> ```
+>
+> Skipping these shows up as `xcode-select: error: tool 'xcodebuild' requires Xcode`,
+> a "command line tools instance" warning, or `A required plugin failed to load …
+> try running 'xcodebuild -runFirstLaunch'`.
 
 ## Documentation
 
