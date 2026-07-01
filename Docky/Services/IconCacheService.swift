@@ -20,7 +20,34 @@ final class IconCacheService {
         return cache
     }()
 
+    /// Nominal point size stamped onto every icon fetched from LaunchServices.
+    /// `NSWorkspace.icon(forFile:)` returns a multi-representation image whose
+    /// logical `size` is only 32x32, so `Image(nsImage:).resizable()` rasterizes
+    /// at that nominal size and then upscales it into the tile — which is what
+    /// made icons look blurry next to the native Dock (the native Dock draws
+    /// straight from the 512px representation). Stamping a large nominal size
+    /// makes SwiftUI select a high-resolution representation and downsample it
+    /// instead. The representations stay lazy, so this does not eagerly allocate
+    /// a bitmap per icon.
+    ///
+    /// 256 is the smallest standard `.icns` representation that still covers the
+    /// largest size a tile is ever drawn at (a magnified tile tops out around
+    /// ~192px), so every dock surface downsamples rather than upscales. Going
+    /// higher (512/1024) would decode a source bitmap 4x larger for no visible
+    /// gain in the dock and extra per-frame resampling work during magnification.
+    private static let normalizedIconExtent: CGFloat = 256
+
     private init() {}
+
+    /// Fetches an icon from LaunchServices and normalizes its nominal size so
+    /// downstream `resizable()` rendering downsamples a high-resolution
+    /// representation rather than upscaling the default 32pt one. See
+    /// `normalizedIconExtent`.
+    private static func workspaceIcon(forFile path: String) -> NSImage {
+        let image = NSWorkspace.shared.icon(forFile: path)
+        image.size = NSSize(width: normalizedIconExtent, height: normalizedIconExtent)
+        return image
+    }
 
     func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
         let key = "bundle:\(bundleIdentifier)" as NSString
@@ -48,7 +75,7 @@ final class IconCacheService {
         return await Task.detached(priority: .userInitiated) { [cache] in
             let image: NSImage
             if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-                image = NSWorkspace.shared.icon(forFile: url.path)
+                image = Self.workspaceIcon(forFile: url.path)
             } else {
                 image = NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) ?? NSImage()
             }
@@ -60,14 +87,14 @@ final class IconCacheService {
     func icon(forFileURL url: URL) -> NSImage {
         let key = "path:\(url.path)" as NSString
         if let cached = cache.object(forKey: key) { return cached }
-        let image = NSWorkspace.shared.icon(forFile: url.path)
+        let image = Self.workspaceIcon(forFile: url.path)
         cache.setObject(image, forKey: key)
         return image
     }
 
     func preloadIcon(forBundleIdentifier bundleIdentifier: String, fileURL: URL) {
         let key = "bundle:\(bundleIdentifier)" as NSString
-        cache.setObject(NSWorkspace.shared.icon(forFile: fileURL.path), forKey: key)
+        cache.setObject(Self.workspaceIcon(forFile: fileURL.path), forKey: key)
     }
 
     func previewIcon(forFileURL url: URL) -> NSImage {
@@ -94,7 +121,7 @@ final class IconCacheService {
 
     private func loadIcon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            return NSWorkspace.shared.icon(forFile: url.path)
+            return Self.workspaceIcon(forFile: url.path)
         }
         return NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) ?? NSImage()
     }
