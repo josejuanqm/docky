@@ -441,6 +441,7 @@ final class MainWindow: NSPanel {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateFullscreenStateAndApply(animated: true)
+                self?.scheduleFullscreenRecheck()
             }
             .store(in: &cancellables)
     }
@@ -1023,7 +1024,7 @@ final class MainWindow: NSPanel {
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let frame = screen.frame
         let visibleFrame = screen.visibleFrame
-        var foundFullscreen = false
+        var fullscreenCandidate = false
         var foundMaximized = false
 
         for info in windows {
@@ -1051,15 +1052,31 @@ final class MainWindow: NSPanel {
             // the menubar area). Maximized: window matches visibleFrame
             // exactly, which is smaller than frame by the menubar.
             if Self.rect(nsBounds, matches: frame) {
-                foundFullscreen = true
+                fullscreenCandidate = true
             } else if Self.rect(nsBounds, matches: visibleFrame) {
                 foundMaximized = true
             }
 
-            if foundFullscreen && foundMaximized { break }
+            if fullscreenCandidate && foundMaximized { break }
         }
 
+        let foundFullscreen = fullscreenCandidate
+            && registryReportsFullscreenWindow(matching: frame, primaryScreenHeight: primaryScreenHeight)
+
         return ContentOverlapObservation(isFullscreen: foundFullscreen, isMaximized: foundMaximized)
+    }
+
+    private func registryReportsFullscreenWindow(matching frame: CGRect, primaryScreenHeight: CGFloat) -> Bool {
+        WindowRegistry.shared.windows.contains { window in
+            guard !window.isMinimized, let axFrame = window.frame else { return false }
+            let nsFrame = CGRect(
+                x: axFrame.minX,
+                y: primaryScreenHeight - axFrame.maxY,
+                width: axFrame.width,
+                height: axFrame.height
+            )
+            return Self.rect(nsFrame, matches: frame, tolerance: 2)
+        }
     }
 
     private static func rect(_ a: CGRect, matches b: CGRect, tolerance: CGFloat = 1) -> Bool {
