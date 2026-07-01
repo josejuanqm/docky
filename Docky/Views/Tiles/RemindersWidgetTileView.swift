@@ -46,7 +46,14 @@ struct RemindersWidgetTileView: View {
 
     @ViewBuilder
     private func content(layout: LayoutMetrics, now: Date) -> some View {
-        if let nextItem = reminders.snapshot?.primaryItem {
+        if reminders.permissionStatus != .granted {
+            WidgetPermissionCTAView(
+                permission: .reminders,
+                status: reminders.permissionStatus,
+                renderedSpan: renderedSpan,
+                isExpanded: isExpanded
+            )
+        } else if let nextItem = reminders.snapshot?.primaryItem {
             switch renderedSpan {
             case .one:
                 oneUp(item: nextItem, layout: layout, now: now)

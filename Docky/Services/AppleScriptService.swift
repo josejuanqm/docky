@@ -194,7 +194,7 @@ final class AppleScriptService {
                     PermissionsService.shared.updateSystemEventsAutomation(status: .denied)
                 case .accessibility:
                     PermissionsService.shared.refresh()
-                case .userFolders, .screenCapture, .location:
+                case .userFolders, .screenCapture, .location, .calendar, .reminders:
                     break
                 }
             }
@@ -240,7 +240,7 @@ final class AppleScriptService {
             PermissionsService.shared.updateSystemEventsAutomation(status: .granted)
         case .accessibility:
             PermissionsService.shared.refresh()
-        case .userFolders, .screenCapture, .location:
+        case .userFolders, .screenCapture, .location, .calendar, .reminders:
             break
         }
     }

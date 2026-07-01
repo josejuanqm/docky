@@ -42,6 +42,21 @@ final class RemindersService: ObservableObject {
         authorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
     }
 
+    /// Docky's tri-state view of reminders access. `.writeOnly` counts as
+    /// not-granted because the widget needs read access to show tasks.
+    var permissionStatus: PermissionStatus {
+        switch authorizationStatus {
+        case .fullAccess, .authorized:
+            return .granted
+        case .notDetermined:
+            return .notDetermined
+        case .denied, .restricted, .writeOnly:
+            return .denied
+        @unknown default:
+            return .denied
+        }
+    }
+
     func refresh(force: Bool) {
         if !force,
            let lastRefreshDate,
@@ -60,7 +75,11 @@ final class RemindersService: ObservableObject {
             isLoading = false
             lastErrorDescription = "Reminders read access is needed to show your open tasks."
         case .notDetermined:
-            requestAccessAndRefresh()
+            // Permission is requested lazily from the widget's Enable button,
+            // never automatically on render. Leave the widget in its
+            // call-to-action state until the user opts in.
+            snapshot = nil
+            isLoading = false
         case .denied, .restricted:
             snapshot = nil
             isLoading = false
@@ -96,26 +115,14 @@ final class RemindersService: ObservableObject {
         }
     }
 
-    private func requestAccessAndRefresh() {
-        guard !isLoading else {
-            return
+    /// Requests reminders access in response to an explicit user action
+    /// (the widget's Enable button). Loads reminders immediately on grant.
+    func requestAccess() async -> Bool {
+        let granted = await requestRemindersPermission()
+        if granted {
+            loadReminders()
         }
-
-        isLoading = true
-
-        Task { [weak self] in
-            guard let self else { return }
-
-            let granted = await self.requestRemindersPermission()
-            guard granted else {
-                self.snapshot = nil
-                self.isLoading = false
-                self.lastErrorDescription = "Enable Reminders access in Settings to show your open tasks."
-                return
-            }
-
-            self.loadReminders()
-        }
+        return granted
     }
 
     private func requestRemindersPermission() async -> Bool {

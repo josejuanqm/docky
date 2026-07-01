@@ -50,6 +50,30 @@ final class WeatherService: NSObject, ObservableObject {
         Self.isAuthorizedStatus(authorizationStatus)
     }
 
+    /// Docky's tri-state view of location access, used by the widget to
+    /// decide between real content and the call-to-action state.
+    var permissionStatus: PermissionStatus {
+        if Self.isAuthorizedStatus(authorizationStatus) {
+            return .granted
+        }
+        switch authorizationStatus {
+        case .notDetermined:
+            return .notDetermined
+        default:
+            return .denied
+        }
+    }
+
+    /// Requests location access in response to an explicit user action
+    /// (the widget's Enable button). Fetches weather immediately on grant.
+    func requestAccess() async -> Bool {
+        let granted = await requestLocationPermission()
+        if granted {
+            refresh(force: true)
+        }
+        return granted
+    }
+
     func requestLocationPermission() async -> Bool {
         refreshAuthorizationStatus()
 
@@ -98,13 +122,10 @@ final class WeatherService: NSObject, ObservableObject {
         case .authorizedAlways:
             requestLocation()
         case .notDetermined:
-            if PermissionsService.shared.hasCompletedInitialOnboarding {
-                snapshot = nil
-                lastErrorDescription = "Enable location in Settings to show local weather."
-            } else {
-                isAwaitingLocation = true
-                locationManager.requestWhenInUseAuthorization()
-            }
+            // Location is requested lazily from the widget's Enable button,
+            // never automatically on render. Leave the widget in its
+            // call-to-action state until the user opts in.
+            snapshot = nil
         case .denied, .restricted:
             snapshot = nil
             lastErrorDescription = "Location access is needed for local weather."

@@ -66,7 +66,9 @@ struct WeatherWidgetTileView: View {
 
     @ViewBuilder
     private func content(layout: LayoutMetrics) -> some View {
-        if let snapshot = weather.snapshot {
+        if weather.permissionStatus != .granted {
+            permissionCTA(isExpanded: false)
+        } else if let snapshot = weather.snapshot {
             switch renderedSpan {
             case .one:
                 oneUp(snapshot: snapshot, layout: layout)
@@ -82,11 +84,23 @@ struct WeatherWidgetTileView: View {
 
     @ViewBuilder
     private func expandedContent(layout: ExpandedLayoutMetrics) -> some View {
-        if let snapshot = weather.snapshot {
+        if weather.permissionStatus != .granted {
+            permissionCTA(isExpanded: true)
+        } else if let snapshot = weather.snapshot {
             expandedView(snapshot: snapshot, layout: layout)
         } else {
             expandedPlaceholder(layout: layout)
         }
+    }
+
+    private func permissionCTA(isExpanded: Bool) -> some View {
+        WidgetPermissionCTAView(
+            permission: .location,
+            status: weather.permissionStatus,
+            renderedSpan: renderedSpan,
+            isExpanded: isExpanded,
+            foreground: .white
+        )
     }
 
     private func expandedView(snapshot: WeatherSnapshot, layout: ExpandedLayoutMetrics) -> some View {

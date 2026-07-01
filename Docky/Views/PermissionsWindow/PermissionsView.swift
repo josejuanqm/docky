@@ -334,6 +334,8 @@ struct PermissionsView: View {
             return service.screenCaptureGrantMethod
         case .location:
             return service.locationGrantMethod
+        case .calendar, .reminders:
+            return nil
         }
     }
 
@@ -351,6 +353,10 @@ struct PermissionsView: View {
             return "Open System Settings (Screen Recording)"
         case .location:
             return "Open System Settings (Location Services)"
+        case .calendar:
+            return "Open System Settings (Calendars)"
+        case .reminders:
+            return "Open System Settings (Reminders)"
         }
     }
 
@@ -364,6 +370,10 @@ struct PermissionsView: View {
             return "Request Screen Recording Access"
         case .location:
             return "Request Location Access"
+        case .calendar:
+            return "Request Calendar Access"
+        case .reminders:
+            return "Request Reminders Access"
         case .userFolders, .accessibility:
             return "Request Access"
         }
@@ -448,6 +458,10 @@ struct PermissionsView: View {
             return [Color(red: 0.10, green: 0.70, blue: 0.63), Color(red: 0.07, green: 0.28, blue: 0.45)]
         case .location:
             return [Color(red: 1.00, green: 0.53, blue: 0.40), Color(red: 0.60, green: 0.19, blue: 0.21)]
+        case .calendar:
+            return [Color(red: 0.94, green: 0.32, blue: 0.31), Color(red: 0.55, green: 0.12, blue: 0.14)]
+        case .reminders:
+            return [Color(red: 0.98, green: 0.58, blue: 0.24), Color(red: 0.58, green: 0.28, blue: 0.06)]
         }
     }
 
@@ -465,6 +479,10 @@ struct PermissionsView: View {
             return "rectangle.on.rectangle"
         case .location:
             return "location.circle"
+        case .calendar:
+            return "calendar"
+        case .reminders:
+            return "checklist"
         }
     }
 
@@ -493,6 +511,10 @@ struct PermissionsView: View {
             return "Capture live window previews"
         case .location:
             return "Show local weather in the dock"
+        case .calendar:
+            return "Show upcoming events in the dock"
+        case .reminders:
+            return "Show open tasks in the dock"
         }
     }
 
@@ -508,7 +530,7 @@ struct PermissionsView: View {
             return "automation"
         case .screenCapture:
             return "window-switching"
-        case .location:
+        case .location, .calendar, .reminders:
             return nil
         }
     }

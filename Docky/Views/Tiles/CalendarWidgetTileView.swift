@@ -66,7 +66,11 @@ struct CalendarWidgetTileView: View {
     @ViewBuilder
     private func content(layout: LayoutMetrics, now: Date) -> some View {
         if showsDateVariant {
+            // The date variant only renders the calendar day, which needs no
+            // EventKit access, so it never shows the permission CTA.
             dateOneUp(layout: layout, now: now)
+        } else if calendar.permissionStatus != .granted {
+            permissionCTA(isExpanded: false)
         } else if let event = calendar.nextEvent {
             switch renderedSpan {
             case .one:
@@ -79,6 +83,15 @@ struct CalendarWidgetTileView: View {
         } else {
             emptyState(layout: layout)
         }
+    }
+
+    private func permissionCTA(isExpanded: Bool) -> some View {
+        WidgetPermissionCTAView(
+            permission: .calendar,
+            status: calendar.permissionStatus,
+            renderedSpan: renderedSpan,
+            isExpanded: isExpanded
+        )
     }
 
     private func dateOneUp(layout: LayoutMetrics, now: Date) -> some View {
@@ -177,7 +190,9 @@ struct CalendarWidgetTileView: View {
 
     @ViewBuilder
     private func expandedContent(layout: ExpandedLayoutMetrics, now: Date) -> some View {
-        if calendar.upcomingEvents.isEmpty {
+        if calendar.permissionStatus != .granted {
+            permissionCTA(isExpanded: true)
+        } else if calendar.upcomingEvents.isEmpty {
             expandedEmpty(layout: layout, now: now)
         } else {
             expandedAgenda(layout: layout, now: now)

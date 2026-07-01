@@ -40,6 +40,21 @@ final class CalendarService: ObservableObject {
         authorizationStatus = EKEventStore.authorizationStatus(for: .event)
     }
 
+    /// Docky's tri-state view of calendar access. `.writeOnly` counts as
+    /// not-granted because the widget needs read access to show events.
+    var permissionStatus: PermissionStatus {
+        switch authorizationStatus {
+        case .fullAccess, .authorized:
+            return .granted
+        case .notDetermined:
+            return .notDetermined
+        case .denied, .restricted, .writeOnly:
+            return .denied
+        @unknown default:
+            return .denied
+        }
+    }
+
     func refresh(force: Bool) {
         if !force,
            let lastRefreshDate,
@@ -59,7 +74,12 @@ final class CalendarService: ObservableObject {
             isLoading = false
             lastErrorDescription = "Calendar read access is needed to show upcoming events."
         case .notDetermined:
-            requestAccessAndRefresh()
+            // Permission is requested lazily from the widget's Enable button,
+            // never automatically on render. Leave the widget in its
+            // call-to-action state until the user opts in.
+            nextEvent = nil
+            upcomingEvents = []
+            isLoading = false
         case .denied, .restricted:
             nextEvent = nil
             upcomingEvents = []
@@ -73,27 +93,14 @@ final class CalendarService: ObservableObject {
         }
     }
 
-    private func requestAccessAndRefresh() {
-        guard !isLoading else {
-            return
+    /// Requests calendar access in response to an explicit user action
+    /// (the widget's Enable button). Loads events immediately on grant.
+    func requestAccess() async -> Bool {
+        let granted = await requestCalendarPermission()
+        if granted {
+            loadNextEvent()
         }
-
-        isLoading = true
-
-        Task { [weak self] in
-            guard let self else { return }
-
-            let granted = await self.requestCalendarPermission()
-            guard granted else {
-                self.nextEvent = nil
-                self.upcomingEvents = []
-                self.isLoading = false
-                self.lastErrorDescription = "Enable Calendar access in Settings to show upcoming events."
-                return
-            }
-
-            self.loadNextEvent()
-        }
+        return granted
     }
 
     private func requestCalendarPermission() async -> Bool {

@@ -40,6 +40,8 @@ enum Permission: String, CaseIterable, Identifiable {
     case systemEventsAutomation
     case screenCapture
     case location
+    case calendar
+    case reminders
 
     var id: String { rawValue }
 
@@ -51,6 +53,8 @@ enum Permission: String, CaseIterable, Identifiable {
         case .systemEventsAutomation: return "Automation (System Events)"
         case .screenCapture: return "Screen Recording"
         case .location: return "Location"
+        case .calendar: return "Calendar"
+        case .reminders: return "Reminders"
         }
     }
 
@@ -68,6 +72,10 @@ enum Permission: String, CaseIterable, Identifiable {
             return "Grant Screen Recording so Docky can show thumbnail previews for minimized windows. Docky only captures the minimized window itself for its dock tile, and nothing leaves your Mac. macOS may require quitting and reopening Docky after you allow this."
         case .location:
             return "Grant location access so Docky can show local weather in the Weather widget. Your location is used on-device to fetch the forecast and is not stored by Docky."
+        case .calendar:
+            return "Grant Calendar access so the Calendar widget can show your upcoming events. Events are read on-device and never leave your Mac."
+        case .reminders:
+            return "Grant Reminders access so the Reminders widget can show your open tasks. Reminders are read on-device and never leave your Mac."
         }
     }
 
@@ -85,6 +93,10 @@ enum Permission: String, CaseIterable, Identifiable {
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
         case .location:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")
+        case .calendar:
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
+        case .reminders:
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")
         }
     }
 
@@ -101,6 +113,23 @@ enum Permission: String, CaseIterable, Identifiable {
         case .screenCapture:
             return true
         case .location:
+            return false
+        case .calendar:
+            return false
+        case .reminders:
+            return false
+        }
+    }
+
+    /// Whether this permission is surfaced during the initial onboarding
+    /// flow. Widget-tied permissions (calendar, reminders, location) are
+    /// requested lazily from the widget itself the first time it renders,
+    /// so they never appear in onboarding; only app-feature permissions do.
+    var appearsInOnboarding: Bool {
+        switch self {
+        case .userFolders, .finderAutomation, .accessibility, .systemEventsAutomation, .screenCapture:
+            return true
+        case .location, .calendar, .reminders:
             return false
         }
     }
@@ -127,6 +156,9 @@ final class PermissionsService: ObservableObject {
     @Published private(set) var location: PermissionStatus = .notDetermined
     @Published private(set) var locationGrantMethod: GrantMethod?
 
+    @Published private(set) var calendar: PermissionStatus = .notDetermined
+    @Published private(set) var reminders: PermissionStatus = .notDetermined
+
     private let dockBookmarkKey = "docky.dockPlistBookmark"
     private let userFoldersBookmarkKey = "docky.userFoldersBookmark"
     private let finderAutomationStatusKey = "docky.finderAutomationStatus"
@@ -149,6 +181,8 @@ final class PermissionsService: ObservableObject {
         case .systemEventsAutomation: return systemEventsAutomation
         case .screenCapture: return screenCapture
         case .location: return location
+        case .calendar: return calendar
+        case .reminders: return reminders
         }
     }
 
@@ -162,6 +196,10 @@ final class PermissionsService: ObservableObject {
 
     var setupPermissions: [Permission] {
         Permission.allCases.filter {
+            guard $0.appearsInOnboarding else {
+                return false
+            }
+
             if hasSkippedPermission($0) {
                 return false
             }
@@ -196,6 +234,8 @@ final class PermissionsService: ObservableObject {
         refreshSystemEventsAutomation()
         refreshScreenCapture()
         refreshLocation()
+        refreshCalendar()
+        refreshReminders()
     }
 
     func markInitialOnboardingCompleted() {
@@ -234,7 +274,17 @@ final class PermissionsService: ObservableObject {
         case .screenCapture:
             return requestScreenCapturePermission()
         case .location:
-            return await WeatherService.shared.requestLocationPermission()
+            let granted = await WeatherService.shared.requestAccess()
+            refreshLocation()
+            return granted
+        case .calendar:
+            let granted = await CalendarService.shared.requestAccess()
+            refreshCalendar()
+            return granted
+        case .reminders:
+            let granted = await RemindersService.shared.requestAccess()
+            refreshReminders()
+            return granted
         case .userFolders:
             return false
         }
@@ -248,7 +298,7 @@ final class PermissionsService: ObservableObject {
         case .systemEventsAutomation:
             UserDefaults.standard.removeObject(forKey: systemEventsAutomationStatusKey)
             refreshSystemEventsAutomation()
-        case .userFolders, .accessibility, .screenCapture, .location:
+        case .userFolders, .accessibility, .screenCapture, .location, .calendar, .reminders:
             break
         }
     }
@@ -386,6 +436,16 @@ final class PermissionsService: ObservableObject {
             location = .denied
             locationGrantMethod = nil
         }
+    }
+
+    private func refreshCalendar() {
+        CalendarService.shared.refreshAuthorizationStatus()
+        calendar = CalendarService.shared.permissionStatus
+    }
+
+    private func refreshReminders() {
+        RemindersService.shared.refreshAuthorizationStatus()
+        reminders = RemindersService.shared.permissionStatus
     }
 
     // MARK: - Full Disk Access probe
