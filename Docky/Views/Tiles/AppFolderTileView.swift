@@ -361,6 +361,7 @@ struct AppFolderPopoverView: View {
     let onPopoverSizeChange: (CGSize) -> Void
     @Bindable private var preferences = DockyPreferences.shared
     @ObservedObject private var dockBadges = DockBadgeService.shared
+    @ObservedObject private var workspace = WorkspaceService.shared
     @State private var isEditingTitle = false
     @State private var editingTitle = ""
     @State private var isTitleHovered = false
@@ -528,6 +529,9 @@ struct AppFolderPopoverView: View {
             .aspectRatio(contentMode: .fit)
             .frame(width: Self.itemWidth, height: Self.itemHeight)
             .padding(overrideIconPadding(for: app.bundleIdentifier, side: Self.itemWidth))
+            .overlay(alignment: .bottom) {
+                runningIndicator(for: app.bundleIdentifier)
+            }
             // The opened folder always shows the real per-app count,
             // regardless of the tile's combined/per-app preference — these
             // icons are full size, so the number is always legible.
@@ -537,6 +541,17 @@ struct AppFolderPopoverView: View {
                     DockBadgeView(text: badge)
                 }
             }
+    }
+
+    @ViewBuilder
+    private func runningIndicator(for bundleIdentifier: String) -> some View {
+        if preferences.effectiveActiveIndicatorShape != .none,
+           workspace.isRunning(bundleIdentifier: bundleIdentifier) {
+            Circle()
+                .fill(Color(nsColor: preferences.effectiveActiveIndicatorColor).opacity(0.9))
+                .frame(width: 6, height: 6)
+                .offset(y: 3)
+        }
     }
 
     private func handleReorderChange(bundleIdentifier: String, value: DragGesture.Value) {
