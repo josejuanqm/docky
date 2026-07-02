@@ -13,6 +13,7 @@ enum WidgetOwnerBundleIdentifiers {
     static let weather = "gt.quintero.Docky.weather"
     static let genericNowPlaying = "gt.quintero.Docky.now-playing"
     static let search = "gt.quintero.Docky.search"
+    static let photoFrame = "gt.quintero.Docky.photo-frame"
 }
 
 struct WidgetRegistration: Equatable, Identifiable {
@@ -105,6 +106,14 @@ enum WidgetCatalog {
         includesInSmartStack: false
     )
 
+    static let photoFrame = WidgetRegistration(
+        kind: .photoFrame,
+        ownerBundleIdentifier: WidgetOwnerBundleIdentifiers.photoFrame,
+        defaultSpan: .two,
+        includesInPalette: true,
+        includesInSmartStack: false
+    )
+
     static let builtInRegistrations: [WidgetRegistration] = [
         calendar,
         calendarDate,
@@ -114,6 +123,7 @@ enum WidgetCatalog {
         weather,
         genericNowPlaying,
         search,
+        photoFrame,
     ]
 
     /// All available widget registrations, built-ins plus any external

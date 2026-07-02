@@ -2132,6 +2132,32 @@ struct TileView: View {
             actions.append(.divider)
             actions.append(widgetRemovalAction(for: widget))
             return actions
+        case .photoFrame:
+            var actions: [ContextAction] = [
+                .action(String(localized: "Choose Photos…")) {
+                    PhotoFrameService.shared.choosePhotos()
+                }
+            ]
+
+            if PhotoFrameService.shared.hasPhotos {
+                if PhotoFrameService.shared.photoCount > 1 {
+                    actions.append(.action(String(localized: "Next Photo")) {
+                        PhotoFrameService.shared.advance()
+                    })
+                }
+                actions.append(.action(String(localized: "Clear Photos")) {
+                    PhotoFrameService.shared.clearPhotos()
+                })
+            }
+
+            if let spanMenuAction = widgetSpanMenuAction(for: widget) {
+                actions.append(.divider)
+                actions.append(spanMenuAction)
+            }
+
+            actions.append(.divider)
+            actions.append(widgetRemovalAction(for: widget))
+            return actions
         case .external:
             var actions: [ContextAction] = []
             if let spanMenuAction = widgetSpanMenuAction(for: widget) {
@@ -2290,6 +2316,15 @@ struct TileView: View {
             if widget.effectiveSpan == .one,
                let url = URL(string: "https://www.google.com") {
                 NSWorkspace.shared.open(url)
+            }
+        case .photoFrame:
+            // Empty frame: tapping is the primary way to add photos (the
+            // tile shows an "add photos" CTA). Populated: tap advances the
+            // slideshow so the frame is interactive.
+            if PhotoFrameService.shared.hasPhotos {
+                PhotoFrameService.shared.advance()
+            } else {
+                PhotoFrameService.shared.choosePhotos()
             }
         case .external:
             break

@@ -109,6 +109,7 @@ enum WidgetKind: Codable, Identifiable, Hashable {
     case nowPlaying
     case weather
     case search
+    case photoFrame
     /// Widget supplied by a community bundle loaded at startup. The
     /// associated value is the plugin's stable identifier (e.g.
     /// "com.example.MyWidget"); the live registration is owned by
@@ -124,6 +125,7 @@ enum WidgetKind: Codable, Identifiable, Hashable {
         .nowPlaying,
         .weather,
         .search,
+        .photoFrame,
     ]
 
     /// Round-trips through DockyPreferences / persistence as a single
@@ -140,6 +142,7 @@ enum WidgetKind: Codable, Identifiable, Hashable {
         case .nowPlaying: "nowPlaying"
         case .weather: "weather"
         case .search: "search"
+        case .photoFrame: "photoFrame"
         case .external(let identifier): "external:\(identifier)"
         }
     }
@@ -160,6 +163,7 @@ enum WidgetKind: Codable, Identifiable, Hashable {
         case "nowPlaying": self = .nowPlaying
         case "weather": self = .weather
         case "search": self = .search
+        case "photoFrame": self = .photoFrame
         default: return nil
         }
     }
@@ -201,6 +205,8 @@ enum WidgetKind: Codable, Identifiable, Hashable {
             String(localized: "Weather")
         case .search:
             String(localized: "Search")
+        case .photoFrame:
+            String(localized: "Photo Frame")
         case .external(let identifier):
             ExternalWidgetRegistry.shared.metadata(for: identifier)?.displayName ?? identifier
         }
@@ -210,7 +216,7 @@ enum WidgetKind: Codable, Identifiable, Hashable {
         switch self {
         case .calendarDate:
             [.one]
-        case .calendar, .reminders, .batteries, .systemStatus, .nowPlaying, .weather, .search:
+        case .calendar, .reminders, .batteries, .systemStatus, .nowPlaying, .weather, .search, .photoFrame:
             TileSpan.allCases
         case .external(let identifier):
             ExternalWidgetRegistry.shared.metadata(for: identifier)?.supportedSpans ?? TileSpan.allCases
@@ -221,7 +227,7 @@ enum WidgetKind: Codable, Identifiable, Hashable {
         switch self {
         case .nowPlaying:
             WidgetExpansionExtent(widthTiles: 5, heightTiles: 2)
-        case .calendar, .calendarDate, .reminders, .batteries, .systemStatus, .weather, .search:
+        case .calendar, .calendarDate, .reminders, .batteries, .systemStatus, .weather, .search, .photoFrame:
             .standard
         case .external(let identifier):
             ExternalWidgetRegistry.shared.metadata(for: identifier)?.expansionExtent ?? .standard
@@ -235,7 +241,7 @@ enum WidgetKind: Codable, Identifiable, Hashable {
     /// stay inline.
     nonisolated var isExpandable: Bool {
         switch self {
-        case .calendar, .reminders, .batteries, .systemStatus, .nowPlaying, .weather:
+        case .calendar, .reminders, .batteries, .systemStatus, .nowPlaying, .weather, .photoFrame:
             true
         case .calendarDate, .search:
             false

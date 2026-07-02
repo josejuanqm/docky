@@ -82,6 +82,15 @@ struct WidgetTileView: View {
                 isExpanded: isExpanded,
                 isExpandedPreviewOpen: isExpandedPreviewOpen
             )
+        case .photoFrame:
+            PhotoFrameWidgetTileView(
+                tile: tile,
+                cornerRadius: cornerRadius,
+                renderedSpan: renderedSpan,
+                isWithinStack: isWithinStack,
+                isExpanded: isExpanded,
+                isExpandedPreviewOpen: isExpandedPreviewOpen
+            )
         case .external(let identifier):
             ExternalWidgetTileView(
                 identifier: identifier,
