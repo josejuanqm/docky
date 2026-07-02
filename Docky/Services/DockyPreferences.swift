@@ -2632,6 +2632,22 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Ordered file bookmarks for the Photo Frame widget's slideshow.
+    /// Global (not mirrored per-profile) — the user's chosen photos are
+    /// content, like installed widgets, not part of a dock layout.
+    /// `Data` is a property-list type, so it round-trips through
+    /// UserDefaults directly without a JSON encode step.
+    var photoFrameBookmarks: [Data] {
+        didSet {
+            guard photoFrameBookmarks != oldValue else { return }
+            if photoFrameBookmarks.isEmpty {
+                defaults.removeObject(forKey: Keys.photoFrameBookmarks)
+            } else {
+                defaults.set(photoFrameBookmarks, forKey: Keys.photoFrameBookmarks)
+            }
+        }
+    }
+
     private let defaults: UserDefaults
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -3586,6 +3602,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let appWidgetDisplays = "docky.appWidgetDisplays"
         static let trailingItems = "docky.trailingItems"
         static let hasSeenDockEditorHint = "docky.hasSeenDockEditorHint"
+        static let photoFrameBookmarks = "docky.photoFrameBookmarks"
         static let userOverriddenAppearanceKeys = "docky.userOverriddenAppearanceKeys"
         static let appearanceOverrideMigrationVersion = "docky.appearanceOverrideMigrationVersion"
     }
@@ -3977,6 +3994,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         self.appWidgetDisplays = Self.decodeAppWidgetDisplays(from: storedAppWidgetDisplays) ?? DefaultValues.appWidgetDisplays
         self.trailingItems = Self.decodeTrailingItems(from: storedTrailingItems) ?? DefaultValues.trailingItems
         self.hasSeenDockEditorHint = storedHasSeenDockEditorHint ?? DefaultValues.hasSeenDockEditorHint
+        self.photoFrameBookmarks = (defaults.array(forKey: Keys.photoFrameBookmarks) as? [Data]) ?? []
 
         // Load the user-override set, then run the one-shot migration
         // that infers overrides from existing UserDefaults presence.
