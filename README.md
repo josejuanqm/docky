@@ -83,6 +83,8 @@ Optionally show running apps inline so a folder doubles as a live workspace.
 
 - **Custom app icons:** override the icon for any pinned, running, or
   widget-backed app.
+- **Focused taskbar:** optionally hide unpinned apps that are running without
+  any open windows, while keeping apps with minimized windows visible.
 - **Scripted actions:** catalog-backed AppleScript and menu-click automation,
   plus curated commands.
 - **Themes and profiles:** themeable appearance and switchable configuration
