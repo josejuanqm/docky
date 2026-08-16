@@ -152,7 +152,7 @@ final class WorkspaceService: ObservableObject {
 
         // Default: bring the app forward.
         runningApp.unhide()
-        runningApp.activate(options: [.activateAllWindows])
+        runningApp.activateTransferringFrontmost(options: [.activateAllWindows])
     }
 
     private func applyFrontmostAppTileClickBehavior(
@@ -318,7 +318,7 @@ final class WorkspaceService: ObservableObject {
         }
 
         runningApp.unhide()
-        _ = runningApp.activate()
+        runningApp.activateTransferringFrontmost()
     }
 
     @discardableResult
@@ -541,7 +541,7 @@ final class WorkspaceService: ObservableObject {
         }
 
         runningApp.unhide()
-        _ = runningApp.activate()
+        runningApp.activateTransferringFrontmost()
         // The Dock targets App Exposé at whatever app is frontmost when the
         // call arrives. The small delay lets activation land first so Exposé
         // surfaces the correct app's windows.

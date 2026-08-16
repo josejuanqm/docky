@@ -290,7 +290,7 @@ final class WindowRegistry: ObservableObject {
         if let runningApp = NSRunningApplication(processIdentifier: window.processIdentifier) {
             DispatchQueue.main.async {
                 runningApp.unhide()
-                _ = runningApp.activate()
+                runningApp.activateTransferringFrontmost()
             }
         }
 
