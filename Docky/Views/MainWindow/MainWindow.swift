@@ -182,6 +182,11 @@ final class MainWindow: NSPanel {
     }
 
     private let backgroundBlurRadius = 10
+    /// The hidden panel stays this many points on screen. The reveal is
+    /// driven by the content view's tracking area (`mouseEntered`), so the
+    /// window has to keep a sliver of itself hittable at the screen edge —
+    /// but nothing about that sliver should ever be *seen*, which is what
+    /// `applyVisibilityAppearance()` takes care of.
     private let hiddenRevealThickness: CGFloat = 2
     private let tileMutationAnimationDuration: TimeInterval = 0.18
     private let dockSettings = DockSettingsService.shared
@@ -325,13 +330,32 @@ final class MainWindow: NSPanel {
         applyBackgroundBlur()
     }
 
+    /// The blur is a WindowServer-side backdrop filter over the panel's
+    /// whole frame, independent of anything the content view draws. While
+    /// hidden that meant the leftover reveal sliver kept smearing whatever
+    /// sat behind it along the screen edge — most visibly over a fullscreen
+    /// app, where a blurred band of the desktop showed through. Radius 0
+    /// detaches the filter, so the blur only exists while the dock does.
     private func applyBackgroundBlur() {
         guard windowNumber > 0 else { return }
         _ = CGSSetWindowBackgroundBlurRadius(
             CGSMainConnectionID(),
             windowNumber,
-            backgroundBlurRadius
+            visibilityState == .hidden ? 0 : backgroundBlurRadius
         )
+    }
+
+    /// Keeps the panel's on-screen appearance in sync with the visibility
+    /// state. Hidden means fully transparent with no backdrop blur: the
+    /// reveal sliver stays where it is and keeps receiving mouse-entered
+    /// events (a zero-alpha window is still hit-tested), it just stops
+    /// painting. Without this the sliver leaked the blurred backdrop, and
+    /// in full-axis mode — where the chrome fills the panel instead of
+    /// leaving magnification headroom at the inward edge — it also left a
+    /// visible strip of live dock chrome at the screen edge.
+    private func applyVisibilityAppearance() {
+        alphaValue = visibilityState == .hidden ? 0 : 1
+        applyBackgroundBlur()
     }
 
     private func observeFrameInputs() {
@@ -830,23 +854,44 @@ final class MainWindow: NSPanel {
     private func applyFrame(_ frame: CGRect, animated: Bool, duration: TimeInterval?) {
         let shouldAnimate = animated && hasResolvedInitialFrame
 
+        // Revealing paints up front so the dock is visible for the whole
+        // slide in; hiding waits for the completion handler below, so it
+        // slides out instead of blinking away.
+        if hasResolvedInitialFrame, visibilityState == .visible {
+            applyVisibilityAppearance()
+        }
+
         guard shouldAnimate else {
             setFrame(frame, display: true, animate: false)
-            revealAfterInitialFrameIfNeeded()
+            markInitialFrameResolvedIfNeeded()
+            applyVisibilityAppearance()
             return
         }
 
-        NSAnimationContext.runAnimationGroup { context in
+        NSAnimationContext.runAnimationGroup({ context in
             context.duration = duration ?? autohideAnimationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             animator().setFrame(frame, display: true)
-        }
+        }, completionHandler: { [weak self] in
+            // Animation completions land on the main thread; the closure
+            // itself is nonisolated, so state has to be touched through
+            // `assumeIsolated` (same bridge `DockBadgeService` uses).
+            MainActor.assumeIsolated {
+                // A reveal that interrupts this hide flips the state back
+                // to `.visible` and repaints itself, so bail rather than
+                // blanking a dock that's on its way in.
+                guard let self, self.visibilityState == .hidden else { return }
+                self.applyVisibilityAppearance()
+            }
+        })
     }
 
-    private func revealAfterInitialFrameIfNeeded() {
+    /// The panel is created at `alphaValue = 0` so it never flashes at a
+    /// half-computed frame. Once the first real frame lands, appearance is
+    /// driven by the visibility state instead.
+    private func markInitialFrameResolvedIfNeeded() {
         guard !hasResolvedInitialFrame else { return }
         hasResolvedInitialFrame = true
-        alphaValue = 1
     }
 
     private var autohideAnimationDuration: TimeInterval {
