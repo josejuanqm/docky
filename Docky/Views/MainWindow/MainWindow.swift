@@ -182,7 +182,7 @@ final class MainWindow: NSPanel {
     }
 
     private let backgroundBlurRadius = 10
-    private let hiddenRevealThickness: CGFloat = 2
+    private let revealTriggerThickness: CGFloat = 2
     private let tileMutationAnimationDuration: TimeInterval = 0.18
     private let dockSettings = DockSettingsService.shared
     private let preferences = DockyPreferences.shared
@@ -198,6 +198,7 @@ final class MainWindow: NSPanel {
     private var localPointerMonitor: Any?
     private var globalDragRevealMonitor: Any?
     private var localDragRevealMonitor: Any?
+    private var revealTriggerZone: CGRect = .zero
     private var isPointerInsideWindow = false
     private var activeInteractionCount = 0
     private var visibilityState: VisibilityState
@@ -294,7 +295,7 @@ final class MainWindow: NSPanel {
         observeWindowPlacementInputs()
         observeVisibilityInputs()
         updatePointerScreenMonitoring()
-        updateDragRevealMonitoring()
+        updateRevealMonitoring()
         let initialOverlap = computeContentOverlapStateOnTargetScreen()
         isFullscreenActiveOnTargetScreen = initialOverlap.isFullscreen
         isMaximizedActiveOnTargetScreen = initialOverlap.isMaximized
@@ -524,7 +525,9 @@ final class MainWindow: NSPanel {
         }
     }
 
-    private func updateDragRevealMonitoring() {
+    /// A hidden panel sits off-screen, where its tracking area can't fire, so
+    /// the reveal runs off monitored pointer movement instead.
+    private func updateRevealMonitoring() {
         if let globalDragRevealMonitor {
             NSEvent.removeMonitor(globalDragRevealMonitor)
             self.globalDragRevealMonitor = nil
@@ -534,12 +537,14 @@ final class MainWindow: NSPanel {
             self.localDragRevealMonitor = nil
         }
 
-        let dragEvents: NSEvent.EventTypeMask = [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
-        globalDragRevealMonitor = NSEvent.addGlobalMonitorForEvents(matching: dragEvents) { [weak self] _ in
-            self?.syncPointerPresenceForDragSession()
+        let revealEvents: NSEvent.EventTypeMask = [
+            .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
+        ]
+        globalDragRevealMonitor = NSEvent.addGlobalMonitorForEvents(matching: revealEvents) { [weak self] _ in
+            self?.syncPointerPresence()
         }
-        localDragRevealMonitor = NSEvent.addLocalMonitorForEvents(matching: dragEvents) { [weak self] event in
-            self?.syncPointerPresenceForDragSession()
+        localDragRevealMonitor = NSEvent.addLocalMonitorForEvents(matching: revealEvents) { [weak self] event in
+            self?.syncPointerPresence()
             return event
         }
     }
@@ -595,8 +600,11 @@ final class MainWindow: NSPanel {
         DispatchQueue.main.asyncAfter(deadline: .now() + preferences.fullscreenRevealDelay, execute: workItem)
     }
 
-    private func syncPointerPresenceForDragSession() {
-        let containsPointer = frame.contains(NSEvent.mouseLocation)
+    private func syncPointerPresence() {
+        guard effectivelyAutohides else { return }
+
+        let location = NSEvent.mouseLocation
+        let containsPointer = frame.contains(location) || revealTriggerZone.contains(location)
         if containsPointer, !isPointerInsideWindow {
             pointerDidEnterWindow()
         } else if !containsPointer, isPointerInsideWindow {
@@ -824,6 +832,7 @@ final class MainWindow: NSPanel {
         )
 
         let frame = CGRect(origin: origin, size: size)
+        revealTriggerZone = makeRevealTriggerZone(in: layoutBounds, frame: frame, position: position)
         applyFrame(frame, animated: animated, duration: duration)
     }
 
@@ -949,23 +958,42 @@ final class MainWindow: NSPanel {
         case .top:
             return CGPoint(
                 x: screenBounds.minX + (screenBounds.width - size.width) / 2,
-                y: hidden ? screenBounds.maxY - hiddenRevealThickness : screenBounds.maxY - size.height
+                y: hidden ? screenBounds.maxY : screenBounds.maxY - size.height
             )
         case .left:
             return CGPoint(
-                x: hidden ? screenBounds.minX - size.width + hiddenRevealThickness : screenBounds.minX,
+                x: hidden ? screenBounds.minX - size.width : screenBounds.minX,
                 y: screenBounds.minY + (screenBounds.height - size.height) / 2
             )
         case .right:
             return CGPoint(
-                x: hidden ? screenBounds.maxX - hiddenRevealThickness : screenBounds.maxX - size.width,
+                x: hidden ? screenBounds.maxX : screenBounds.maxX - size.width,
                 y: screenBounds.minY + (screenBounds.height - size.height) / 2
             )
         case .bottom:
             return CGPoint(
                 x: screenBounds.minX + (screenBounds.width - size.width) / 2,
-                y: hidden ? screenBounds.minY - size.height + hiddenRevealThickness : screenBounds.minY
+                y: hidden ? screenBounds.minY - size.height : screenBounds.minY
             )
+        }
+    }
+
+    private func makeRevealTriggerZone(
+        in screenBounds: CGRect,
+        frame: CGRect,
+        position: ResolvedDockWindowPosition
+    ) -> CGRect {
+        let thickness = revealTriggerThickness
+
+        switch position {
+        case .top:
+            return CGRect(x: frame.minX, y: screenBounds.maxY - thickness, width: frame.width, height: thickness)
+        case .bottom:
+            return CGRect(x: frame.minX, y: screenBounds.minY, width: frame.width, height: thickness)
+        case .left:
+            return CGRect(x: screenBounds.minX, y: frame.minY, width: thickness, height: frame.height)
+        case .right:
+            return CGRect(x: screenBounds.maxX - thickness, y: frame.minY, width: thickness, height: frame.height)
         }
     }
 
