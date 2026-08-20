@@ -111,7 +111,7 @@ enum Permission: String, CaseIterable, Identifiable {
         case .accessibility:
             return true
         case .screenCapture:
-            return true
+            return false
         case .location:
             return false
         case .calendar:
