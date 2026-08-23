@@ -526,8 +526,17 @@ final class MainWindow: NSPanel {
     }
 
     /// A hidden panel sits off-screen, where its tracking area can't fire, so
-    /// the reveal runs off monitored pointer movement instead.
+    /// the reveal runs off monitored pointer movement instead. When autohide
+    /// is inactive the panel is always visible and `syncPointerPresence`
+    /// early-returns, so a global `.mouseMoved` monitor would wake Docky on
+    /// every system-wide pointer move for nothing — only keep it installed
+    /// while autohide can actually hide us. Re-synced from
+    /// `applyEffectiveVisibility` whenever that condition changes.
     private func updateRevealMonitoring() {
+        let shouldMonitor = effectivelyAutohides
+        let isMonitoring = globalDragRevealMonitor != nil || localDragRevealMonitor != nil
+        guard shouldMonitor != isMonitoring else { return }
+
         if let globalDragRevealMonitor {
             NSEvent.removeMonitor(globalDragRevealMonitor)
             self.globalDragRevealMonitor = nil
@@ -536,6 +545,8 @@ final class MainWindow: NSPanel {
             NSEvent.removeMonitor(localDragRevealMonitor)
             self.localDragRevealMonitor = nil
         }
+
+        guard shouldMonitor else { return }
 
         let revealEvents: NSEvent.EventTypeMask = [
             .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
@@ -627,6 +638,9 @@ final class MainWindow: NSPanel {
 
     private func applyEffectiveVisibility(animated: Bool) {
         hideWorkItem?.cancel()
+        // `effectivelyAutohides` may have just flipped (autohide pref,
+        // fullscreen, or maximized state) — keep the reveal monitor in sync.
+        updateRevealMonitoring()
 
         if effectivelyAutohides {
             let nextState: VisibilityState = shouldRemainVisible ? .visible : .hidden
