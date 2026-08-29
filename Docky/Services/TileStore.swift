@@ -80,6 +80,10 @@ final class TileStore: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.rebuildTiles() }
             .store(in: &cancellables)
+        WindowRegistry.shared.$windows
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.rebuildTiles() }
+            .store(in: &cancellables)
         // `DockyPreferences` is `@Observable`. We observe each
         // property bundle through `observeChanges` so the same change
         // signal fires only when the relevant property mutates.
@@ -119,6 +123,7 @@ final class TileStore: ObservableObject {
             _ = DockyPreferences.shared.showsGroupedOpenedAppsInDock
             _ = DockyPreferences.shared.effectiveShowsActivePinnedSeparator
             _ = DockyPreferences.shared.showsRunningApps
+            _ = DockyPreferences.shared.hidesAppsWithoutOpenWindows
             _ = DockyPreferences.shared.showsMinimizedWindows
             _ = DockyPreferences.shared.enablesShelveMode
             _ = DockyPreferences.shared.shelveHidesFinder
@@ -2199,10 +2204,25 @@ final class TileStore: ObservableObject {
                     && !pinnedBundleIDs.contains($0.bundleIdentifier)
                     && !hiddenBundleIDs.contains($0.bundleIdentifier)
             }
+        let appsWithoutOpenWindows: Set<String>
+        if preferences.hidesAppsWithoutOpenWindows,
+           PermissionsService.shared.accessibility == .granted {
+            let bundleIDsWithOpenWindows = Set(WindowRegistry.shared.windows.map(\.bundleIdentifier))
+            appsWithoutOpenWindows = Set(currentUnpinned.map(\.bundleIdentifier))
+                .subtracting(bundleIDsWithOpenWindows)
+        } else {
+            // Without Accessibility, the registry is incomplete. Keep the
+            // normal running-app list rather than incorrectly hiding every app.
+            appsWithoutOpenWindows = []
+        }
+        let openWindowUnpinned = currentUnpinned.filter {
+            !appsWithoutOpenWindows.contains($0.bundleIdentifier)
+        }
 
         displayedRunning = resolveDisplayedRunning(
-            currentUnpinned: currentUnpinned,
-            pinnedBundleIDs: pinnedBundleIDs
+            currentUnpinned: openWindowUnpinned,
+            pinnedBundleIDs: pinnedBundleIDs,
+            excludedBundleIDs: appsWithoutOpenWindows
         )
 
         let shelveMode = preferences.enablesShelveMode
@@ -2498,9 +2518,12 @@ final class TileStore: ObservableObject {
     ///   - A non-rightmost exit drops the tile (shifts remaining left).
     ///   - A rightmost exit holds the slot as a ghost until something newer
     ///     launches to take its place (or the ghost's bundle gets pinned).
+    ///   - Apps excluded by the open-window preference are removed rather
+    ///     than preserved as ghosts.
     private func resolveDisplayedRunning(
         currentUnpinned: [RunningApp],
-        pinnedBundleIDs: Set<String>
+        pinnedBundleIDs: Set<String>,
+        excludedBundleIDs: Set<String>
     ) -> [RunningApp] {
         let hiddenBundleIDs = Set(preferences.hiddenAppBundleIdentifiers)
         let currentMap = Dictionary(
@@ -2514,7 +2537,8 @@ final class TileStore: ObservableObject {
 
         for (index, existing) in displayedRunning.enumerated() {
             if pinnedBundleIDs.contains(existing.bundleIdentifier)
-                || hiddenBundleIDs.contains(existing.bundleIdentifier) {
+                || hiddenBundleIDs.contains(existing.bundleIdentifier)
+                || excludedBundleIDs.contains(existing.bundleIdentifier) {
                 continue
             }
             if let live = currentMap[existing.bundleIdentifier] {
@@ -2527,12 +2551,14 @@ final class TileStore: ObservableObject {
         let existingIDs = Set(displayedRunning.map(\.bundleIdentifier))
         for app in currentUnpinned
         where !existingIDs.contains(app.bundleIdentifier)
-            && !hiddenBundleIDs.contains(app.bundleIdentifier) {
+            && !hiddenBundleIDs.contains(app.bundleIdentifier)
+            && !excludedBundleIDs.contains(app.bundleIdentifier) {
             survived.append(app)
         }
 
         if let ghost = pendingGhost,
-           !hiddenBundleIDs.contains(ghost.bundleIdentifier) {
+           !hiddenBundleIDs.contains(ghost.bundleIdentifier),
+           !excludedBundleIDs.contains(ghost.bundleIdentifier) {
             let ghostLaunch = ghost.launchDate ?? .distantPast
             let hasNewer = survived.contains { app in
                 (app.launchDate ?? .distantPast) > ghostLaunch

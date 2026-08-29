@@ -1962,6 +1962,14 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Whether Docky hides unpinned running apps that have no open windows.
+    var hidesAppsWithoutOpenWindows: Bool {
+        didSet {
+            guard hidesAppsWithoutOpenWindows != oldValue else { return }
+            defaults.set(hidesAppsWithoutOpenWindows, forKey: Keys.hidesAppsWithoutOpenWindows)
+        }
+    }
+
     /// Behavior when clicking an app tile whose app is already frontmost with at least one
     /// visible window. `.none` is the default; `.cycleWindows` and `.minimizeAll` are pro-only.
     var appTileFrontmostClickBehavior: AppTileFrontmostClickBehavior {
@@ -3565,6 +3573,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let widgetHoverPreviewDelay = "docky.widgetHoverGrowDelay"
         static let showsActivePinnedSeparator = "docky.showsActivePinnedSeparator"
         static let showsRunningApps = "docky.showsRunningApps"
+        static let hidesAppsWithoutOpenWindows = "docky.hidesAppsWithoutOpenWindows"
         static let showsMinimizedWindows = "docky.showsMinimizedWindows"
         static let hidesDuringFullscreen = "docky.hidesDuringFullscreen"
         static let enablesShelveMode = "docky.enablesShelveMode"
@@ -3674,6 +3683,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let widgetHoverPreviewDelay: TimeInterval = 1
         static let showsActivePinnedSeparator = true
         static let showsRunningApps = true
+        static let hidesAppsWithoutOpenWindows = false
         static let showsMinimizedWindows = true
         static let hidesDuringFullscreen = true
         static let enablesShelveMode = false
@@ -3806,6 +3816,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedWidgetHoverPreviewDelay = defaults.object(forKey: Keys.widgetHoverPreviewDelay) as? Double
         let storedShowsActivePinnedSeparator = defaults.object(forKey: Keys.showsActivePinnedSeparator) as? Bool
         let storedShowsRunningApps = defaults.object(forKey: Keys.showsRunningApps) as? Bool
+        let storedHidesAppsWithoutOpenWindows = defaults.object(forKey: Keys.hidesAppsWithoutOpenWindows) as? Bool
         let storedShowsMinimizedWindows = defaults.object(forKey: Keys.showsMinimizedWindows) as? Bool
         let storedEnablesShelveMode = defaults.object(forKey: Keys.enablesShelveMode) as? Bool
         let storedShelveHidesFinder = defaults.object(forKey: Keys.shelveHidesFinder) as? Bool
@@ -3938,6 +3949,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         self.widgetHoverPreviewDelay = max(storedWidgetHoverPreviewDelay ?? DefaultValues.widgetHoverPreviewDelay, 0)
         self.showsActivePinnedSeparator = storedShowsActivePinnedSeparator ?? DefaultValues.showsActivePinnedSeparator
         self.showsRunningApps = storedShowsRunningApps ?? DefaultValues.showsRunningApps
+        self.hidesAppsWithoutOpenWindows = storedHidesAppsWithoutOpenWindows ?? DefaultValues.hidesAppsWithoutOpenWindows
         self.showsMinimizedWindows = storedShowsMinimizedWindows ?? DefaultValues.showsMinimizedWindows
         self.hidesDuringFullscreen = (defaults.object(forKey: Keys.hidesDuringFullscreen) as? Bool) ?? DefaultValues.hidesDuringFullscreen
         self.enablesShelveMode = storedEnablesShelveMode ?? DefaultValues.enablesShelveMode
@@ -4199,6 +4211,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         shelveHidesTrash = DefaultValues.shelveHidesTrash
         hidesRecentApps = DefaultValues.hidesRecentApps
         showsRunningApps = DefaultValues.showsRunningApps
+        hidesAppsWithoutOpenWindows = DefaultValues.hidesAppsWithoutOpenWindows
         showsMinimizedWindows = DefaultValues.showsMinimizedWindows
         showsActivePinnedSeparator = DefaultValues.showsActivePinnedSeparator
 
@@ -4264,6 +4277,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         widgetHoverPreviewDelay = DefaultValues.widgetHoverPreviewDelay
         showsActivePinnedSeparator = DefaultValues.showsActivePinnedSeparator
         showsRunningApps = DefaultValues.showsRunningApps
+        hidesAppsWithoutOpenWindows = DefaultValues.hidesAppsWithoutOpenWindows
         showsMinimizedWindows = DefaultValues.showsMinimizedWindows
         hidesDuringFullscreen = DefaultValues.hidesDuringFullscreen
         enablesShelveMode = DefaultValues.enablesShelveMode

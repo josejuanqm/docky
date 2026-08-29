@@ -20,6 +20,7 @@ struct BehaviorSettingsView: View {
     let subsection: Subsection
 
     @Bindable private var preferences = DockyPreferences.shared
+    @ObservedObject private var permissions = PermissionsService.shared
     @State private var isShowingResetConfirmation = false
 
     var body: some View {
@@ -325,6 +326,17 @@ struct BehaviorSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Hide Apps Without Open Windows", isOn: $preferences.hidesAppsWithoutOpenWindows)
+                    .font(.headline)
+
+                Text("Hides unpinned running apps that have no open windows. Minimized windows keep their app visible. Requires Accessibility permission.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+            .disabled(!preferences.showsRunningApps || permissions.accessibility != .granted)
 
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Show Notification Badges", isOn: $preferences.showsAppBadges)
