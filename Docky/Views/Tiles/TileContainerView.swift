@@ -216,11 +216,13 @@ struct TileContainerView: View {
         // when the dock is content-sized.
         let isFlexible = tile.content == .flexibleSpacer
         let isHorizontal = !position.isVertical
+        let isTrashTile = tile.content == .trash
         TileView(
             tile: tile,
-            isDocumentDropTarget: dockDrag.documentTargetTileID == tile.id,
+            isDocumentDropTarget: !isTrashTile && dockDrag.documentTargetTileID == tile.id,
             isAppFolderDropTarget: draggedAppFolderTargetTileID == tile.id,
-            isTrashDropTarget: draggedTrashTargetTileID == tile.id,
+            isTrashDropTarget: draggedTrashTargetTileID == tile.id
+                || (isTrashTile && dockDrag.documentTargetTileID == tile.id),
             renderedTileSize: iconSize
         )
             .frame(
@@ -1647,7 +1649,11 @@ struct TileContainerView: View {
         let positionValue = projected(point: location)
         switch kind {
         case .document:
+            // Documents can target an app tile (open-with) or the Trash tile
+            // (move to trash). Without the trash fallback the drop lands with
+            // no target and performDragOperation silently rejects it.
             let targetID = documentDropTargetTileID(at: location)
+                ?? trashDropTargetTileID(at: location, sourceTileID: "")
             if dockDrag.documentTargetTileID != targetID { dockDrag.documentTargetTileID = targetID }
             if dockDrag.destinationIndex != nil { dockDrag.destinationIndex = nil }
             if dockDrag.destinationSection != nil { dockDrag.destinationSection = nil }

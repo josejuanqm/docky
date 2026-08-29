@@ -465,15 +465,22 @@ final class ClickThroughHostingView: NSHostingView<MainWindowView> {
                 return true
             case .document(let urls):
                 guard let targetTileID,
-                      let bundleIdentifier = TileStore.shared.tiles
-                        .first(where: { $0.id == targetTileID })
-                        .flatMap({ tile -> String? in
-                            if case .app(let app) = tile.content { return app.bundleIdentifier }
-                            return nil
-                        }) else {
+                      let targetTile = TileStore.shared.tiles.first(where: { $0.id == targetTileID }) else {
                     return false
                 }
-                WorkspaceService.shared.open(fileURLs: urls, withApplicationBundleIdentifier: bundleIdentifier)
+                if case .trash = targetTile.content {
+                    // Returning false when nothing was trashed keeps the
+                    // system's slide-back animation as the failure cue.
+                    var trashedAny = false
+                    for url in urls where (try? FileManager.default.trashItem(at: url, resultingItemURL: nil)) != nil {
+                        trashedAny = true
+                    }
+                    return trashedAny
+                }
+                guard case .app(let app) = targetTile.content, !app.bundleIdentifier.isEmpty else {
+                    return false
+                }
+                WorkspaceService.shared.open(fileURLs: urls, withApplicationBundleIdentifier: app.bundleIdentifier)
                 return true
             }
         }
