@@ -327,6 +327,16 @@ struct BehaviorSettingsView: View {
             .padding(.vertical, 4)
 
             VStack(alignment: .leading, spacing: 8) {
+                Toggle("Dim Idle App Icons", isOn: $preferences.dimsIdleAppIcons)
+                    .font(.headline)
+
+                Text("Fades an app's tile to half opacity while the app is hidden or has no windows open. Turn off to keep icons fully opaque regardless of state. Detecting open windows needs Accessibility permission.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
                 Toggle("Show Notification Badges", isOn: $preferences.showsAppBadges)
                     .font(.headline)
 
