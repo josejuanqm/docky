@@ -127,10 +127,15 @@ final class WorkspaceService: ObservableObject {
         let isFrontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier
             && !runningApp.isHidden
 
-        // Running but no AX windows: spawn a new window.
-        if accessibilityGranted, allWindows.isEmpty,
-           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            openApplication(at: appURL)
+        // No AX windows can also mean every window is on another Space (AX
+        // can't see those): activate to switch Spaces instead of reopening.
+        if accessibilityGranted, allWindows.isEmpty {
+            if hasWindowOnAnotherSpace(pid: runningApp.processIdentifier) {
+                runningApp.unhide()
+                runningApp.activateTransferringFrontmost(options: [.activateAllWindows])
+            } else if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+                openApplication(at: appURL)
+            }
             return
         }
 
@@ -153,6 +158,25 @@ final class WorkspaceService: ObservableObject {
         // Default: bring the app forward.
         runningApp.unhide()
         runningApp.activateTransferringFrontmost(options: [.activateAllWindows])
+    }
+
+    /// Whether the window server knows a live, ordinary window for `pid` that
+    /// isn't on the active Space (ordered-in filters stale closed-window entries).
+    private func hasWindowOnAnotherSpace(pid: pid_t) -> Bool {
+        guard let entries = CGWindowListCopyWindowInfo([], kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+        let connection = CGSMainConnectionID()
+        return entries.contains { entry in
+            guard (entry[kCGWindowOwnerPID as String] as? pid_t) == pid,
+                  (entry[kCGWindowLayer as String] as? Int) == 0,
+                  ((entry[kCGWindowAlpha as String] as? Double) ?? 0) > 0,
+                  (entry[kCGWindowIsOnscreen as String] as? Bool) != true,
+                  let windowID = entry[kCGWindowNumber as String] as? CGWindowID else {
+                return false
+            }
+            return SLSWindowIsOrderedIn(connection, windowID)
+        }
     }
 
     private func applyFrontmostAppTileClickBehavior(

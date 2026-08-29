@@ -5,9 +5,8 @@
 //  Widget Store pane: browse the marketplace (community-submitted
 //  widgets fetched from getdocky.com/api/widgets), install
 //  `*.dockywidget` bundles from disk, and manage what's already
-//  installed. Loading external widget bundles is a Pro feature; users
-//  on the free tier see a Pro notice instead of the marketplace and
-//  installed lists.
+//  installed. Also owns the toggle that lets `docky://install-widget`
+//  links install a widget (off by default).
 //
 
 import AppKit
@@ -15,6 +14,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct WidgetsSettingsView: View {
+    @Bindable private var prefs = DockyPreferences.shared
     @State private var entries: [WidgetEntry] = []
     @State private var marketplaceState: MarketplaceState = .loading
     @State private var hasPendingChanges = false
@@ -79,6 +79,13 @@ struct WidgetsSettingsView: View {
                     }
                 }
             }
+        }
+
+        Section("Security") {
+            Toggle("Allow installing widgets from links", isOn: $prefs.allowsWidgetLinkInstalls)
+            Text("Links like `docky://install-widget` let a web page install a widget. Off by default. Widgets are native plugins that run inside Docky with the same access Docky has — Accessibility, Automation, files, and more — and Docky doesn't sandbox or verify them, so only install widgets you trust. Installing a `.dockywidget` file yourself always works.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
 
         Section("Marketplace") {
