@@ -1716,6 +1716,15 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Whether `docky://install-widget` links may install a widget. Off by
+    /// default so a web page can't drive a native-code install unprompted.
+    var allowsWidgetLinkInstalls: Bool {
+        didSet {
+            guard allowsWidgetLinkInstalls != oldValue else { return }
+            defaults.set(allowsWidgetLinkInstalls, forKey: Keys.allowsWidgetLinkInstalls)
+        }
+    }
+
     /// Whether app folders roll their contained apps' badges into a single
     /// total on the group tile, or paint a badge on each app icon. Only
     /// meaningful when `showsAppBadges` is on.
@@ -3548,6 +3557,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowSpaceBehavior = "docky.windowSpaceBehavior"
         static let autohidesWindow = "docky.autohidesWindow"
         static let showsAppBadges = "docky.showsAppBadges"
+        static let allowsWidgetLinkInstalls = "docky.allowsWidgetLinkInstalls"
         static let folderBadgeMode = "docky.folderBadgeMode"
         static let folderBadgePreviewStyle = "docky.folderBadgePreviewStyle"
         static let opensAtLogin = "docky.opensAtLogin"
@@ -3657,6 +3667,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowSpaceBehavior: DockWindowSpaceBehavior = .allSpaces
         static let autohidesWindow = false
         static let showsAppBadges = true
+        static let allowsWidgetLinkInstalls = false
         static let folderBadgeMode: FolderBadgeMode = .combined
         static let folderBadgePreviewStyle: FolderBadgePreviewStyle = .dot
         static let opensAtLogin = true
@@ -3789,6 +3800,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedWindowSpaceBehavior = defaults.string(forKey: Keys.windowSpaceBehavior)
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
         let storedShowsAppBadges = defaults.object(forKey: Keys.showsAppBadges) as? Bool
+        let storedAllowsWidgetLinkInstalls = defaults.object(forKey: Keys.allowsWidgetLinkInstalls) as? Bool
         let storedFolderBadgeMode = defaults.string(forKey: Keys.folderBadgeMode)
         let storedFolderBadgePreviewStyle = defaults.string(forKey: Keys.folderBadgePreviewStyle)
         let storedOpensAtLogin = defaults.object(forKey: Keys.opensAtLogin) as? Bool
@@ -3915,6 +3927,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         self.windowSpaceBehavior = (storedWindowSpaceBehavior.flatMap(DockWindowSpaceBehavior.init(rawValue:)) ?? DefaultValues.windowSpaceBehavior)
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
         self.showsAppBadges = storedShowsAppBadges ?? DefaultValues.showsAppBadges
+        self.allowsWidgetLinkInstalls = storedAllowsWidgetLinkInstalls ?? DefaultValues.allowsWidgetLinkInstalls
         self.folderBadgeMode = storedFolderBadgeMode
             .flatMap(FolderBadgeMode.init(rawValue:))
             ?? DefaultValues.folderBadgeMode
