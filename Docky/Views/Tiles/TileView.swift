@@ -29,7 +29,11 @@ struct TileView: View {
     @ObservedObject private var layout = DockLayoutService.shared
     @Bindable private var preferences = DockyPreferences.shared
     @ObservedObject private var workspace = WorkspaceService.shared
-    @ObservedObject private var mediaPlayback = MediaPlaybackService.shared
+    // Not an @ObservedObject: media state is read only inside context-menu
+    // and tap closures (never during `body`). Observing it here would
+    // re-render every tile on each MediaRemote snapshot — which arrives
+    // continuously while audio plays. Reach the shared instance directly.
+    private var mediaPlayback: MediaPlaybackService { .shared }
     @ObservedObject private var editMode = DockEditModeService.shared
     @ObservedObject private var widgetExpansion = WidgetExpansionWindowController.shared
     @ObservedObject private var dockDrag = DockDragService.shared
@@ -70,7 +74,6 @@ struct TileView: View {
         self._layout = ObservedObject(wrappedValue: DockLayoutService.shared)
         self._preferences = Bindable(wrappedValue: DockyPreferences.shared)
         self._workspace = ObservedObject(wrappedValue: WorkspaceService.shared)
-        self._mediaPlayback = ObservedObject(wrappedValue: MediaPlaybackService.shared)
         self._editMode = ObservedObject(wrappedValue: DockEditModeService.shared)
         self._widgetExpansion = ObservedObject(wrappedValue: WidgetExpansionWindowController.shared)
         self._dockDrag = ObservedObject(wrappedValue: DockDragService.shared)
