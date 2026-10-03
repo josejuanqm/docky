@@ -204,7 +204,7 @@ struct ThemesSettingsView: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .help("Delete this theme")
+                .help(L10n.text("Delete this theme"))
             }
         }
     }

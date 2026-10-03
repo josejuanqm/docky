@@ -237,6 +237,10 @@ struct ContextActionMenuPresenter: NSViewRepresentable {
 
             let selector = NSSelectorFromString("_popUpMenuRelativeToRect:inView:preferredEdge:")
             if menu.responds(to: selector) {
+                // The cartouche popup does not size the menu for us, and lazily
+                // populated submenus have no items yet, so a menu that was never
+                // updated can come up empty or clipped.
+                menu.update()
                 typealias Fn = @convention(c) (NSMenu, Selector, NSRect, NSView?, NSRectEdge) -> Void
                 let imp = menu.method(for: selector)
                 let fn = unsafeBitCast(imp, to: Fn.self)
@@ -285,27 +289,27 @@ struct ContextActionMenuPresenter: NSViewRepresentable {
         private func addMenuItem(for action: ContextAction, to menu: NSMenu) {
             switch action.kind {
             case .action:
-                let item = NSMenuItem(title: action.title, action: #selector(runAction(_:)), keyEquivalent: "")
+                let item = NSMenuItem(title: L10n.text(action.title), action: #selector(runAction(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = action
                 item.state = action.isOn ? .on : .off
                 item.image = thumbnailImage(action.image)
                 if action.isDestructive {
                     item.attributedTitle = NSAttributedString(
-                        string: action.title,
+                        string: L10n.text(action.title),
                         attributes: [.foregroundColor: NSColor.systemRed]
                     )
                 }
                 menu.addItem(item)
             case .submenu:
-                let item = NSMenuItem(title: action.title, action: nil, keyEquivalent: "")
+                let item = NSMenuItem(title: L10n.text(action.title), action: nil, keyEquivalent: "")
                 item.image = thumbnailImage(action.image)
                 item.submenu = buildMenu(actions: action.children)
                 menu.addItem(item)
             case .lazySubmenu:
-                let item = NSMenuItem(title: action.title, action: nil, keyEquivalent: "")
+                let item = NSMenuItem(title: L10n.text(action.title), action: nil, keyEquivalent: "")
                 item.image = thumbnailImage(action.image)
-                let submenu = NSMenu(title: action.title)
+                let submenu = NSMenu(title: L10n.text(action.title))
                 let provider = action.childrenProvider ?? { [] }
                 let controller = LazyMenuController(provider: provider) { [weak self] menu, children in
                     guard let self else { return }
@@ -438,7 +442,7 @@ struct MoreActionsButton: View {
                 .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
         }
         .buttonStyle(.plain)
-        .help("More actions")
+        .help(L10n.text("More actions"))
         .background(
             MoreActionsMenuAnchor(
                 trigger: triggerCount,

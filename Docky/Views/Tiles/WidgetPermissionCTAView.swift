@@ -46,7 +46,7 @@ struct WidgetPermissionCTAView: View {
                     .symbolRenderingMode(.hierarchical)
 
                 if showsReason {
-                    Text(reasonText)
+                    Text(L10n.text(reasonText))
                         .font(.system(size: reasonSize, weight: .medium))
                         .foregroundStyle(foreground.opacity(0.72))
                         .multilineTextAlignment(.center)
@@ -57,7 +57,7 @@ struct WidgetPermissionCTAView: View {
                 Button {
                     performAction()
                 } label: {
-                    Text(buttonTitle)
+                    Text(L10n.text(buttonTitle))
                         .font(.system(size: reasonSize, weight: .semibold))
                         .foregroundStyle(foreground.opacity(0.85))
                         .lineLimit(1)

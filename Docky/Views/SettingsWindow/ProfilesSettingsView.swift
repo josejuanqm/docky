@@ -343,7 +343,7 @@ private struct TimeOfDayTriggerEditor: View {
                         }
                         commit()
                     } label: {
-                        Text(day.label)
+                        Text(L10n.text(day.label))
                             .font(.caption2)
                             .frame(minWidth: 30)
                             .padding(.vertical, 3)

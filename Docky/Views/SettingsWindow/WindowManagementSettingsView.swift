@@ -82,7 +82,7 @@ struct WindowManagementSettingsView: View {
 
                     Picker("Layout", selection: $preferences.windowSwitcherLayout) {
                         ForEach(WindowSwitcherLayout.allCases) { layout in
-                            Text(layout.title).tag(layout)
+                            Text(L10n.text(layout.title)).tag(layout)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -202,7 +202,7 @@ struct WindowManagementSettingsView: View {
 
                     Picker("Layout", selection: $preferences.windowPreviewLayout) {
                         ForEach(WindowSwitcherLayout.allCases) { layout in
-                            Text(layout.title).tag(layout)
+                            Text(L10n.text(layout.title)).tag(layout)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -233,7 +233,7 @@ struct WindowManagementSettingsView: View {
         onChange: @escaping (UInt16) -> Void
     ) -> some View {
         HStack {
-            Text(title)
+            Text(L10n.text(title))
             Spacer()
             SingleKeyRecorderControl(
                 keyCode: keyCode,

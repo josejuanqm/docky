@@ -37,7 +37,7 @@ struct PermissionsSettingsView: View {
 
                     Spacer()
 
-                    Text(statusText(for: permission))
+                    Text(L10n.text(statusText(for: permission)))
                         .foregroundStyle(statusColor(for: permission))
                 }
 
@@ -50,12 +50,12 @@ struct PermissionsSettingsView: View {
 
                         Spacer()
 
-                        Text(grantMethod)
+                        Text(L10n.text(grantMethod))
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Text(permission.explanation)
+                Text(L10n.text(permission.explanation))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 

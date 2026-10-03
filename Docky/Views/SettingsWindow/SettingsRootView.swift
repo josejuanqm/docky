@@ -32,6 +32,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case permissions
     case updates
     case feedback
+    case language
 
     var id: String { rawValue }
 
@@ -63,6 +64,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .permissions: "Permissions"
         case .updates: "Updates"
         case .feedback: "Feedback"
+        case .language: "Language"
         }
     }
 
@@ -94,6 +96,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .permissions: "lock.shield"
         case .updates: "arrow.trianglehead.clockwise"
         case .feedback: "envelope"
+        case .language: "globe"
         }
     }
 
@@ -125,6 +128,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .permissions: .red
         case .updates: .blue
         case .feedback: .orange
+        case .language: .indigo
         }
     }
 
@@ -172,6 +176,9 @@ private let settingsSections: [SettingsSection] = [
     ]),
     SettingsSection(id: "support", title: "Support", panes: [
         .feedback
+    ]),
+    SettingsSection(id: "application", title: "Application", panes: [
+        .language
     ])
 ]
 
@@ -214,7 +221,7 @@ struct SettingsRootView: View {
             List(selection: $selection) {
                 ForEach(settingsSections) { section in
                     if let title = section.title {
-                        Section(title) {
+                        Section(L10n.text(title)) {
                             paneRows(section.panes)
                         }
                     } else {
@@ -238,14 +245,14 @@ struct SettingsRootView: View {
                     }
                     .disabled(!canGoBack)
                     .keyboardShortcut("[", modifiers: .command)
-                    .help("Back")
+                    .help(L10n.text("Back"))
 
                     Button(action: goForward) {
                         Image(systemName: "chevron.right")
                     }
                     .disabled(!canGoForward)
                     .keyboardShortcut("]", modifiers: .command)
-                    .help("Forward")
+                    .help(L10n.text("Forward"))
                 }
             }
         }
@@ -297,7 +304,7 @@ struct SettingsRootView: View {
         ForEach(panes) { pane in
             HStack(spacing: 8) {
                 PaneIconBadge(symbol: pane.symbolName, color: pane.tileColor)
-                Text(pane.title)
+                Text(L10n.text(pane.title))
                 Spacer(minLength: 8)
             }
             .tag(pane)
@@ -336,7 +343,7 @@ private struct SettingsDetailView: View {
             selectedView
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .navigationTitle(pane.title)
+        .navigationTitle(L10n.text(pane.title))
     }
 
     @ViewBuilder
@@ -394,6 +401,8 @@ private struct SettingsDetailView: View {
             UpdatesSettingsView()
         case .feedback:
             FeedbackSettingsView()
+        case .language:
+            LanguageSettingsView()
         }
     }
 }

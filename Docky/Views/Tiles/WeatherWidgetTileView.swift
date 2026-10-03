@@ -337,7 +337,7 @@ private struct WeatherWidgetContentView: View {
                     .foregroundStyle(.white.opacity(0.92))
             }
 
-            Text(placeholderTitle)
+            Text(L10n.text(placeholderTitle))
                 .font(.system(size: layout.locationFontSize, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
                 .multilineTextAlignment(.center)
@@ -437,7 +437,7 @@ private struct WeatherWidgetContentView: View {
                     .foregroundStyle(.white.opacity(0.92))
             }
 
-            Text(placeholderTitle)
+            Text(L10n.text(placeholderTitle))
                 .font(.system(size: layout.secondaryFontSize, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
                 .lineLimit(1)

@@ -577,7 +577,7 @@ private struct StartMenuView: View {
     /// already shows all matching apps in that case).
     private var appsSectionHeader: some View {
         HStack(spacing: 8) {
-            Text(appsSectionTitle)
+            Text(L10n.text(appsSectionTitle))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
@@ -672,7 +672,7 @@ private struct StartMenuView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         HStack {
-            Text(title)
+            Text(L10n.text(title))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
@@ -752,7 +752,7 @@ private struct StartMenuView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Docky Settings")
+            .help(L10n.text("Docky Settings"))
 
             Menu {
                 Button(SystemAction.sleep.title) { SystemAction.sleep.perform() }

@@ -245,7 +245,7 @@ private struct AppIconOverrideRow: View {
                                 iconPath: themeIconURL.path
                             )
                         }
-                        .help("Pin the active theme's icon for this app as your override. Without this, the theme icon already applies; pinning it preserves the choice if you switch themes.")
+                        .help(L10n.text("Pin the active theme's icon for this app as your override. Without this, the theme icon already applies; pinning it preserves the choice if you switch themes."))
                     }
 
                     if overrideEntry != nil {

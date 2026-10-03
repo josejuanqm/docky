@@ -315,7 +315,7 @@ struct CalendarWidgetTileView: View {
                     .font(.system(size: layout.emptyIconSize, weight: .semibold))
                     .foregroundStyle(Color.primary.opacity(0.84))
 
-                Text(emptyTitle)
+                Text(L10n.text(emptyTitle))
                     .font(.system(size: layout.eventTitleFontSize, weight: .semibold))
                     .foregroundStyle(Color.primary.opacity(0.94))
                     .multilineTextAlignment(.center)
@@ -372,7 +372,7 @@ struct CalendarWidgetTileView: View {
                     .foregroundStyle(Color.primary.opacity(0.9))
             }
 
-            Text(emptyTitle)
+            Text(L10n.text(emptyTitle))
                 .font(.system(size: layout.titleFontSize, weight: .semibold))
                 .foregroundStyle(Color.primary.opacity(0.96))
                 .multilineTextAlignment(.center)

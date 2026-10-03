@@ -8,7 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		113717682FA17B980012480C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 113717672FA17B980012480C /* Sparkle */; };
+		113717682FA17B980012480C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6000100AABBCC /* Sparkle.xcframework */; };
+		113717692FA17B980012480C /* Sparkle in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6000100AABBCC /* Sparkle.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D0C1000C2FA400000000000C /* DockyDockWatchdog.app in Embed Watchdog */ = {isa = PBXBuildFile; fileRef = D0C100012FA4000000000001 /* DockyDockWatchdog.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -30,6 +31,7 @@
 			dstSubfolderSpec = 10;
 			files = (
 				11051E012F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework in Embed Frameworks */,
+				113717692FA17B980012480C /* Sparkle in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -50,6 +52,7 @@
 /* Begin PBXFileReference section */
 		11051DE72F929079005CE09D /* Docky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Frameworks/MediaRemoteAdapter.framework; sourceTree = "<group>"; };
+		B1C2D3E4F5A6000100AABBCC /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Frameworks/Sparkle.xcframework; sourceTree = "<group>"; };
 		D0C100012FA4000000000001 /* DockyDockWatchdog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DockyDockWatchdog.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -108,6 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				11051E002F929079005CE09D /* Frameworks/MediaRemoteAdapter.framework */,
+				B1C2D3E4F5A6000100AABBCC /* Sparkle.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -137,7 +141,6 @@
 			);
 			name = Docky;
 			packageProductDependencies = (
-				113717672FA17B980012480C /* Sparkle */,
 			);
 			productName = Docky;
 			productReference = 11051DE72F929079005CE09D /* Docky.app */;
@@ -189,13 +192,14 @@
 			knownRegions = (
 				en,
 				es,
+				fr,
+				"zh-Hans",
+				"zh-Hant",
+				"zh-HK",
 				Base,
 			);
 			mainGroup = 11051DDE2F929079005CE09D;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */,
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 11051DE82F929079005CE09D /* Products */;
 			projectDirPath = "";
@@ -632,24 +636,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.9.1;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		113717672FA17B980012480C /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 113717662FA17B980012480C /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 11051DDF2F929079005CE09D /* Project object */;
 }
