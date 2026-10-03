@@ -387,6 +387,7 @@ final class MediaPlaybackService: ObservableObject {
         """
 
         _ = try? AppleScriptService.shared.executeDescriptor(source: source)
+        mediaRemote.invalidateFavoriteCache()
         try? await Task.sleep(for: .milliseconds(120))
         refresh()
     }
@@ -478,6 +479,16 @@ private final class MediaRemoteBridge {
     private let helper = MediaRemoteHelperProcess()
     private var lastPayloadByBundleIdentifier: [String: MediaRemoteSnapshot.Payload] = [:]
     private var lastActiveBundleIdentifier: String?
+    // App display names never change at runtime; memoize the LaunchServices
+    // lookup so it doesn't run on every snapshot. Touched only from the
+    // helper drain thread (via `handle`).
+    private var displayNameCache: [String: String] = [:]
+    // Favorite state only changes when the track changes (or the user
+    // toggles it), so cache it per track key instead of firing an AppleScript
+    // round-trip to Music on every snapshot. Guarded because it's read from
+    // the drain thread but invalidated from the main thread on toggle.
+    private var favoriteByTrackKey: [String: Bool] = [:]
+    private let favoriteCacheLock = NSLock()
 
     private init() {
         let bundleURL = NSURL(fileURLWithPath: "/System/Library/PrivateFrameworks/MediaRemote.framework")
@@ -540,18 +551,51 @@ private final class MediaRemoteBridge {
             isPlaying: isPlaying,
             isAvailable: true,
             supportsFavorite: bundleIdentifier == "com.apple.Music",
-            isFavorite: fetchFavorite(bundleIdentifier: bundleIdentifier),
+            isFavorite: resolveFavorite(bundleIdentifier: bundleIdentifier, title: title, artist: artist, album: album),
             artworkData: artworkData,
             lastUpdated: Date()
         )
         onStateChange?(state)
     }
 
-    private func fetchFavorite(bundleIdentifier: String) -> Bool {
+    /// Clears the cached favorite state. Called from the main thread after
+    /// the user toggles favorite so the next snapshot for the same track
+    /// re-queries Music instead of returning the stale value.
+    func invalidateFavoriteCache() {
+        favoriteCacheLock.lock()
+        favoriteByTrackKey.removeAll()
+        favoriteCacheLock.unlock()
+    }
+
+    private func resolveFavorite(bundleIdentifier: String, title: String, artist: String, album: String) -> Bool {
         guard bundleIdentifier == "com.apple.Music" else {
             return false
         }
 
+        let trackKey = "\(bundleIdentifier)|\(title)|\(artist)|\(album)"
+
+        favoriteCacheLock.lock()
+        if let cached = favoriteByTrackKey[trackKey] {
+            favoriteCacheLock.unlock()
+            return cached
+        }
+        favoriteCacheLock.unlock()
+
+        let value = fetchFavorite()
+
+        favoriteCacheLock.lock()
+        // Bound the cache; playlists are long but we only need the current
+        // track's value to stay warm across repeated snapshots.
+        if favoriteByTrackKey.count > 64 {
+            favoriteByTrackKey.removeAll()
+        }
+        favoriteByTrackKey[trackKey] = value
+        favoriteCacheLock.unlock()
+
+        return value
+    }
+
+    private func fetchFavorite() -> Bool {
         let source = """
         tell application "Music"
             if it is running then
@@ -565,15 +609,29 @@ private final class MediaRemoteBridge {
         end tell
         """
 
-        return (try? AppleScriptService.shared.executeDescriptor(source: source))?.booleanValue ?? false
+        // NSAppleScript is documented as main-thread-only; `handle` runs on
+        // the helper's background drain thread, so hop to main for the
+        // Apple Event round-trip.
+        let run: () -> Bool = {
+            (try? AppleScriptService.shared.executeDescriptor(source: source))?.booleanValue ?? false
+        }
+        return Thread.isMainThread ? run() : DispatchQueue.main.sync(execute: run)
     }
 
     private func displayName(for bundleIdentifier: String) -> String {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            return FileManager.default.displayName(atPath: url.path)
+        if let cached = displayNameCache[bundleIdentifier] {
+            return cached
         }
 
-        return bundleIdentifier
+        let resolved: String
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            resolved = FileManager.default.displayName(atPath: url.path)
+        } else {
+            resolved = bundleIdentifier
+        }
+
+        displayNameCache[bundleIdentifier] = resolved
+        return resolved
     }
 
     private static func function<T>(named name: String, in bundle: CFBundle?) -> T? {
