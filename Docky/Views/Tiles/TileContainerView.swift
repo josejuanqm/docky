@@ -160,16 +160,41 @@ struct TileContainerView: View {
             tileView(for: tile, magnification: magnification)
                 .zIndex(-1)
         case .section(let section):
-            if let scrollableSectionLayout, scrollableSectionLayout.id == section.id {
-                scrollableSectionView(
-                    section,
-                    axisLength: scrollableSectionLayout.axisLength,
-                    magnification: magnification
-                )
-            } else {
-                sectionTilesView(section.tiles, magnification: magnification)
+            Group {
+                if let scrollableSectionLayout, scrollableSectionLayout.id == section.id {
+                    scrollableSectionView(
+                        section,
+                        axisLength: scrollableSectionLayout.axisLength,
+                        magnification: magnification
+                    )
+                } else {
+                    sectionTilesView(section.tiles, magnification: magnification)
+                }
+            }
+            .overlay(alignment: position.isVertical ? .bottom : .trailing) {
+                if let anchor = section.collapsedAnchor {
+                    collapsedAnchorView(for: anchor)
+                }
             }
         }
+    }
+
+    /// Zero-size stand-in for a collapsed divider. It sits on the trailing
+    /// edge of the preceding section as an overlay, so it adds neither
+    /// extent nor stack spacing, but still reports its frame so drop-region
+    /// math that keys off the divider keeps working.
+    private func collapsedAnchorView(for tile: Tile) -> some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .background(alignment: .topLeading) {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: TileFramePreferenceKey.self,
+                        value: [tile.id: proxy.frame(in: .global)]
+                    )
+                }
+            }
+            .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -691,6 +716,7 @@ struct TileContainerView: View {
     }
 
     private static func layoutComponents(for tiles: [Tile]) -> [TileLayoutComponent] {
+        let collapsesDivider = collapsesTrailingDivider(in: tiles)
         var components: [TileLayoutComponent] = []
         var currentSectionID = "primary"
         var currentTiles: [Tile] = []
@@ -705,7 +731,14 @@ struct TileContainerView: View {
         for tile in tiles {
             if tile.id == "divider:running" || tile.id == "divider:trailing" {
                 appendCurrentSection()
-                components.append(.divider(tile))
+                if tile.id == "divider:trailing", collapsesDivider {
+                    if case .section(var section) = components.last {
+                        section.collapsedAnchor = tile
+                        components[components.count - 1] = .section(section)
+                    }
+                } else {
+                    components.append(.divider(tile))
+                }
                 currentSectionID = tile.id == "divider:running" ? "running" : "trailing"
                 continue
             }
@@ -946,7 +979,7 @@ struct TileContainerView: View {
             return .inactive
         }
 
-        let tiles = displayTiles
+        let tiles = Self.layoutTiles(from: displayTiles)
         let canvasAxisLength = projected(size: layout.tileCanvasFrame.size)
         let contentAxisLength = totalAxisLength(for: Self.layoutComponents(for: tiles))
         if preferences.overflowBehavior == .scroll,
@@ -2027,6 +2060,32 @@ struct TileContainerView: View {
         return baseTileSize * spanCount + tileSpacing * max(0, spanCount - 1)
     }
 
+    /// Whether `divider:trailing` collapses to a zero-size anchor. The tile
+    /// always stays in the list, since theme insertions, section splitting
+    /// and drop regions all key off its id, but it isn't drawn when nothing
+    /// besides spacers follows it. Shelve mode can hide Trash and leave it
+    /// dangling after the last tile (issue #13). While editing or during an
+    /// external drag it stays visible as the drop target for an empty
+    /// trailing section.
+    static func collapsesTrailingDivider(in tiles: [Tile]) -> Bool {
+        guard !DockEditModeService.shared.isActive,
+              DockDragService.shared.kind == nil,
+              let dividerIndex = tiles.firstIndex(where: { $0.id == "divider:trailing" }) else {
+            return false
+        }
+        return tiles[(dividerIndex + 1)...].allSatisfy {
+            $0.content == .spacer || $0.content == .flexibleSpacer
+        }
+    }
+
+    /// Tiles that take up room along the dock's axis: `tiles` without a
+    /// collapsed `divider:trailing`. Used by MainWindow so its sizing
+    /// matches what the container renders.
+    static func layoutTiles(from tiles: [Tile]) -> [Tile] {
+        guard collapsesTrailingDivider(in: tiles) else { return tiles }
+        return tiles.filter { $0.id != "divider:trailing" }
+    }
+
     /// Total content size for the given tile list, including inter-tile spacing
     /// and outer stack padding. Used by MainWindow to size itself to fit.
     static func contentSize(
@@ -2175,6 +2234,9 @@ private struct TileLayoutSection: Identifiable {
     let index: Int
     let id: String
     let tiles: [Tile]
+    /// Collapsed divider that follows this section, rendered as a
+    /// zero-size overlay on its trailing edge.
+    var collapsedAnchor: Tile?
 }
 
 private enum TileLayoutComponent: Identifiable {
