@@ -62,8 +62,8 @@ struct FolderPopoverView: View {
         bodyContent
             .task(id: reloadKey) {
                 syncWatchedFolder()
-                currentEntry = refreshedEntry(for: currentEntry)
-                backHistory = backHistory.map(refreshedEntry(for:))
+                await refreshEntries()
+                guard !Task.isCancelled else { return }
                 selectDefaultItemIfNeeded()
                 reportPopoverSize()
             }
@@ -516,11 +516,30 @@ struct FolderPopoverView: View {
         return nil
     }
 
-    private func refreshedEntry(for entry: FolderPopoverEntry) -> FolderPopoverEntry {
+    /// Re-reads the current folder and the back stack off the main thread.
+    /// Navigation can happen while a read is in flight, so each result is
+    /// applied only to the entry it was read for.
+    private func refreshEntries() async {
+        let refreshedCurrent = await refreshedEntry(for: currentEntry)
+        guard !Task.isCancelled else { return }
+        if currentEntry.url == refreshedCurrent.url {
+            currentEntry = refreshedCurrent
+        }
+
+        for entry in backHistory {
+            let refreshed = await refreshedEntry(for: entry)
+            guard !Task.isCancelled else { return }
+            if let index = backHistory.firstIndex(where: { $0.url == refreshed.url }) {
+                backHistory[index] = refreshed
+            }
+        }
+    }
+
+    private func refreshedEntry(for entry: FolderPopoverEntry) async -> FolderPopoverEntry {
         FolderPopoverEntry(
             url: entry.url,
             displayName: entry.displayName,
-            snapshot: FolderAccessService.shared.snapshot(of: entry.url)
+            snapshot: await FolderAccessService.shared.refreshedSnapshot(of: entry.url)
         )
     }
 
@@ -581,10 +600,7 @@ private struct FolderPopoverItemView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Image(nsImage: IconCacheService.shared.previewIcon(forFileURL: url))
-                .resizable()
-                .interpolation(.high)
-                .aspectRatio(contentMode: .fit)
+            FilePreviewImage(url: url, maxPixelSize: IconCacheService.gridThumbnailPixelExtent)
                 .frame(width: 112, height: 112)
 
             Text(displayName)

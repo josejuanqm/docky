@@ -1707,12 +1707,30 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
     }
 
     /// Whether running apps show their notification badge (the red count,
-    /// like Mail's unread total) on their dock tile. Read from the system
-    /// Dock via accessibility, see `DockBadgeService`.
+    /// like Mail's unread total) on their dock tile. See `DockBadgeService`.
     var showsAppBadges: Bool {
         didSet {
             guard showsAppBadges != oldValue else { return }
             defaults.set(showsAppBadges, forKey: Keys.showsAppBadges)
+        }
+    }
+
+    /// Whether app tiles fade to half opacity while their app is idle —
+    /// hidden (Cmd+H) or running with no windows open. Off keeps icons
+    /// fully opaque regardless of state.
+    var dimsIdleAppIcons: Bool {
+        didSet {
+            guard dimsIdleAppIcons != oldValue else { return }
+            defaults.set(dimsIdleAppIcons, forKey: Keys.dimsIdleAppIcons)
+        }
+    }
+
+    /// Whether `docky://install-widget` links may install a widget. Off by
+    /// default so a web page can't drive a native-code install unprompted.
+    var allowsWidgetLinkInstalls: Bool {
+        didSet {
+            guard allowsWidgetLinkInstalls != oldValue else { return }
+            defaults.set(allowsWidgetLinkInstalls, forKey: Keys.allowsWidgetLinkInstalls)
         }
     }
 
@@ -2437,6 +2455,29 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
             }
 
             defaults.set(Double(clampedValue), forKey: Keys.launchpadBaseIconSize)
+        }
+    }
+
+    /// The opened folder's cells, spacing and window size follow this size.
+    var appFolderIconSize: CGFloat {
+        didSet {
+            let clampedValue = min(
+                max(appFolderIconSize, DefaultValues.appFolderIconSizeMin),
+                DefaultValues.appFolderIconSizeMax
+            )
+            guard clampedValue != oldValue else {
+                if appFolderIconSize != clampedValue {
+                    appFolderIconSize = clampedValue
+                }
+                return
+            }
+
+            if appFolderIconSize != clampedValue {
+                appFolderIconSize = clampedValue
+                return
+            }
+
+            defaults.set(Double(clampedValue), forKey: Keys.appFolderIconSize)
         }
     }
 
@@ -3548,6 +3589,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowSpaceBehavior = "docky.windowSpaceBehavior"
         static let autohidesWindow = "docky.autohidesWindow"
         static let showsAppBadges = "docky.showsAppBadges"
+        static let dimsIdleAppIcons = "docky.dimsIdleAppIcons"
+        static let allowsWidgetLinkInstalls = "docky.allowsWidgetLinkInstalls"
         static let folderBadgeMode = "docky.folderBadgeMode"
         static let folderBadgePreviewStyle = "docky.folderBadgePreviewStyle"
         static let opensAtLogin = "docky.opensAtLogin"
@@ -3609,6 +3652,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let launchpadGridColumnCount = "docky.launchpadGridColumnCount"
         static let launchpadGridRowCount = "docky.launchpadGridRowCount"
         static let launchpadBaseIconSize = "docky.launchpadBaseIconSize"
+        static let appFolderIconSize = "docky.appFolderIconSize"
         static let launchpadColumnSpacing = "docky.launchpadColumnSpacing"
         static let launchpadBackgroundImagePath = "docky.launchpadBackgroundImagePath"
         static let launchpadBackgroundBlursImage = "docky.launchpadBackgroundBlursImage"
@@ -3657,6 +3701,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowSpaceBehavior: DockWindowSpaceBehavior = .allSpaces
         static let autohidesWindow = false
         static let showsAppBadges = true
+        static let dimsIdleAppIcons = false
+        static let allowsWidgetLinkInstalls = false
         static let folderBadgeMode: FolderBadgeMode = .combined
         static let folderBadgePreviewStyle: FolderBadgePreviewStyle = .dot
         static let opensAtLogin = true
@@ -3720,6 +3766,9 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let launchpadBaseIconSize: CGFloat = 128
         static let launchpadBaseIconSizeMin: CGFloat = 48
         static let launchpadBaseIconSizeMax: CGFloat = 192
+        static let appFolderIconSize: CGFloat = 96
+        static let appFolderIconSizeMin: CGFloat = 56
+        static let appFolderIconSizeMax: CGFloat = 128
         static let launchpadColumnSpacing: CGFloat = 96
         static let launchpadSpacingMin: CGFloat = 0
         static let launchpadSpacingMax: CGFloat = 96
@@ -3789,6 +3838,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedWindowSpaceBehavior = defaults.string(forKey: Keys.windowSpaceBehavior)
         let storedAutohidesWindow = defaults.object(forKey: Keys.autohidesWindow) as? Bool
         let storedShowsAppBadges = defaults.object(forKey: Keys.showsAppBadges) as? Bool
+        let storedDimsIdleAppIcons = defaults.object(forKey: Keys.dimsIdleAppIcons) as? Bool
+        let storedAllowsWidgetLinkInstalls = defaults.object(forKey: Keys.allowsWidgetLinkInstalls) as? Bool
         let storedFolderBadgeMode = defaults.string(forKey: Keys.folderBadgeMode)
         let storedFolderBadgePreviewStyle = defaults.string(forKey: Keys.folderBadgePreviewStyle)
         let storedOpensAtLogin = defaults.object(forKey: Keys.opensAtLogin) as? Bool
@@ -3849,6 +3900,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedLaunchpadGridColumnCount = defaults.object(forKey: Keys.launchpadGridColumnCount) as? Int
         let storedLaunchpadGridRowCount = defaults.object(forKey: Keys.launchpadGridRowCount) as? Int
         let storedLaunchpadBaseIconSize = defaults.object(forKey: Keys.launchpadBaseIconSize) as? Double
+        let storedAppFolderIconSize = defaults.object(forKey: Keys.appFolderIconSize) as? Double
         let storedLaunchpadColumnSpacing = defaults.object(forKey: Keys.launchpadColumnSpacing) as? Double
         let storedLaunchpadBackgroundImagePath = defaults.string(forKey: Keys.launchpadBackgroundImagePath)
         let storedLaunchpadBackgroundBlursImage = defaults.object(forKey: Keys.launchpadBackgroundBlursImage) as? Bool
@@ -3915,6 +3967,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         self.windowSpaceBehavior = (storedWindowSpaceBehavior.flatMap(DockWindowSpaceBehavior.init(rawValue:)) ?? DefaultValues.windowSpaceBehavior)
         self.autohidesWindow = storedAutohidesWindow ?? DefaultValues.autohidesWindow
         self.showsAppBadges = storedShowsAppBadges ?? DefaultValues.showsAppBadges
+        self.dimsIdleAppIcons = storedDimsIdleAppIcons ?? DefaultValues.dimsIdleAppIcons
+        self.allowsWidgetLinkInstalls = storedAllowsWidgetLinkInstalls ?? DefaultValues.allowsWidgetLinkInstalls
         self.folderBadgeMode = storedFolderBadgeMode
             .flatMap(FolderBadgeMode.init(rawValue:))
             ?? DefaultValues.folderBadgeMode
@@ -3993,6 +4047,13 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
                 DefaultValues.launchpadBaseIconSizeMin
             ),
             DefaultValues.launchpadBaseIconSizeMax
+        )
+        self.appFolderIconSize = min(
+            max(
+                storedAppFolderIconSize.map { CGFloat($0) } ?? DefaultValues.appFolderIconSize,
+                DefaultValues.appFolderIconSizeMin
+            ),
+            DefaultValues.appFolderIconSizeMax
         )
         self.launchpadColumnSpacing = min(
             max(
@@ -4188,6 +4249,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         // Visibility
         autohidesWindow = DefaultValues.autohidesWindow
         showsAppBadges = DefaultValues.showsAppBadges
+        dimsIdleAppIcons = DefaultValues.dimsIdleAppIcons
         folderBadgeMode = DefaultValues.folderBadgeMode
         folderBadgePreviewStyle = DefaultValues.folderBadgePreviewStyle
         autohideWindowDelay = DefaultValues.autohideWindowDelay
@@ -4208,6 +4270,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         // App folders
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
+        appFolderIconSize = DefaultValues.appFolderIconSize
 
         // Widgets
         enablesWidgetHoverPreview = DefaultValues.enablesWidgetHoverPreview
@@ -4247,6 +4310,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         windowSpaceBehavior = DefaultValues.windowSpaceBehavior
         autohidesWindow = DefaultValues.autohidesWindow
         showsAppBadges = DefaultValues.showsAppBadges
+        dimsIdleAppIcons = DefaultValues.dimsIdleAppIcons
         folderBadgeMode = DefaultValues.folderBadgeMode
         folderBadgePreviewStyle = DefaultValues.folderBadgePreviewStyle
         opensAtLogin = DefaultValues.opensAtLogin
@@ -4294,6 +4358,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         hiddenAppBundleIdentifiers = DefaultValues.hiddenAppBundleIdentifiers
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
+        appFolderIconSize = DefaultValues.appFolderIconSize
         enablesLaunchpadOverlay = DefaultValues.enablesLaunchpadOverlay
         enablesStartMenuOverlay = DefaultValues.enablesStartMenuOverlay
         opensStartMenuFromFinderTile = DefaultValues.opensStartMenuFromFinderTile

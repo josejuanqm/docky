@@ -16,6 +16,10 @@ final class MainWindowContainerView: NSView {
     private var bottomConstraint: NSLayoutConstraint!
     private var leadingConstraint: NSLayoutConstraint!
     private var trailingConstraint: NSLayoutConstraint!
+    private var pointerDisplayLink: CADisplayLink?
+    private var lastPolledPointerLocation: NSPoint?
+    private var lastPointerMoveTime: CFTimeInterval = 0
+    private static let pointerRestDuration: CFTimeInterval = 0.5
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -101,18 +105,69 @@ final class MainWindowContainerView: NSView {
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         (window as? MainWindow)?.pointerDidEnterWindow()
-        forwardMagnificationPointer(from: event)
+        forwardMagnificationPointer(atWindowPoint: event.locationInWindow)
+        startPointerPolling()
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        forwardMagnificationPointer(from: event)
+        forwardMagnificationPointer(atWindowPoint: event.locationInWindow)
+        startPointerPolling()
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
+        stopPointerPolling()
         (window as? MainWindow)?.pointerDidExitWindow()
         DockMagnificationService.shared.clearPointer()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopPointerPolling()
+        }
+    }
+
+    /// An inactive app gets far fewer mouse-moved events, with gaps of up to
+    /// 200 ms, and the dock panel never activates Docky. So magnification also
+    /// reads the pointer once per display frame. The poll stops while the
+    /// pointer rests, and the next mouse-moved event starts it again.
+    private func startPointerPolling() {
+        guard pointerDisplayLink == nil, DockSettingsService.shared.magnification else { return }
+        let link = displayLink(target: self, selector: #selector(pollPointer(_:)))
+        // Not `.common`: the dock must hold still while a context menu tracks.
+        link.add(to: .main, forMode: .default)
+        pointerDisplayLink = link
+        lastPolledPointerLocation = nil
+    }
+
+    private func stopPointerPolling() {
+        pointerDisplayLink?.invalidate()
+        pointerDisplayLink = nil
+    }
+
+    @objc private func pollPointer(_ link: CADisplayLink) {
+        guard let window else {
+            stopPointerPolling()
+            return
+        }
+        let mouseLocation = NSEvent.mouseLocation
+        if mouseLocation != lastPolledPointerLocation {
+            lastPolledPointerLocation = mouseLocation
+            lastPointerMoveTime = link.timestamp
+        } else if link.timestamp - lastPointerMoveTime > Self.pointerRestDuration {
+            stopPointerPolling()
+            return
+        }
+        let pointInWindow = window.convertPoint(fromScreen: mouseLocation)
+        // An inactive app can get the exit event late.
+        guard isMousePoint(convert(pointInWindow, from: nil), in: bounds) else {
+            stopPointerPolling()
+            DockMagnificationService.shared.clearPointer()
+            return
+        }
+        forwardMagnificationPointer(atWindowPoint: pointInWindow)
     }
 
     /// Pushes the live pointer position into the magnification service in
@@ -125,8 +180,8 @@ final class MainWindowContainerView: NSView {
     /// chrome to make room for magnified icons, so a window-wide tracking
     /// area would magnify tiles as soon as the pointer entered the empty
     /// headroom above the chrome, well before it ever touched a tile.
-    private func forwardMagnificationPointer(from event: NSEvent) {
-        let inHosting = contentView.convert(event.locationInWindow, from: nil)
+    private func forwardMagnificationPointer(atWindowPoint pointInWindow: NSPoint) {
+        let inHosting = contentView.convert(pointInWindow, from: nil)
         let topLeft: CGPoint = contentView.isFlipped
             ? inHosting
             : CGPoint(x: inHosting.x, y: contentView.bounds.height - inHosting.y)
@@ -225,9 +280,25 @@ final class MainWindow: NSPanel {
 
     /// The frame Docky claims for content reservation, or nil when Docky is
     /// hidden / off-screen / not currently rendering. Used by services that
-    /// keep other apps' windows out of Docky's way.
+    /// keep other apps' windows out of Docky's way. Only the chrome's depth
+    /// counts, so the magnification headroom does not push windows away.
     var currentReservationFrame: CGRect? {
-        visibilityState == .visible ? frame : nil
+        guard visibilityState == .visible else { return nil }
+        guard let chrome = chromeScreenFrame() else { return frame }
+        // A window edge must not land on the chrome's border.
+        let gap: CGFloat = 4
+        switch DockyPreferences.shared.windowPosition.resolved(systemOrientation: DockSettingsService.shared.orientation) {
+        case .bottom:
+            return CGRect(x: frame.minX, y: chrome.minY, width: frame.width, height: chrome.height.rounded(.up) + gap)
+        case .top:
+            let depth = chrome.height.rounded(.up) + gap
+            return CGRect(x: frame.minX, y: chrome.maxY - depth, width: frame.width, height: depth)
+        case .left:
+            return CGRect(x: chrome.minX, y: frame.minY, width: chrome.width.rounded(.up) + gap, height: frame.height)
+        case .right:
+            let depth = chrome.width.rounded(.up) + gap
+            return CGRect(x: chrome.maxX - depth, y: frame.minY, width: depth, height: frame.height)
+        }
     }
 
     /// Screen-coordinate rect of the visible chrome (the dock pill itself,
@@ -674,10 +745,17 @@ final class MainWindow: NSPanel {
             fullscreenRevealWorkItem = nil
         }
 
-        guard visibilityState != state else {
-            applyCurrentFrame(animated: false)
-            return
-        }
+        // Re-requesting the current state must not touch the frame. During a
+        // reveal the panel slides under the cursor, the content view's
+        // tracking area fires `mouseEntered`, and `pointerDidEnterWindow`
+        // asks for `.visible` again while the slide is still in flight. A
+        // non-animated `setFrame` here would snap the panel fully on screen,
+        // after which the still-running animator reapplies its interpolated
+        // (near-hidden) frame and finishes the slide, producing a visible
+        // show / hide / show flicker. Layout-input changes already re-apply
+        // the frame through their own observers, so nothing is lost by
+        // returning early.
+        guard visibilityState != state else { return }
 
         visibilityState = state
         applyCurrentFrame(animated: animated)

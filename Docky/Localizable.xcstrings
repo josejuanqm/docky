@@ -3102,7 +3102,7 @@
     "Paged" : {
 
     },
-    "Paints the red notification count (like Mail's unread total) on running app tiles. Read from the system Dock, so it needs Accessibility permission." : {
+    "Paints the red notification count (like Mail's unread total) on running app tiles." : {
 
     },
     "Per-App Badge Style" : {

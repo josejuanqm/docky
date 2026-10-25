@@ -121,9 +121,16 @@ private typealias SLPSPostEventRecordToType = @convention(c) (
     UnsafeMutablePointer<UInt8>
 ) -> CGError
 
+private typealias SLSWindowIsOrderedInType = @convention(c) (
+    CGSConnectionID,
+    CGWindowID,
+    UnsafeMutablePointer<Bool>
+) -> CGError
+
 private var skyLightHandle: UnsafeMutableRawPointer?
 private var setFrontProcessPtr: SLPSSetFrontProcessWithOptionsType?
 private var postEventRecordPtr: SLPSPostEventRecordToType?
+private var windowIsOrderedInPtr: SLSWindowIsOrderedInType?
 
 // Single-threaded-by-convention: focus paths run on main, so the lazy load
 // doesn't need a lock.
@@ -140,6 +147,20 @@ private func loadSkyLightFunctions() {
     if let symbol = dlsym(handle, "SLPSPostEventRecordTo") {
         postEventRecordPtr = unsafeBitCast(symbol, to: SLPSPostEventRecordToType.self)
     }
+    if let symbol = dlsym(handle, "SLSWindowIsOrderedIn") {
+        windowIsOrderedInPtr = unsafeBitCast(symbol, to: SLSWindowIsOrderedInType.self)
+    }
+}
+
+// Whether the window server has the window mapped on some Space — the only
+// signal that separates a live off-Space window from the stale entries
+// CGWindowListCopyWindowInfo keeps serving after a window closes.
+func SLSWindowIsOrderedIn(_ connection: CGSConnectionID, _ windowID: CGWindowID) -> Bool {
+    loadSkyLightFunctions()
+    guard let fn = windowIsOrderedInPtr else { return false }
+    var orderedIn = false
+    guard fn(connection, windowID, &orderedIn) == .success else { return false }
+    return orderedIn
 }
 
 @discardableResult

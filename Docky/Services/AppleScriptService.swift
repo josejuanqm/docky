@@ -5,12 +5,24 @@
 //  Finder-backed actions that are awkward or unavailable via NSWorkspace
 //  alone. Scripts are executed directly from source at runtime.
 //
+//  Scripts must never run on the main thread: sending an Apple Event to a
+//  target the user hasn't authorized yet blocks the sending thread until the
+//  TCC consent prompt is answered (or the event times out after ~2 minutes).
+//  On the main thread that freezes the entire dock — observed on the first
+//  ever Trash-tile click, where "open trash" stalled behind the pending
+//  "Docky wants to control Finder" prompt. All executions go through one
+//  serial queue: each call builds a fresh NSAppleScript instance, and the
+//  queue keeps executions from overlapping since NSAppleScript makes no
+//  thread-safety guarantees.
+//
 
 import AppKit
 import Foundation
 
 final class AppleScriptService {
     static let shared = AppleScriptService()
+
+    private let scriptQueue = DispatchQueue(label: "gt.quintero.Docky.applescript", qos: .userInitiated)
 
     private init() {}
 
@@ -37,6 +49,19 @@ final class AppleScriptService {
         return result
     }
 
+    private func executeOnScriptQueue(source: String) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            scriptQueue.async {
+                do {
+                    _ = try self.executeDescriptor(source: source)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
     @discardableResult
     func runCatalogScript(
         source: String,
@@ -45,7 +70,7 @@ final class AppleScriptService {
         targetApp: String?
     ) async -> Result<Void, AppleScriptServiceError> {
         do {
-            try execute(source: source)
+            try await executeOnScriptQueue(source: source)
             permissionRequirements.forEach { permission in
                 updateGrantedPermission(permission)
             }
@@ -111,7 +136,7 @@ final class AppleScriptService {
 
     private func runFinderScript(_ command: FinderCommand) async -> Bool {
         do {
-            try await MainActor.run { try execute(source: command.source) }
+            try await executeOnScriptQueue(source: command.source)
             PermissionsService.shared.updateFinderAutomation(status: .granted)
             return true
         } catch let error as AppleScriptServiceError {
@@ -125,7 +150,7 @@ final class AppleScriptService {
 
     private func runSystemEventsPermissionProbe() async -> Bool {
         do {
-            try await MainActor.run { try execute(source: SystemEventsCommand.permissionProbe.source) }
+            try await executeOnScriptQueue(source: SystemEventsCommand.permissionProbe.source)
             PermissionsService.shared.updateSystemEventsAutomation(status: .granted)
             return true
         } catch let error as AppleScriptServiceError {
@@ -135,10 +160,6 @@ final class AppleScriptService {
             handleSystemEventsPermissionProbe(.executionFailed(error.localizedDescription))
             return false
         }
-    }
-
-    private func execute(source: String) throws {
-        _ = try executeDescriptor(source: source)
     }
 
     private func scriptError(from errorInfo: NSDictionary?) -> AppleScriptServiceError? {
@@ -245,12 +266,16 @@ final class AppleScriptService {
         }
     }
 
+    // Error handlers run on whatever thread the script path finished on;
+    // NSAlert is main-thread only, so both alert helpers hop explicitly.
     private func presentAlert(title: String, body: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = body
-        alert.alertStyle = .warning
-        alert.runModal()
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = body
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
     }
 
     private func presentAutomationAlert(
@@ -258,6 +283,16 @@ final class AppleScriptService {
         actionTitle: String,
         includesSystemEvents: Bool
     ) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async {
+                self.presentAutomationAlert(
+                    targetApp: targetApp,
+                    actionTitle: actionTitle,
+                    includesSystemEvents: includesSystemEvents
+                )
+            }
+            return
+        }
         let alert = NSAlert()
         alert.messageText = String(localized: "Automation wasn’t allowed")
         let appName = displayName(for: targetApp)

@@ -24,6 +24,14 @@ final class FolderAccessService: ObservableObject {
     private let staleAfter: TimeInterval = 15
     private var contentsCache: [URL: (date: Date, items: [URL])] = [:]
     private var watchersByURL: [URL: FolderWatcher] = [:]
+    private var sortCache: [FolderSortCacheKey: (date: Date, items: [URL])] = [:]
+    private let maxSortCacheEntries = 32
+    private var sortEntries: [URL: (date: Date, entry: FolderSortEntry)] = [:]
+    /// Bumped whenever cached state is invalidated, so a background read
+    /// that started before the invalidation is not stored as fresh.
+    private var invalidationCount: UInt64 = 0
+    private var folderReads: [URL: (invalidationCount: UInt64, task: Task<[FolderSortEntry]?, Never>)] = [:]
+    private var refreshingSortKeys: Set<FolderSortCacheKey> = []
 
     private init() {}
 
@@ -46,14 +54,142 @@ final class FolderAccessService: ObservableObject {
         cachedSnapshot(of: folderURL)
     }
 
+    /// Same result as `snapshot(of:)`, but a stale or missing cache entry is
+    /// re-read off the main thread. Use from views that refresh in a task.
+    func refreshedSnapshot(of folderURL: URL) async -> FolderContentsSnapshot {
+        let normalizedFolderURL = folderURL.standardizedFileURL
+        if let items = freshContents(of: normalizedFolderURL) {
+            return .loaded(items)
+        }
+
+        let startedAt = invalidationCount
+        let read: Task<[FolderSortEntry]?, Never>
+        if let inFlight = folderReads[normalizedFolderURL], inFlight.invalidationCount == startedAt {
+            read = inFlight.task
+        } else {
+            read = Task.detached(priority: .userInitiated) {
+                Self.readEntries(ofFolder: normalizedFolderURL)
+            }
+            folderReads[normalizedFolderURL] = (startedAt, read)
+        }
+
+        let entries = await read.value
+        if folderReads[normalizedFolderURL]?.task == read {
+            folderReads.removeValue(forKey: normalizedFolderURL)
+        }
+        guard let entries else {
+            return .unreadable
+        }
+
+        // The folder changed while it was being read: hand the result back
+        // but leave the cache empty so the next read starts over.
+        guard invalidationCount == startedAt else {
+            return .loaded(entries.map(\.url))
+        }
+        return .loaded(store(entries, forFolder: normalizedFolderURL))
+    }
+
     func sortedContents(of folderURL: URL, sortMode: FolderTileSortMode) -> [URL] {
         sortedItems(in: contents(of: folderURL), sortMode: sortMode)
     }
 
-    func sortedItems(in items: [URL], sortMode: FolderTileSortMode) -> [URL] {
-        let entries = items.map(FolderSortEntry.init)
+    /// Async counterpart of `sortedContents(of:sortMode:)` that keeps the
+    /// folder read off the main thread.
+    func refreshedSortedContents(of folderURL: URL, sortMode: FolderTileSortMode) async -> [URL] {
+        sortedItems(in: await refreshedSnapshot(of: folderURL), sortMode: sortMode)
+    }
 
-        return entries.sorted { lhs, rhs in
+    /// Memoized for `staleAfter` seconds, same window as the contents cache.
+    /// Views read the sorted list several times per update (layout math plus
+    /// the grid itself), and every uncached sort re-reads resource values
+    /// from disk for each item.
+    func sortedItems(in items: [URL], sortMode: FolderTileSortMode) -> [URL] {
+        let key = FolderSortCacheKey(items: items, sortMode: sortMode)
+        let now = Date()
+        let cached = sortCache[key]
+        if let cached, now.timeIntervalSince(cached.date) < staleAfter {
+            return cached.items
+        }
+
+        // Prefer the metadata captured while the folder was read. URLs drop
+        // their prefetched resource values when the run loop turns, so
+        // building entries here would go back to disk for every item.
+        if let captured = capturedEntries(for: items, at: now) {
+            let sorted = sortedURLs(from: captured.entries, sortMode: sortMode)
+            // Dated by the metadata, not the sort, so captured values never
+            // outlive `staleAfter`.
+            storeSort(sorted, date: captured.date, for: key)
+            return sorted
+        }
+
+        // The memoized order expired and so did the metadata. Keep showing
+        // the current order and re-read the metadata off the main thread;
+        // `changeToken` announces the new order if it differs.
+        if let cached {
+            refreshSortInBackground(for: key)
+            return cached.items
+        }
+
+        let sorted = sortedURLs(from: items.map { FolderSortEntry(url: $0) }, sortMode: sortMode)
+        storeSort(sorted, date: now, for: key)
+        return sorted
+    }
+
+    private func capturedEntries(for items: [URL], at now: Date) -> (date: Date, entries: [FolderSortEntry])? {
+        var oldest = now
+        var entries: [FolderSortEntry] = []
+        entries.reserveCapacity(items.count)
+        for url in items {
+            guard let captured = sortEntries[url],
+                  now.timeIntervalSince(captured.date) < staleAfter else {
+                return nil
+            }
+            oldest = min(oldest, captured.date)
+            entries.append(captured.entry)
+        }
+        return (oldest, entries)
+    }
+
+    private func storeSort(_ sorted: [URL], date: Date, for key: FolderSortCacheKey) {
+        if sortCache[key] == nil, sortCache.count >= maxSortCacheEntries {
+            sortCache.removeAll()
+        }
+        sortCache[key] = (date, sorted)
+    }
+
+    private func refreshSortInBackground(for key: FolderSortCacheKey) {
+        guard !refreshingSortKeys.contains(key) else {
+            return
+        }
+
+        refreshingSortKeys.insert(key)
+        let startedAt = invalidationCount
+        let items = key.items
+        Task {
+            let entries = await Task.detached(priority: .userInitiated) {
+                items.map { FolderSortEntry(url: $0, discardingCachedValues: true) }
+            }.value
+
+            refreshingSortKeys.remove(key)
+            guard invalidationCount == startedAt else {
+                return
+            }
+
+            let now = Date()
+            for entry in entries where sortEntries[entry.url] != nil {
+                sortEntries[entry.url] = (now, entry)
+            }
+            let sorted = sortedURLs(from: entries, sortMode: key.sortMode)
+            let orderChanged = sortCache[key]?.items != sorted
+            storeSort(sorted, date: now, for: key)
+            if orderChanged {
+                changeToken &+= 1
+            }
+        }
+    }
+
+    private func sortedURLs(from entries: [FolderSortEntry], sortMode: FolderTileSortMode) -> [URL] {
+        entries.sorted { lhs, rhs in
             switch sortMode {
             case .name:
                 let comparison = lhs.displayName.localizedStandardCompare(rhs.displayName)
@@ -175,13 +311,29 @@ final class FolderAccessService: ObservableObject {
     private func cachedSnapshot(of folderURL: URL) -> FolderContentsSnapshot {
         let normalizedFolderURL = folderURL.standardizedFileURL
 
-        if let cached = contentsCache[normalizedFolderURL],
-           Date().timeIntervalSince(cached.date) < staleAfter {
-            return .loaded(cached.items)
+        if let items = freshContents(of: normalizedFolderURL) {
+            return .loaded(items)
         }
 
-        guard FileManager.default.isReadableFile(atPath: normalizedFolderURL.path) else {
+        guard let entries = Self.readEntries(ofFolder: normalizedFolderURL) else {
             return .unreadable
+        }
+        return .loaded(store(entries, forFolder: normalizedFolderURL))
+    }
+
+    private func freshContents(of normalizedFolderURL: URL) -> [URL]? {
+        guard let cached = contentsCache[normalizedFolderURL],
+              Date().timeIntervalSince(cached.date) < staleAfter else {
+            return nil
+        }
+        return cached.items
+    }
+
+    /// Lists the folder newest-modified first along with each item's sort
+    /// metadata. Returns nil when the folder cannot be read.
+    nonisolated private static func readEntries(ofFolder normalizedFolderURL: URL) -> [FolderSortEntry]? {
+        guard FileManager.default.isReadableFile(atPath: normalizedFolderURL.path) else {
+            return nil
         }
 
         let keys: [URLResourceKey] = [
@@ -194,33 +346,59 @@ final class FolderAccessService: ObservableObject {
             .localizedTypeDescriptionKey,
             .totalFileAllocatedSizeKey
         ]
-        guard let loaded = try? FileManager.default.contentsOfDirectory(
+        guard let listed = try? FileManager.default.contentsOfDirectory(
             at: normalizedFolderURL,
             includingPropertiesForKeys: keys,
             options: [.skipsHiddenFiles]
-        ).sorted(by: { Self.modDate($0) > Self.modDate($1) }) else {
-            return .unreadable
+        ) else {
+            return nil
         }
 
-        contentsCache[normalizedFolderURL] = (Date(), loaded)
-        return .loaded(loaded)
+        // The listing prefetched `keys`, so capturing the sort metadata now
+        // costs no extra disk access.
+        return listed
+            .map { FolderSortEntry(url: $0) }
+            .sorted(by: { $0.modificationDate > $1.modificationDate })
+    }
+
+    private func store(_ entries: [FolderSortEntry], forFolder normalizedFolderURL: URL) -> [URL] {
+        let now = Date()
+        removeSortEntries(forContentsOf: normalizedFolderURL)
+        for entry in entries {
+            sortEntries[entry.url] = (now, entry)
+        }
+        let loaded = entries.map(\.url)
+        contentsCache[normalizedFolderURL] = (now, loaded)
+        return loaded
     }
 
     func invalidateCache() {
+        invalidationCount &+= 1
         contentsCache.removeAll()
+        sortCache.removeAll()
+        sortEntries.removeAll()
     }
 
     private func invalidateCache(for folderURL: URL) {
+        invalidationCount &+= 1
+        removeSortEntries(forContentsOf: folderURL.standardizedFileURL)
         contentsCache.removeValue(forKey: folderURL.standardizedFileURL)
+        sortCache.removeAll()
+    }
+
+    private func removeSortEntries(forContentsOf normalizedFolderURL: URL) {
+        guard let cached = contentsCache[normalizedFolderURL] else {
+            return
+        }
+
+        for url in cached.items {
+            sortEntries.removeValue(forKey: url)
+        }
     }
 
     private func handleWatcherEvent(for folderURL: URL) {
         invalidateCache(for: folderURL)
         changeToken &+= 1
-    }
-
-    private static func modDate(_ url: URL) -> Date {
-        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 }
 
@@ -229,7 +407,12 @@ private struct FolderWatcher {
     let source: DispatchSourceFileSystemObject
 }
 
-private struct FolderSortEntry {
+private struct FolderSortCacheKey: Hashable {
+    let items: [URL]
+    let sortMode: FolderTileSortMode
+}
+
+nonisolated private struct FolderSortEntry: Sendable {
     let url: URL
     let displayName: String
     let modificationDate: Date
@@ -239,8 +422,15 @@ private struct FolderSortEntry {
     let size: Int
     let isDirectory: Bool
 
-    nonisolated init(url: URL) {
-        let values = try? url.resourceValues(forKeys: [
+    /// `discardingCachedValues` forces a read from disk. URLs only drop
+    /// their cached resource values when a run loop turns, which never
+    /// happens for values read on a background thread.
+    init(url: URL, discardingCachedValues: Bool = false) {
+        var source = url
+        if discardingCachedValues {
+            source.removeAllCachedResourceValues()
+        }
+        let values = try? source.resourceValues(forKeys: [
             .addedToDirectoryDateKey,
             .contentModificationDateKey,
             .creationDateKey,

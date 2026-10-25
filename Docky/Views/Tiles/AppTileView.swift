@@ -18,6 +18,7 @@ struct AppTileView: View {
     var iconOverridePaddingFraction: CGFloat? = nil
     @Bindable private var preferences = DockyPreferences.shared
     @ObservedObject private var workspace = WorkspaceService.shared
+    @ObservedObject private var windowRegistry = WindowRegistry.shared
 
     private var isRunning: Bool {
         workspace.isRunning(bundleIdentifier: tile.bundleIdentifier)
@@ -25,6 +26,18 @@ struct AppTileView: View {
 
     private var isHidden: Bool {
         workspace.isHidden(bundleIdentifier: tile.bundleIdentifier)
+    }
+
+    /// Idle = running with no windows left open. Only trustworthy with
+    /// Accessibility granted — without it the registry is empty and every
+    /// running app would read as windowless.
+    private var isIdle: Bool {
+        guard isRunning, PermissionsService.shared.accessibility == .granted else { return false }
+        return windowRegistry.windows(forBundleIdentifier: tile.bundleIdentifier).isEmpty
+    }
+
+    private var isDimmed: Bool {
+        preferences.dimsIdleAppIcons && (isHidden || isIdle)
     }
 
     var body: some View {
@@ -73,7 +86,7 @@ struct AppTileView: View {
                 .interpolation(.high)
                 .aspectRatio(contentMode: shouldApplyCircleClip ? .fill : .fit)
                 .padding(pad)
-                .opacity(isHidden ? 0.5 : 1)
+                .opacity(isDimmed ? 0.5 : 1)
         } else {
             let inset = shouldApplyCircleClip ? transparencyCompensationInset + 2 : 0
             let edgeInsets: CGFloat = hasOverride ? -transparencyCompensationInset * 4 : inset
@@ -84,7 +97,7 @@ struct AppTileView: View {
                 .aspectRatio(contentMode: shouldApplyCircleClip ? .fill : .fit)
                 .frame(width: size.width + edgeInsets / 2, height: size.height + edgeInsets / 2)
                 .frame(width: size.width - edgeInsets * 2, height: size.height - edgeInsets * 2)
-                .opacity(isHidden ? 0.5 : 1)
+                .opacity(isDimmed ? 0.5 : 1)
         }
     }
 

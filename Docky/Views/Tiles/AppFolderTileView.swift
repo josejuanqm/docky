@@ -330,7 +330,7 @@ struct AppFolderTileView: View {
             return overrideImage
         }
 
-        return IconCacheService.shared.icon(forBundleIdentifier: bundleIdentifier)
+        return IconCacheService.shared.flattenedIcon(forBundleIdentifier: bundleIdentifier)
     }
 }
 
@@ -376,10 +376,12 @@ struct AppFolderPopoverView: View {
     @FocusState private var isTitleFieldFocused: Bool
 
     fileprivate static let columns = 3
-    fileprivate static let itemWidth: CGFloat = 96
-    fileprivate static let itemHeight: CGFloat = 96
-    fileprivate static let itemSpacing: CGFloat = 12
-    fileprivate static let contentPadding: CGFloat = 20
+    fileprivate static var itemWidth: CGFloat { DockyPreferences.shared.appFolderIconSize }
+    fileprivate static var itemHeight: CGFloat { itemWidth }
+    /// Spacing and padding scale with the icon so a small folder keeps the
+    /// proportions of the default 96 pt layout.
+    fileprivate static var itemSpacing: CGFloat { (itemWidth / 8).rounded() }
+    fileprivate static var contentPadding: CGFloat { (itemWidth * 5 / 24).rounded() }
     fileprivate static let headerHeight: CGFloat = 42
     fileprivate static let maxHeight: CGFloat = 620
     /// Local coordinate space the grid uses to compute drag insertion
@@ -534,7 +536,7 @@ struct AppFolderPopoverView: View {
             }
             // The opened folder always shows the real per-app count,
             // regardless of the tile's combined/per-app preference — these
-            // icons are full size, so the number is always legible.
+            // icons stay large enough that the number is always legible.
             .overlay(alignment: .topTrailing) {
                 if preferences.showsAppBadges,
                    let badge = dockBadges.badge(forBundleIdentifier: app.bundleIdentifier) {

@@ -18,7 +18,13 @@ struct FolderTileView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task(id: reloadKey) {
-                preview = FolderAccessService.shared.recentContents(of: tile.url, sortMode: tile.sortMode, limit: 3)
+                let sorted = await FolderAccessService.shared.refreshedSortedContents(
+                    of: tile.url,
+                    sortMode: tile.sortMode
+                )
+                guard !Task.isCancelled else { return }
+                preview = Array(sorted.prefix(3))
+                preloadFanThumbnails(for: sorted)
             }
             .onAppear {
                 folderAccess.beginWatching(tile.url, ownerID: watcherOwnerID)
@@ -96,10 +102,7 @@ struct FolderTileView: View {
             ForEach(Array(preview.enumerated()).reversed(), id: \.element) { pair in
                 let depth = CGFloat(pair.offset)
 
-                Image(nsImage: IconCacheService.shared.previewIcon(forFileURL: pair.element))
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
+                FilePreviewImage(url: pair.element, maxPixelSize: IconCacheService.tileThumbnailPixelExtent)
                     .frame(width: side, height: side)
                     .opacity(1.0 - (depth * 0.12))
                     .offset(y: (centeredBaseOffset - CGFloat(pair.offset)) * verticalStep)
@@ -127,8 +130,22 @@ struct FolderTileView: View {
         .frame(width: size.width, height: size.height, alignment: .center)
     }
 
+    /// The fan opens from this tile and shares its thumbnails, so decode
+    /// the items past the 3-deep pile ahead of time. Folders too large for
+    /// the fan open as a grid, which loads its own thumbnails lazily.
+    private func preloadFanThumbnails(for sortedItems: [URL]) {
+        guard tile.contentViewMode == .fan, sortedItems.count <= FolderFanView.maximumItemCount else {
+            return
+        }
+
+        IconCacheService.shared.preloadPreviewThumbnails(
+            forFileURLs: sortedItems,
+            maxPixelSize: IconCacheService.tileThumbnailPixelExtent
+        )
+    }
+
     private var reloadKey: String {
-        "\(tile.url.path)|\(permissions.userFolders)|\(tile.displayMode.rawValue)|\(tile.sortMode.rawValue)|\(folderAccess.changeToken)"
+        "\(tile.url.path)|\(permissions.userFolders)|\(tile.displayMode.rawValue)|\(tile.contentViewMode.rawValue)|\(tile.sortMode.rawValue)|\(folderAccess.changeToken)"
     }
 
     private var watcherOwnerID: String {

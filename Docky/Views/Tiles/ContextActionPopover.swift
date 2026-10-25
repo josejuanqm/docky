@@ -182,11 +182,11 @@ struct ContextActionMenuPresenter: NSViewRepresentable {
         func installIfNeeded(for anchorView: NSView) {
             self.anchorView = anchorView
 
-            guard !actionProvider([]).isEmpty else {
-                uninstall()
-                return
-            }
-
+            // The monitor is installed regardless of whether the menu has
+            // entries. This runs on every view update, and asking the
+            // provider here built the whole menu each time just to discard
+            // it. `handleContextClick` builds it on demand and lets the
+            // click through when it turns out empty.
             guard eventMonitor == nil else { return }
             eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
                 self?.handleContextClick(event) ?? event

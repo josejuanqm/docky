@@ -172,15 +172,11 @@ struct FolderFanView: View {
                     // animation modifier below.
                     .opacity(model.isExpanded ? 1 : 0)
 
-                // Use the same `previewIcon` path the grid popover
-                // and folder stack thumbnails go through — that's
-                // the one that returns a QuickLook content preview
-                // for documents/images and falls back to the system
-                // icon for everything else.
-                Image(nsImage: IconCacheService.shared.previewIcon(forFileURL: url))
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
+                // Use the same preview path (and thumbnail size) the
+                // folder stack thumbnails go through, so the collapsed
+                // pile matches the tile preview: a content thumbnail
+                // for images and the system icon for everything else.
+                FilePreviewImage(url: url, maxPixelSize: IconCacheService.tileThumbnailPixelExtent)
                     .frame(width: iconSize, height: iconSize)
                     // Shadow only renders in the expanded state. At
                     // rest the icons mimic `FolderTileView.stack`'s
