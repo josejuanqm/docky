@@ -27,7 +27,7 @@ struct WidgetsSettingsView: View {
             unlockedContent
         }
         .formStyle(.grouped)
-        .navigationTitle("Widget Store")
+        .navigationTitle(L10n.text("Widget Store"))
         .onAppear {
             refresh()
             loadMarketplace()
@@ -286,7 +286,7 @@ struct WidgetsSettingsView: View {
                     Text(entry.displayName)
                         .font(.headline)
                     if let badge = entry.status.badgeText {
-                        Text(badge)
+                        Text(L10n.text(badge))
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -298,7 +298,7 @@ struct WidgetsSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if case .failed(let reason) = entry.status {
-                    Text(reason)
+                    Text(L10n.text(reason))
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
@@ -312,7 +312,7 @@ struct WidgetsSettingsView: View {
                 Image(systemName: "magnifyingglass")
             }
             .buttonStyle(.borderless)
-            .help("Reveal in Finder")
+            .help(L10n.text("Reveal in Finder"))
 
             Button(role: .destructive) {
                 bundleURLPendingDeletion = entry.bundleURL
@@ -320,7 +320,7 @@ struct WidgetsSettingsView: View {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
-            .help("Delete this widget")
+            .help(L10n.text("Delete this widget"))
         }
     }
 

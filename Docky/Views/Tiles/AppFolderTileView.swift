@@ -633,7 +633,7 @@ struct AppFolderPopoverView: View {
                 .foregroundStyle(isReorderMode ? Color.accentColor : .secondary)
         }
         .buttonStyle(.plain)
-        .help(isReorderMode ? "Stop rearranging icons" : "Drag icons to rearrange them")
+        .help(L10n.text(isReorderMode ? "Stop rearranging icons" : "Drag icons to rearrange them"))
     }
 
     @ViewBuilder
@@ -666,7 +666,7 @@ struct AppFolderPopoverView: View {
                 .contentShape(Rectangle())
                 .onHover { isTitleHovered = $0 }
                 .onTapGesture { startTitleEdit() }
-                .help("Click to rename")
+                .help(L10n.text("Click to rename"))
         }
     }
 
@@ -939,7 +939,7 @@ struct AppFolderListMenuPresenter: NSViewRepresentable {
                 menu.addItem(.separator())
             }
 
-            let openAll = NSMenuItem(title: "Open All", action: #selector(openAllApps), keyEquivalent: "")
+            let openAll = NSMenuItem(title: L10n.text("Open All"), action: #selector(openAllApps), keyEquivalent: "")
             openAll.target = self
             openAll.isEnabled = !tile.apps.isEmpty
             menu.addItem(openAll)

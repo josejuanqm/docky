@@ -1414,7 +1414,7 @@ private struct LaunchpadOverlayView: View {
 
                 Picker("Navigation", selection: $preferences.launchpadLayoutAxis) {
                     ForEach(LaunchpadLayoutAxis.allCases) { axis in
-                        Text(axis.title).tag(axis)
+                        Text(L10n.text(axis.title)).tag(axis)
                     }
                 }
                 .pickerStyle(.inline)
@@ -1432,7 +1432,7 @@ private struct LaunchpadOverlayView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Launchpad Options")
+            .help(L10n.text("Launchpad Options"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

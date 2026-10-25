@@ -74,7 +74,7 @@ private struct HiddenAppRow: View {
                 Text(app.displayName)
                     .font(.headline)
 
-                Text(app.subtitle)
+                Text(L10n.text(app.subtitle))
                     .foregroundStyle(.secondary)
                     .font(.caption)
                     .textSelection(.enabled)

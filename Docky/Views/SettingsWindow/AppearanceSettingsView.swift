@@ -94,7 +94,7 @@ struct AppearanceSettingsView: View {
 
                     Picker("Active Indicator Shape", selection: $preferences.activeIndicatorShape) {
                         ForEach(DockTileIndicatorShape.allCases) { shape in
-                            Text(shape.title).tag(shape)
+                            Text(L10n.text(shape.title)).tag(shape)
                         }
                     }
                     .pickerStyle(.menu)
@@ -269,7 +269,7 @@ struct AppearanceSettingsView: View {
             .padding(.vertical, 2)
             .background(.orange.opacity(0.15), in: Capsule())
             .overlay(Capsule().stroke(.orange.opacity(0.4), lineWidth: 0.5))
-            .accessibilityLabel("Alpha feature")
+            .accessibilityLabel(L10n.text("Alpha feature"))
     }
 
     @ViewBuilder
@@ -282,12 +282,12 @@ struct AppearanceSettingsView: View {
         description: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(L10n.text(title))
                 .font(.headline)
 
             HStack {
                 Slider(value: value, in: range, step: step) {
-                    Text(title)
+                    Text(L10n.text(title))
                 }
                 .labelsHidden()
 
@@ -296,7 +296,7 @@ struct AppearanceSettingsView: View {
                     .frame(width: 64, alignment: .trailing)
             }
 
-            Text(description)
+            Text(L10n.text(description))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -307,7 +307,7 @@ struct AppearanceSettingsView: View {
     private func dividerImageRow(title: String?, path: String?, onChoose: @escaping () -> Void, onClear: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if let title {
-                Text(title)
+                Text(L10n.text(title))
             }
 
             HStack {
@@ -339,7 +339,7 @@ struct AppearanceSettingsView: View {
 
                     Picker("Tile Clip Shape", selection: $preferences.tileClipShape) {
                         ForEach(DockClipShape.allCases) { shape in
-                            Text(shape.title).tag(shape)
+                            Text(L10n.text(shape.title)).tag(shape)
                         }
                     }
                     .pickerStyle(.menu)
@@ -656,7 +656,7 @@ struct AppearanceSettingsView: View {
 
                     Picker("Chrome Clip Shape", selection: $preferences.windowClipShape) {
                         ForEach(DockClipShape.allCases) { shape in
-                            Text(shape.title).tag(shape)
+                            Text(L10n.text(shape.title)).tag(shape)
                         }
                     }
                     .pickerStyle(.menu)
@@ -805,7 +805,7 @@ struct AppearanceSettingsView: View {
         effectiveRadius: CGFloat?
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline)
+            Text(L10n.text(title)).font(.headline)
 
             widgetOverrideRow(
                 label: "Content Padding",
@@ -850,11 +850,11 @@ struct AppearanceSettingsView: View {
         )
         HStack {
             Toggle(isOn: isOverriding) {
-                Text(label).frame(width: 140, alignment: .leading)
+                Text(L10n.text(label)).frame(width: 140, alignment: .leading)
             }
             .toggleStyle(.checkbox)
             Slider(value: sliderValue, in: range, step: 1) {
-                Text(label)
+                Text(L10n.text(label))
             }
             .labelsHidden()
             .disabled(!isOverriding.wrappedValue)
@@ -900,7 +900,7 @@ struct AppearanceSettingsView: View {
 
                     Picker("Background Image Mode", selection: $preferences.windowBackgroundImageMode) {
                         ForEach(DockBackgroundImageMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
+                            Text(L10n.text(mode.title)).tag(mode)
                         }
                     }
                     .pickerStyle(.menu)
@@ -1370,11 +1370,11 @@ struct AppearanceSettingsView: View {
 
         HStack {
             Toggle(isOn: usesOverride) {
-                Text(label).frame(width: 120, alignment: .leading)
+                Text(L10n.text(label)).frame(width: 120, alignment: .leading)
             }
             .toggleStyle(.checkbox)
             Slider(value: value, in: 0...maximumCornerRadius, step: 1) {
-                Text(label)
+                Text(L10n.text(label))
             }
             .labelsHidden()
             .disabled(!usesOverride.wrappedValue)
@@ -1387,12 +1387,12 @@ struct AppearanceSettingsView: View {
     @ViewBuilder
     private func contentInsetRow(label: String, value: Binding<CGFloat>) -> some View {
         HStack {
-            Text(label).frame(width: 120, alignment: .leading)
+            Text(L10n.text(label)).frame(width: 120, alignment: .leading)
             Slider(value: Binding(
                 get: { Double(value.wrappedValue) },
                 set: { value.wrappedValue = CGFloat($0) }
             ), in: 0...16, step: 1) {
-                Text(label)
+                Text(L10n.text(label))
             }
             .labelsHidden()
             Text("\(Int(value.wrappedValue)) pt")

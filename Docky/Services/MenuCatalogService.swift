@@ -62,11 +62,13 @@ final class MenuCatalogService: ObservableObject {
         for package in actionsDocument.packages {
             packageSummaries.append(CatalogPackageSummary(
                 id: package.id,
-                title: package.title,
+                title: L10n.catalogText(id: "package.\(package.id).title", fallback: package.title),
                 author: package.author,
                 version: package.version,
                 reviewStatus: package.reviewStatus,
-                description: package.description,
+                description: package.description.map {
+                    L10n.catalogText(id: "package.\(package.id).description", fallback: $0)
+                },
                 actionCount: package.actions.count
             ))
 
@@ -251,9 +253,9 @@ final class MenuCatalogService: ObservableObject {
     private func resolvedTitle(for action: CatalogActionDefinition, context: CatalogActionContext) -> String {
         if let alternateTitle = action.alternateTitle,
            action.alternateTitleWhen?.evaluate(in: context) == true {
-            return alternateTitle
+            return L10n.catalogText(id: "\(action.id).option", fallback: alternateTitle)
         }
-        return action.title
+        return L10n.catalogText(id: action.id, fallback: action.title)
     }
 
     private func makeContext(for tile: Tile, modifierFlags: NSEvent.ModifierFlags) -> CatalogActionContext {

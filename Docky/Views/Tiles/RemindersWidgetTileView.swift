@@ -153,7 +153,7 @@ struct RemindersWidgetTileView: View {
                     .foregroundStyle(Color.primary.opacity(0.9))
             }
 
-            Text(emptyTitle)
+            Text(L10n.text(emptyTitle))
                 .font(.system(size: layout.titleFontSize, weight: .semibold))
                 .foregroundStyle(Color.primary.opacity(0.96))
                 .multilineTextAlignment(.center)

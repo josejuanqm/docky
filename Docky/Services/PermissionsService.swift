@@ -320,10 +320,10 @@ final class PermissionsService: ObservableObject {
 
     func presentPermissionAlert(for permission: Permission, actionTitle: String) {
         let alert = NSAlert()
-        alert.messageText = permission.title + " is required"
-        alert.informativeText = "Allow Docky in Privacy & Security so it can perform \(actionTitle.lowercased())."
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = L10n.text("%@ is required", permission.title)
+        alert.informativeText = L10n.text("Allow Docky in Privacy & Security so it can perform %@.", actionTitle.lowercased())
+        alert.addButton(withTitle: L10n.text("Open System Settings"))
+        alert.addButton(withTitle: L10n.text("Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             openSystemSettings(for: permission)
         }

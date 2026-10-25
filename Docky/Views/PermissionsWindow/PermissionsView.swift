@@ -110,10 +110,10 @@ struct PermissionsView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                Text(step.title)
+                Text(L10n.text(step.title))
                     .font(.system(size: 34, weight: .bold))
 
-                Text(step.explanation)
+                Text(L10n.text(step.explanation))
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -693,7 +693,7 @@ private struct PageDots: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Step \(currentIndex + 1) of \(max(totalPages, 1))")
+        .accessibilityLabel(L10n.text("Step %lld of %lld", currentIndex + 1, max(totalPages, 1)))
     }
 }
 

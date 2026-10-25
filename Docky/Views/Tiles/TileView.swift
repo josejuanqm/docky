@@ -2384,7 +2384,7 @@ private struct TileTooltipView: View {
     let title: String
 
     var body: some View {
-        Text(title)
+        Text(L10n.text(title))
             .font(.callout.weight(.medium))
             .foregroundStyle(.primary)
             .multilineTextAlignment(.center)
@@ -2619,7 +2619,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
             case .loaded(let itemURLs):
                 let sortedItemURLs = FolderAccessService.shared.sortedItems(in: itemURLs, sortMode: tile.sortMode)
                 if sortedItemURLs.isEmpty {
-                    let emptyItem = NSMenuItem(title: "No visible items", action: nil, keyEquivalent: "")
+                    let emptyItem = NSMenuItem(title: L10n.text("No visible items"), action: nil, keyEquivalent: "")
                     emptyItem.isEnabled = false
                     menu.addItem(emptyItem)
                 } else if sortedItemURLs.count > inlineItemLimit {
@@ -2627,7 +2627,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
                         menu.addItem(menuItem(for: itemURL))
                     }
                     let overflowCount = sortedItemURLs.count - inlineItemLimit
-                    let showMoreItem = NSMenuItem(title: "Show More (\(overflowCount))", action: nil, keyEquivalent: "")
+                    let showMoreItem = NSMenuItem(title: L10n.text("Show More (%lld)", overflowCount), action: nil, keyEquivalent: "")
                     let overflowMenu = NSMenu(title: showMoreItem.title)
                     for itemURL in sortedItemURLs.dropFirst(inlineItemLimit) {
                         overflowMenu.addItem(menuItem(for: itemURL))
@@ -2640,7 +2640,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
                     }
                 }
             case .unreadable:
-                let unreadableItem = NSMenuItem(title: "Can't read folder contents", action: nil, keyEquivalent: "")
+                let unreadableItem = NSMenuItem(title: L10n.text("Can't read folder contents"), action: nil, keyEquivalent: "")
                 unreadableItem.isEnabled = false
                 menu.addItem(unreadableItem)
             }
@@ -2649,7 +2649,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
                 menu.addItem(.separator())
             }
 
-            let openInFinderItem = NSMenuItem(title: "Open in Finder", action: #selector(openInFinder(_:)), keyEquivalent: "")
+            let openInFinderItem = NSMenuItem(title: L10n.text("Open in Finder"), action: #selector(openInFinder(_:)), keyEquivalent: "")
             openInFinderItem.target = self
             openInFinderItem.representedObject = folderURL
             menu.addItem(openInFinderItem)
