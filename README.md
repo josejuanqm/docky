@@ -133,6 +133,15 @@ automatically on first build.
 - [External widget bundles](docs/external-widgets.md): the `.dockywidget` bundle
   contract and how to build community widgets.
 
+## Localization
+
+Docky includes Simplified Chinese (`zh-Hans`) resources for settings, onboarding,
+menus, and permission descriptions. The interface follows the preferred language
+configured for Docky in macOS Language & Region settings.
+
+Run `python3 scripts/validate_zh_hans.py` to check Chinese translation coverage
+and format placeholders before building.
+
 ## Supporting Docky
 
 Docky is free and open source with no paid tier. If it earns a place in your

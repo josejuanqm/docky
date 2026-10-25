@@ -106,7 +106,7 @@ struct PermissionsView: View {
     private var bottomSection: some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Welcome to Docky")
+                Text(String(localized: "Welcome to Docky"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
 
@@ -160,7 +160,7 @@ struct PermissionsView: View {
                     .shadow(color: Color.black.opacity(0.18), radius: 16, y: 10)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Docky Setup", systemImage: "sparkles.rectangle.stack")
+                    Label(String(localized: "Docky Setup"), systemImage: "sparkles.rectangle.stack")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
 
@@ -218,7 +218,7 @@ struct PermissionsView: View {
 
     private var draggableAppProxy: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Drag Docky into the list in System Settings to add it without searching.")
+            Text(String(localized: "Drag Docky into the list in System Settings to add it without searching."))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -230,9 +230,9 @@ struct PermissionsView: View {
                     .frame(width: 48, height: 48)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Docky.app")
+                    Text(String(localized: "Docky.app"))
                         .font(.headline)
-                    Text("Drag this into the macOS privacy list")
+                    Text(String(localized: "Drag this into the macOS privacy list"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -262,7 +262,7 @@ struct PermissionsView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Button("Re-check") { service.refresh() }
+            Button(String(localized: "Re-check")) { service.refresh() }
                 .onboardingButtonStyle()
 
             Spacer()
@@ -276,7 +276,7 @@ struct PermissionsView: View {
     }
 
     private var skipButton: some View {
-        Button("Skip") { skipCurrentStep() }
+        Button(String(localized: "Skip")) { skipCurrentStep() }
             .buttonStyle(.plain)
             .padding(9)
             .background(Color(nsColor: .controlBackgroundColor), in: .capsule)
@@ -299,11 +299,11 @@ struct PermissionsView: View {
 
     private var grantMethodLabel: String? {
         switch grantMethod {
-        case .fullDiskAccess: return "Full Disk Access"
-        case .automation: return "Automation"
-        case .accessibility: return "Accessibility"
-        case .screenCapture: return "Screen Recording"
-        case .location: return "Location"
+        case .fullDiskAccess: return String(localized: "Full Disk Access")
+        case .automation: return String(localized: "Automation")
+        case .accessibility: return String(localized: "Accessibility")
+        case .screenCapture: return String(localized: "Screen Recording")
+        case .location: return String(localized: "Location")
         case .none: return nil
         }
     }
@@ -342,40 +342,40 @@ struct PermissionsView: View {
     private var systemSettingsButtonTitle: String {
         switch step {
         case .finderAutomation:
-            return "Open System Settings (Automation)"
+            return String(localized: "Open System Settings (Automation)")
         case .systemEventsAutomation:
-            return "Open System Settings (Automation)"
+            return String(localized: "Open System Settings (Automation)")
         case .userFolders:
-            return "Open System Settings (Full Disk Access)"
+            return String(localized: "Open System Settings (Full Disk Access)")
         case .accessibility:
-            return "Open System Settings (Accessibility)"
+            return String(localized: "Open System Settings (Accessibility)")
         case .screenCapture:
-            return "Open System Settings (Screen Recording)"
+            return String(localized: "Open System Settings (Screen Recording)")
         case .location:
-            return "Open System Settings (Location Services)"
+            return String(localized: "Open System Settings (Location Services)")
         case .calendar:
-            return "Open System Settings (Calendars)"
+            return String(localized: "Open System Settings (Calendars)")
         case .reminders:
-            return "Open System Settings (Reminders)"
+            return String(localized: "Open System Settings (Reminders)")
         }
     }
 
     private var requestButtonTitle: String {
         switch step {
         case .finderAutomation:
-            return "Request Finder Access"
+            return String(localized: "Request Finder Access")
         case .systemEventsAutomation:
-            return "Request System Events Access"
+            return String(localized: "Request System Events Access")
         case .screenCapture:
-            return "Request Screen Recording Access"
+            return String(localized: "Request Screen Recording Access")
         case .location:
-            return "Request Location Access"
+            return String(localized: "Request Location Access")
         case .calendar:
-            return "Request Calendar Access"
+            return String(localized: "Request Calendar Access")
         case .reminders:
-            return "Request Reminders Access"
+            return String(localized: "Request Reminders Access")
         case .userFolders, .accessibility:
-            return "Request Access"
+            return String(localized: "Request Access")
         }
     }
 
@@ -396,7 +396,7 @@ struct PermissionsView: View {
     }
 
     private var primaryActionTitle: String {
-        isLastStep ? "Continue" : "Next"
+        isLastStep ? String(localized: "Continue") : String(localized: "Next")
     }
 
     private func advance() {
@@ -489,32 +489,32 @@ struct PermissionsView: View {
     private var stepSummary: String {
         switch status {
         case .granted:
-            return "This permission is already enabled. You can continue when ready."
+            return String(localized: "This permission is already enabled. You can continue when ready.")
         case .denied:
-            return "macOS has this disabled right now. Open System Settings, enable it, then come back and re-check."
+            return String(localized: "macOS has this disabled right now. Open System Settings, enable it, then come back and re-check.")
         case .notDetermined:
-            return "Docky will guide you through the fastest way to enable this on your Mac."
+            return String(localized: "Docky will guide you through the fastest way to enable this on your Mac.")
         }
     }
 
     private var mediaCaption: String {
         switch step {
         case .userFolders:
-            return "Preview pinned folders instantly"
+            return String(localized: "Preview pinned folders instantly")
         case .finderAutomation:
-            return "Reveal and manage files in Finder"
+            return String(localized: "Reveal and manage files in Finder")
         case .accessibility:
-            return "Control interface actions smoothly"
+            return String(localized: "Control interface actions smoothly")
         case .systemEventsAutomation:
-            return "Run curated menu actions quickly"
+            return String(localized: "Run curated menu actions quickly")
         case .screenCapture:
-            return "Capture live window previews"
+            return String(localized: "Capture live window previews")
         case .location:
-            return "Show local weather in the dock"
+            return String(localized: "Show local weather in the dock")
         case .calendar:
-            return "Show upcoming events in the dock"
+            return String(localized: "Show upcoming events in the dock")
         case .reminders:
-            return "Show open tasks in the dock"
+            return String(localized: "Show open tasks in the dock")
         }
     }
 
@@ -537,18 +537,18 @@ struct PermissionsView: View {
 
     private var bottomSummary: String {
         if step == .finderAutomation {
-            return "Finder access can be requested here now, so reveal-in-Finder and Trash actions work without waiting for the first macOS prompt."
+            return String(localized: "Finder access can be requested here now, so reveal-in-Finder and Trash actions work without waiting for the first macOS prompt.")
         }
 
         if step == .systemEventsAutomation {
-            return "System Events access can be requested here now for curated menu-click actions. Accessibility should be enabled too, since UI scripting depends on both permissions."
+            return String(localized: "System Events access can be requested here now for curated menu-click actions. Accessibility should be enabled too, since UI scripting depends on both permissions.")
         }
 
         if step.isRequiredAtLaunch {
-            return "This permission unlocks a core Docky feature, but you can skip it for now and grant it later."
+            return String(localized: "This permission unlocks a core Docky feature, but you can skip it for now and grant it later.")
         }
 
-        return "This permission unlocks an optional feature and can be granted later from Settings."
+        return String(localized: "This permission unlocks an optional feature and can be granted later from Settings.")
     }
 
     private var statusBadge: some View {
@@ -567,11 +567,11 @@ struct PermissionsView: View {
     private var statusLabel: String {
         switch status {
         case .granted:
-            return "Granted"
+            return String(localized: "Granted")
         case .denied:
-            return "Needs Attention"
+            return String(localized: "Needs Attention")
         case .notDetermined:
-            return "Not Yet Granted"
+            return String(localized: "Not Yet Granted")
         }
     }
 
@@ -693,7 +693,7 @@ private struct PageDots: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Step \(currentIndex + 1) of \(max(totalPages, 1))")
+        .accessibilityLabel(String(localized: "Step \(currentIndex + 1) of \(max(totalPages, 1))"))
     }
 }
 

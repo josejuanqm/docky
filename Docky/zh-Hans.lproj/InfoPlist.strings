@@ -1,0 +1,6 @@
+"NSAppleEventsUsageDescription" = "Docky 需要自动化权限，以控制 Finder、System Events 及支持的应用，完成文件、菜单和窗口操作。";
+"NSCalendarsFullAccessUsageDescription" = "Docky 需要访问日历，以在日历小组件中显示即将开始的日程。";
+"NSCalendarsUsageDescription" = "Docky 需要访问日历，以在日历小组件中显示即将开始的日程。";
+"NSLocationWhenInUseUsageDescription" = "Docky 需要使用你的位置，以在天气小组件中显示当地天气。";
+"NSRemindersFullAccessUsageDescription" = "Docky 需要访问提醒事项，以在提醒事项小组件中显示未完成的任务。";
+"NSRemindersUsageDescription" = "Docky 需要访问提醒事项，以在提醒事项小组件中显示未完成的任务。";

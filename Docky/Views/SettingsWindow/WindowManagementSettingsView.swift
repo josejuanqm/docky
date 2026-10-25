@@ -28,10 +28,10 @@ struct WindowManagementSettingsView: View {
         if preferences.showsWindowSwitcherFocusPreview,
            preferences.windowSwitcherPreviewMode == .instantFocus,
            previewControlsApply {
-            return "While the switcher is open, keep the shortcut modifiers held and tap the shortcut again to cycle. In Instant Focus mode, each step immediately focuses the next window and releasing the modifiers ends cycling."
+            return String(localized: "While the switcher is open, keep the shortcut modifiers held and tap the shortcut again to cycle. In Instant Focus mode, each step immediately focuses the next window and releasing the modifiers ends cycling.")
         }
 
-        return "While the switcher is open, keep the shortcut modifiers held and tap the shortcut again to cycle. Release the modifiers to focus the selected window."
+        return String(localized: "While the switcher is open, keep the shortcut modifiers held and tap the shortcut again to cycle. Release the modifiers to focus the selected window.")
     }
 
     var body: some View {
@@ -145,21 +145,21 @@ struct WindowManagementSettingsView: View {
                     }
 
                     actionKeyRow(
-                        title: "Minimize",
+                        title: String(localized: "Minimize"),
                         keyCode: preferences.switcherMinimizeKeyCode,
                         isRecording: $isRecordingMinimizeKey,
                         defaultKeyCode: 46
                     ) { preferences.switcherMinimizeKeyCode = $0 }
 
                     actionKeyRow(
-                        title: "Close Window",
+                        title: String(localized: "Close Window"),
                         keyCode: preferences.switcherCloseKeyCode,
                         isRecording: $isRecordingCloseKey,
                         defaultKeyCode: 13
                     ) { preferences.switcherCloseKeyCode = $0 }
 
                     actionKeyRow(
-                        title: "Zoom",
+                        title: String(localized: "Zoom"),
                         keyCode: preferences.switcherZoomKeyCode,
                         isRecording: $isRecordingZoomKey,
                         defaultKeyCode: 6

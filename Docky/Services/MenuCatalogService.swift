@@ -204,7 +204,7 @@ final class MenuCatalogService: ObservableObject {
                 guard let title = item.title, let children = item.children else { continue }
                 let submenuItems = buildMenuItems(from: children, context: context)
                 guard !submenuItems.isEmpty else { continue }
-                resolved.append(.submenu(title, children: submenuItems))
+                resolved.append(.submenu(NSLocalizedString(title, comment: "Catalog submenu title"), children: submenuItems))
             case .action:
                 let resolvedActionID: String
                 if let alternateActionID = item.alternateAction,
@@ -251,9 +251,9 @@ final class MenuCatalogService: ObservableObject {
     private func resolvedTitle(for action: CatalogActionDefinition, context: CatalogActionContext) -> String {
         if let alternateTitle = action.alternateTitle,
            action.alternateTitleWhen?.evaluate(in: context) == true {
-            return alternateTitle
+            return NSLocalizedString(alternateTitle, comment: "Catalog alternate action title")
         }
-        return action.title
+        return NSLocalizedString(action.title, comment: "Catalog action title")
     }
 
     private func makeContext(for tile: Tile, modifierFlags: NSEvent.ModifierFlags) -> CatalogActionContext {

@@ -59,15 +59,15 @@ struct UpdatesSettingsView: View {
     private func title(for interval: TimeInterval) -> String {
         switch interval {
         case 3600:
-            "Hourly"
+            String(localized: "Hourly")
         case 86_400:
-            "Daily"
+            String(localized: "Daily")
         case 604_800:
-            "Weekly"
+            String(localized: "Weekly")
         case 2_629_800:
-            "Monthly"
+            String(localized: "Monthly")
         default:
-            "Custom"
+            String(localized: "Custom")
         }
     }
 }

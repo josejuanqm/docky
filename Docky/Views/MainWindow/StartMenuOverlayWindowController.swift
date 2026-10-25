@@ -793,10 +793,10 @@ private enum SystemAction {
 
     var title: String {
         switch self {
-        case .sleep: return "Sleep"
-        case .restart: return "Restart..."
-        case .shutDown: return "Shut Down..."
-        case .logOut: return "Log Out..."
+        case .sleep: return String(localized: "Sleep")
+        case .restart: return String(localized: "Restart...")
+        case .shutDown: return String(localized: "Shut Down...")
+        case .logOut: return String(localized: "Log Out...")
         }
     }
 

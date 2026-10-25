@@ -23,7 +23,7 @@ private struct AppFolderNameSuggestion {
 func appFolderSeedName(for apps: [AppTile]) -> String {
     let names = apps.map(\.displayName).map(_appFolderNormalizeName(_:)).filter { !$0.isEmpty }
     guard let firstName = names.first else {
-        return "Folder"
+        return String(localized: "Folder")
     }
 
     if names.count == 1 {

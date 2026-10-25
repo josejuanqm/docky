@@ -138,21 +138,21 @@ struct AppearanceSettingsView: View {
             .padding(.vertical, 4)
 
             sliderRow(
-                title: "Inward Offset",
+                title: String(localized: "Inward Offset"),
                 value: $preferences.activeIndicatorOffset,
                 range: -20...20,
                 step: 1,
                 format: { "\(Int($0)) pt" },
-                description: "Shifts the indicator further from or closer to the screen edge."
+                description: String(localized: "Shifts the indicator further from or closer to the screen edge.")
             )
 
             sliderRow(
-                title: "Size",
+                title: String(localized: "Size"),
                 value: $preferences.activeIndicatorScale,
                 range: 0.5...2.0,
                 step: 0.05,
                 format: { String(format: "%.2fx", $0) },
-                description: "Scales the indicator's rendered size."
+                description: String(localized: "Scales the indicator's rendered size.")
             )
         }
 
@@ -168,7 +168,7 @@ struct AppearanceSettingsView: View {
                 .font(.headline)
 
             dividerImageRow(
-                title: "Center",
+                title: String(localized: "Center"),
                 path: preferences.dividerImagePath,
                 onChoose: { chooseDividerImage(slot: .global) },
                 onClear: { preferences.dividerImagePath = nil }
@@ -177,7 +177,7 @@ struct AppearanceSettingsView: View {
             Divider()
 
             dividerImageRow(
-                title: "Left Side",
+                title: String(localized: "Left Side"),
                 path: preferences.leftDividerImagePath,
                 onChoose: { chooseDividerImage(slot: .left) },
                 onClear: { preferences.leftDividerImagePath = nil }
@@ -210,39 +210,39 @@ struct AppearanceSettingsView: View {
         .padding(.vertical, 4)
 
         sliderRow(
-            title: "Padding",
+            title: String(localized: "Padding"),
             value: $preferences.dividerPaddingFraction,
             range: 0...0.5,
             step: 0.01,
             format: { "\(Int(($0 * 100).rounded()))%" },
-            description: "Controls how much each divider is inset along its short axis, as a fraction of the tile size."
+            description: String(localized: "Controls how much each divider is inset along its short axis, as a fraction of the tile size.")
         )
 
         sliderRow(
-            title: "Vertical Offset",
+            title: String(localized: "Vertical Offset"),
             value: $preferences.dividerOffset,
             range: -20...20,
             step: 1,
             format: { "\(Int($0)) pt" },
-            description: "Shifts dividers along the tile's short axis. Positive values move them up in horizontal docks or right in vertical docks."
+            description: String(localized: "Shifts dividers along the tile's short axis. Positive values move them up in horizontal docks or right in vertical docks.")
         )
 
         sliderRow(
-            title: "Image Size",
+            title: String(localized: "Image Size"),
             value: $preferences.dividerImageScale,
             range: 0.5...2.0,
             step: 0.05,
             format: { String(format: "%.2fx", $0) },
-            description: "Scales custom divider images. Has no effect on the default line."
+            description: String(localized: "Scales custom divider images. Has no effect on the default line.")
         )
 
         sliderRow(
-            title: "Opacity",
+            title: String(localized: "Opacity"),
             value: $preferences.dividerOpacity,
             range: 0...1,
             step: 0.05,
             format: { "\(Int(($0 * 100).rounded()))%" },
-            description: "Controls how visible dividers are. 100% is fully opaque; 0% hides them entirely."
+            description: String(localized: "Controls how visible dividers are. 100% is fully opaque; 0% hides them entirely.")
         )
 
         VStack(alignment: .leading, spacing: 8) {
@@ -696,22 +696,22 @@ struct AppearanceSettingsView: View {
 
             DisclosureGroup("Per-Corner Radii") {
                 cornerRadiusRow(
-                    label: "Top Leading",
+                    label: String(localized: "Top Leading"),
                     binding: $preferences.windowCornerRadiusTopLeading,
                     effective: preferences.effectiveWindowCornerRadiusTopLeading
                 )
                 cornerRadiusRow(
-                    label: "Top Trailing",
+                    label: String(localized: "Top Trailing"),
                     binding: $preferences.windowCornerRadiusTopTrailing,
                     effective: preferences.effectiveWindowCornerRadiusTopTrailing
                 )
                 cornerRadiusRow(
-                    label: "Bottom Leading",
+                    label: String(localized: "Bottom Leading"),
                     binding: $preferences.windowCornerRadiusBottomLeading,
                     effective: preferences.effectiveWindowCornerRadiusBottomLeading
                 )
                 cornerRadiusRow(
-                    label: "Bottom Trailing",
+                    label: String(localized: "Bottom Trailing"),
                     binding: $preferences.windowCornerRadiusBottomTrailing,
                     effective: preferences.effectiveWindowCornerRadiusBottomTrailing
                 )
@@ -725,10 +725,10 @@ struct AppearanceSettingsView: View {
             .padding(.vertical, 4)
 
             DisclosureGroup("Per-Edge Content Insets") {
-                contentInsetRow(label: "Top", value: $preferences.windowContentInsetTop)
-                contentInsetRow(label: "Leading", value: $preferences.windowContentInsetLeading)
-                contentInsetRow(label: "Bottom", value: $preferences.windowContentInsetBottom)
-                contentInsetRow(label: "Trailing", value: $preferences.windowContentInsetTrailing)
+                contentInsetRow(label: String(localized: "Top"), value: $preferences.windowContentInsetTop)
+                contentInsetRow(label: String(localized: "Leading"), value: $preferences.windowContentInsetLeading)
+                contentInsetRow(label: String(localized: "Bottom"), value: $preferences.windowContentInsetBottom)
+                contentInsetRow(label: String(localized: "Trailing"), value: $preferences.windowContentInsetTrailing)
 
                 Text("Padding between the dock panel and the chrome view, per edge. Full-axis mode forces these to 0 regardless.")
                     .foregroundStyle(.secondary)
@@ -768,21 +768,21 @@ struct AppearanceSettingsView: View {
     private var widgetsSection: some View {
         Section {
             widgetSpanBlock(
-                title: "1x Widgets",
+                title: String(localized: "1x Widgets"),
                 paddingBinding: $preferences.widget1xContentPadding,
                 radiusBinding: $preferences.widget1xCornerRadius,
                 effectivePadding: preferences.effectiveWidgetContentPadding(for: .one),
                 effectiveRadius: preferences.effectiveWidgetCornerRadius(for: .one)
             )
             widgetSpanBlock(
-                title: "2x Widgets",
+                title: String(localized: "2x Widgets"),
                 paddingBinding: $preferences.widget2xContentPadding,
                 radiusBinding: $preferences.widget2xCornerRadius,
                 effectivePadding: preferences.effectiveWidgetContentPadding(for: .two),
                 effectiveRadius: preferences.effectiveWidgetCornerRadius(for: .two)
             )
             widgetSpanBlock(
-                title: "3x Widgets",
+                title: String(localized: "3x Widgets"),
                 paddingBinding: $preferences.widget3xContentPadding,
                 radiusBinding: $preferences.widget3xCornerRadius,
                 effectivePadding: preferences.effectiveWidgetContentPadding(for: .three),
@@ -808,13 +808,13 @@ struct AppearanceSettingsView: View {
             Text(title).font(.headline)
 
             widgetOverrideRow(
-                label: "Content Padding",
+                label: String(localized: "Content Padding"),
                 binding: paddingBinding,
                 effective: effectivePadding,
                 range: 0...32
             )
             widgetOverrideRow(
-                label: "Corner Radius",
+                label: String(localized: "Corner Radius"),
                 binding: radiusBinding,
                 effective: effectiveRadius,
                 range: 0...32

@@ -109,10 +109,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         if let firstError {
             let alert = NSAlert()
-            alert.messageText = "Could not import theme"
+            alert.messageText = String(localized: "Could not import theme")
             alert.informativeText = firstError
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: String(localized: "OK"))
             alert.runModal()
         }
     }
@@ -257,17 +257,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 try? FileManager.default.removeItem(at: staged.deletingLastPathComponent())
 
                 let alert = NSAlert()
-                alert.messageText = "Widget installed"
-                alert.informativeText = "Restart Docky to start using \(downloadURL.lastPathComponent)."
+                alert.messageText = String(localized: "Widget installed")
+                alert.informativeText = String(format: String(localized: "Restart Docky to start using %@."), downloadURL.lastPathComponent)
                 alert.alertStyle = .informational
-                alert.addButton(withTitle: "Restart Docky")
-                alert.addButton(withTitle: "Later")
+                alert.addButton(withTitle: String(localized: "Restart Docky"))
+                alert.addButton(withTitle: String(localized: "Later"))
                 if alert.runModal() == .alertFirstButtonReturn {
                     NSApp.terminate(nil)
                 }
             } catch {
                 presentInstallAlert(
-                    title: "Couldn't install widget",
+                    title: String(localized: "Couldn't install widget"),
                     message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription,
                     style: .warning
                 )
@@ -279,11 +279,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// user to the toggle rather than silently doing nothing.
     private func presentLinkInstallsDisabledAlert() {
         let alert = NSAlert()
-        alert.messageText = "Installing widgets from links is off"
-        alert.informativeText = "For safety, Docky won't install a widget from a link until you turn this on in Settings › Widget Store."
+        alert.messageText = String(localized: "Installing widgets from links is off")
+        alert.informativeText = String(localized: "For safety, Docky won't install a widget from a link until you turn this on in Settings › Widget Store.")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Open Settings")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Open Settings"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             SettingsNavigator.shared.requestPane(id: "externalWidgets")
         }
@@ -293,11 +293,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// install is always a deliberate choice.
     private func confirmLinkInstall(host: String) -> Bool {
         let alert = NSAlert()
-        alert.messageText = "Install a widget from “\(host)”?"
-        alert.informativeText = "Widgets are native plugins that run inside Docky with the same access Docky has — Accessibility, Automation, files, and more. Docky can't verify what a widget does. Only continue if you trust this source."
+        alert.messageText = String(format: String(localized: "Install a widget from “%@”?"), host)
+        alert.informativeText = String(localized: "Widgets are native plugins that run inside Docky with the same access Docky has — Accessibility, Automation, files, and more. Docky can't verify what a widget does. Only continue if you trust this source.")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Download & Install")
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.addButton(withTitle: String(localized: "Download & Install"))
         return alert.runModal() == .alertSecondButtonReturn
     }
 
@@ -306,7 +306,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = style
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 
@@ -402,15 +402,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     private func configureMainMenu() {
         let appMenu = NSApp.mainMenu?.items.first?.submenu
-        if let item = appMenu?.item(withTitle: "Preferences…") ?? appMenu?.item(withTitle: "Settings…") {
-            item.title = "Settings…"
+        if let item = appMenu?.items.first(where: {
+            $0.action == #selector(showSettingsWindow(_:)) || $0.keyEquivalent == ","
+        }) {
+            item.title = String(localized: "Settings…")
             item.action = #selector(showSettingsWindow(_:))
             item.target = self
         }
 
-        if appMenu?.item(withTitle: "Check for Updates…") == nil {
+        if appMenu?.items.contains(where: { $0.action == #selector(checkForUpdates(_:)) }) != true {
             let item = NSMenuItem(
-                title: "Check for Updates…",
+                title: String(localized: "Check for Updates…"),
                 action: #selector(checkForUpdates(_:)),
                 keyEquivalent: ""
             )

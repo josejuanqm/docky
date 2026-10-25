@@ -437,7 +437,7 @@ private struct FrontmostAppTriggerEditor: View {
     }
 
     private var displayLabel: String {
-        if model.bundleIdentifier.isEmpty { return "Pick app…" }
+        if model.bundleIdentifier.isEmpty { return String(localized: "Pick app…") }
         if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: model.bundleIdentifier) {
             return FileManager.default.displayName(atPath: app.path)
         }
@@ -503,7 +503,7 @@ private struct SpaceTriggerEditor: View {
     }
 
     private var displayLabel: String {
-        if model.bundleIdentifier.isEmpty { return "Pick app…" }
+        if model.bundleIdentifier.isEmpty { return String(localized: "Pick app…") }
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: model.bundleIdentifier) {
             return FileManager.default.displayName(atPath: url.path)
         }

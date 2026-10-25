@@ -2619,7 +2619,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
             case .loaded(let itemURLs):
                 let sortedItemURLs = FolderAccessService.shared.sortedItems(in: itemURLs, sortMode: tile.sortMode)
                 if sortedItemURLs.isEmpty {
-                    let emptyItem = NSMenuItem(title: "No visible items", action: nil, keyEquivalent: "")
+                    let emptyItem = NSMenuItem(title: String(localized: "No visible items"), action: nil, keyEquivalent: "")
                     emptyItem.isEnabled = false
                     menu.addItem(emptyItem)
                 } else if sortedItemURLs.count > inlineItemLimit {
@@ -2627,7 +2627,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
                         menu.addItem(menuItem(for: itemURL))
                     }
                     let overflowCount = sortedItemURLs.count - inlineItemLimit
-                    let showMoreItem = NSMenuItem(title: "Show More (\(overflowCount))", action: nil, keyEquivalent: "")
+                    let showMoreItem = NSMenuItem(title: String(format: String(localized: "Show More (%lld)"), Int64(overflowCount)), action: nil, keyEquivalent: "")
                     let overflowMenu = NSMenu(title: showMoreItem.title)
                     for itemURL in sortedItemURLs.dropFirst(inlineItemLimit) {
                         overflowMenu.addItem(menuItem(for: itemURL))
@@ -2640,7 +2640,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
                     }
                 }
             case .unreadable:
-                let unreadableItem = NSMenuItem(title: "Can't read folder contents", action: nil, keyEquivalent: "")
+                let unreadableItem = NSMenuItem(title: String(localized: "Can't read folder contents"), action: nil, keyEquivalent: "")
                 unreadableItem.isEnabled = false
                 menu.addItem(unreadableItem)
             }
@@ -2649,7 +2649,7 @@ private struct FolderListMenuPresenter: NSViewRepresentable {
                 menu.addItem(.separator())
             }
 
-            let openInFinderItem = NSMenuItem(title: "Open in Finder", action: #selector(openInFinder(_:)), keyEquivalent: "")
+            let openInFinderItem = NSMenuItem(title: String(localized: "Open in Finder"), action: #selector(openInFinder(_:)), keyEquivalent: "")
             openInFinderItem.target = self
             openInFinderItem.representedObject = folderURL
             menu.addItem(openInFinderItem)
@@ -3164,7 +3164,7 @@ func appWindowMenuTitle(for window: AppWindow) -> String {
         return window.windowTitle
     }
 
-    return "\(window.windowTitle) (Minimized)"
+    return String(format: String(localized: "%@ (Minimized)"), window.windowTitle)
 }
 
 private func openWithApplicationActions(for url: URL) -> [ContextAction] {

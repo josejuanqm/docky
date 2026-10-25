@@ -18,7 +18,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.styleMask.insert(.miniaturizable)
         window.styleMask.insert(.resizable)
         window.styleMask.insert(.fullSizeContentView)
-        window.title = "Settings"
+        window.title = String(localized: "Settings")
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
