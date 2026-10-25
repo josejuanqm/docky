@@ -366,13 +366,16 @@ final class MainWindow: NSPanel {
         observeWindowPlacementInputs()
         observeVisibilityInputs()
         updatePointerScreenMonitoring()
-        updateRevealMonitoring()
         let initialOverlap = computeContentOverlapStateOnTargetScreen()
         isFullscreenActiveOnTargetScreen = initialOverlap.isFullscreen
         isMaximizedActiveOnTargetScreen = initialOverlap.isMaximized
         if isContentOverlapActive {
             visibilityState = shouldRemainVisible ? .visible : .hidden
         }
+        // After the overlap state is known: launching hidden behind a
+        // maximized or fullscreen window needs the reveal monitor even
+        // with autohide off.
+        updateRevealMonitoring()
     }
 
     deinit {

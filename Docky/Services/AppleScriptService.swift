@@ -23,8 +23,13 @@ final class AppleScriptService {
     static let shared = AppleScriptService()
 
     private let scriptQueue = DispatchQueue(label: "gt.quintero.Docky.applescript", qos: .userInitiated)
+    /// Marks `scriptQueue` so a synchronous call made from it runs inline
+    /// instead of deadlocking.
+    private let scriptQueueKey = DispatchSpecificKey<Void>()
 
-    private init() {}
+    private init() {
+        scriptQueue.setSpecific(key: scriptQueueKey, value: ())
+    }
 
     @discardableResult
     func requestFinderAutomationPermission() async -> Bool {
@@ -47,6 +52,20 @@ final class AppleScriptService {
             throw error
         }
         return result
+    }
+
+    /// Runs `source` on the serial script queue and waits for the result.
+    /// For callers already on a background thread that need the value
+    /// synchronously. Avoid calling from the main thread: a slow or hung
+    /// target app would freeze the UI until the Apple Event times out.
+    func executeDescriptorOnScriptQueue(source: String) throws -> NSAppleEventDescriptor? {
+        assert(!Thread.isMainThread, "AppleScript would block the main thread")
+        if DispatchQueue.getSpecific(key: scriptQueueKey) != nil {
+            return try executeDescriptor(source: source)
+        }
+        return try scriptQueue.sync {
+            try executeDescriptor(source: source)
+        }
     }
 
     private func executeOnScriptQueue(source: String) async throws {

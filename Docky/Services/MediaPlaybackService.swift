@@ -609,13 +609,11 @@ private final class MediaRemoteBridge {
         end tell
         """
 
-        // NSAppleScript is documented as main-thread-only; `handle` runs on
-        // the helper's background drain thread, so hop to main for the
-        // Apple Event round-trip.
-        let run: () -> Bool = {
-            (try? AppleScriptService.shared.executeDescriptor(source: source))?.booleanValue ?? false
-        }
-        return Thread.isMainThread ? run() : DispatchQueue.main.sync(execute: run)
+        // `handle` runs on the helper's background drain thread. Run the
+        // script on AppleScriptService's serial queue, not main: a slow or
+        // hung Music would otherwise freeze the dock until the Apple Event
+        // times out.
+        return (try? AppleScriptService.shared.executeDescriptorOnScriptQueue(source: source))?.booleanValue ?? false
     }
 
     private func displayName(for bundleIdentifier: String) -> String {
