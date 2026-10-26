@@ -7,6 +7,8 @@ import AppKit
 import SwiftUI
 
 struct BatteriesWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -53,18 +55,27 @@ struct BatteriesWidgetTileView: View {
         }
     }
 
+    /// Rings with their labels when there's room; when larger widget text
+    /// no longer fits, the labels go and the rings alone show the levels.
     private func indicatorStrip(devices: [BatteryDeviceSnapshot], layout: LayoutMetrics) -> some View {
+        ViewThatFits(in: .vertical) {
+            indicatorRow(devices: devices, layout: layout, showsLabels: true)
+            indicatorRow(devices: devices, layout: layout, showsLabels: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func indicatorRow(devices: [BatteryDeviceSnapshot], layout: LayoutMetrics, showsLabels: Bool) -> some View {
         HStack(alignment: .center, spacing: layout.contentGap) {
             ForEach(devices) { device in
-                batteryIndicator(device: device, layout: layout)
+                batteryIndicator(device: device, layout: layout, showsLabel: showsLabels)
                     .offset(y: 2)
             }
         }
         .padding(layout.contentPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private func batteryIndicator(device: BatteryDeviceSnapshot, layout: LayoutMetrics) -> some View {
+    private func batteryIndicator(device: BatteryDeviceSnapshot, layout: LayoutMetrics, showsLabel: Bool) -> some View {
         VStack(spacing: layout.stackSpacing) {
             ZStack {
                 Circle()
@@ -102,36 +113,50 @@ struct BatteriesWidgetTileView: View {
             }
             .frame(width: layout.circleDiameter, height: layout.circleDiameter)
 
-            HStack(spacing: 3) {
-                if device.isCharging {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: layout.boltSize, weight: .bold))
-                        .foregroundStyle(Color(nsColor: accentColor(for: device)))
-                }
+            if showsLabel {
+                HStack(spacing: 3) {
+                    if device.isCharging {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: layout.boltSize * textScale, weight: .bold))
+                            .foregroundStyle(Color(nsColor: accentColor(for: device)))
+                    }
 
-                Text(primaryPercentageText(for: device))
-                    .font(.system(size: layout.percentageFontSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.primary.opacity(0.98))
-                    .lineLimit(1)
+                    Text(primaryPercentageText(for: device))
+                        .font(.system(size: layout.percentageFontSize, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.primary.opacity(0.98))
+                        .lineLimit(1)
+                }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func visibleDevices(from snapshot: BatteriesSnapshot) -> [BatteryDeviceSnapshot] {
         Array(snapshot.devices.prefix(maxVisibleDeviceCount))
     }
 
+    /// Drops the icon (or spinner) when larger widget text no longer
+    /// leaves room for it, so the message itself stays readable.
     private func emptyState(layout: LayoutMetrics) -> some View {
+        ViewThatFits(in: .vertical) {
+            emptyStateStack(layout: layout, showsIcon: true)
+            emptyStateStack(layout: layout, showsIcon: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func emptyStateStack(layout: LayoutMetrics, showsIcon: Bool) -> some View {
         VStack(spacing: layout.stackSpacing) {
-            if batteries.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color.primary.opacity(0.92))
-            } else {
-                Image(systemName: "battery.100percent")
-                    .font(.system(size: layout.iconSize, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.9))
+            if showsIcon {
+                if batteries.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color.primary.opacity(0.92))
+                } else {
+                    Image(systemName: "battery.100percent")
+                        .font(.system(size: layout.iconSize, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.9))
+                }
             }
 
             Text(batteries.isLoading ? "Loading Batteries" : "No Battery Data")
@@ -149,7 +174,6 @@ struct BatteriesWidgetTileView: View {
             }
         }
         .padding(layout.contentPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var maxVisibleDeviceCount: Int {
@@ -213,13 +237,16 @@ struct BatteriesWidgetTileView: View {
             contentPadding: contentPadding,
             contentGap: contentGap,
             stackSpacing: stackSpacing,
-            captionFontSize: min(circleDiameter * 0.18, 11),
-            titleFontSize: min(minSide * 0.17, renderedSpan == .one ? 14 : 16),
-            detailFontSize: min(minSide * 0.12, 13),
-            percentageFontSize: min(circleDiameter * 0.24, renderedSpan == .three ? 12 : 14),
+            // Text runs ~40% larger than the other widgets: the ring labels
+            // were hard to read at their original size.
+            captionFontSize: min(circleDiameter * 0.252, 15.4) * textScale,
+            titleFontSize: min(minSide * 0.238, renderedSpan == .one ? 19.6 : 22.4) * textScale,
+            detailFontSize: min(minSide * 0.168, 18.2) * textScale,
+            percentageFontSize: min(circleDiameter * 0.336, renderedSpan == .three ? 16.8 : 19.6) * textScale,
             circleDiameter: circleDiameter,
             ringWidth: min(circleDiameter * 0.1, 7),
-            iconSize: min(circleDiameter * 0.28, renderedSpan == .three ? 16 : 20),
+            // Follows the text size, capped so the symbol stays inside the ring.
+            iconSize: min(min(circleDiameter * 0.28, renderedSpan == .three ? 16 : 20) * textScale, circleDiameter * 0.5),
             boltSize: min(circleDiameter * 0.16, 10),
             chargeBadgeDiameter: min(circleDiameter * 0.24, 16),
             chargeBadgeOffset: min(circleDiameter * 0.05, 4)

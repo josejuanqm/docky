@@ -19,6 +19,8 @@ import AppKit
 import SwiftUI
 
 struct SearchWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -84,12 +86,12 @@ struct SearchWidgetTileView: View {
                 ZStack(alignment: .leading) {
                     if query.isEmpty {
                         Text("Search Google")
-                            .font(.body)
+                            .font(.system(size: NSFont.systemFontSize * textScale))
                             .foregroundStyle(Color.black)
                     }
                     TextField("", text: $query)
                         .textFieldStyle(.plain)
-                        .font(.body)
+                        .font(.system(size: NSFont.systemFontSize * textScale))
                         .focused($isFieldFocused)
                         .onSubmit(performSearch)
                         .background(.clear)

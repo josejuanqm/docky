@@ -133,6 +133,8 @@ private struct ConfiguredWeatherWidgetTileView: View {
 
 /// Pure rendering driven by injected state so it serves both data sources.
 private struct WeatherWidgetContentView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let snapshot: WeatherSnapshot?
     let isLoading: Bool
     let lastErrorDescription: String?
@@ -424,17 +426,29 @@ private struct WeatherWidgetContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
+    /// Drops the icon (or spinner) when larger widget text no longer
+    /// leaves room for it, so the message itself stays readable.
     private func placeholder(layout: LayoutMetrics) -> some View {
+        ViewThatFits(in: .vertical) {
+            placeholderStack(layout: layout, showsIcon: true)
+            placeholderStack(layout: layout, showsIcon: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func placeholderStack(layout: LayoutMetrics, showsIcon: Bool) -> some View {
         VStack(spacing: layout.stackSpacing) {
-            if isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(.white.opacity(0.9))
-                    .foregroundStyle(.white.opacity(0.9))
-            } else {
-                Image(systemName: placeholderSymbolName)
-                    .font(.system(size: layout.symbolSize, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
+            if showsIcon {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white.opacity(0.9))
+                        .foregroundStyle(.white.opacity(0.9))
+                } else {
+                    Image(systemName: placeholderSymbolName)
+                        .font(.system(size: layout.symbolSize, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                }
             }
 
             Text(placeholderTitle)
@@ -452,7 +466,6 @@ private struct WeatherWidgetContentView: View {
         }
         .padding(layout.contentPadding)
         .padding(.horizontal, (cornerRadius - layout.contentPadding) / 2)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func expandedLayout(in size: CGSize) -> ExpandedLayoutMetrics {
@@ -470,18 +483,18 @@ private struct WeatherWidgetContentView: View {
             stackSpacing: stackSpacing,
             sectionSpacing: sectionSpacing,
             symbolSize: min(max(minSide * 0.26, 36), 96),
-            temperatureFontSize: min(max(minSide * 0.22, 36), 78),
-            locationFontSize: min(max(minSide * 0.07, 14), 22),
-            secondaryFontSize: min(max(minSide * 0.05, 11), 16),
-            metricLabelFontSize: min(max(minSide * 0.035, 9), 12),
-            metricValueFontSize: min(max(minSide * 0.06, 14), 22),
+            temperatureFontSize: min(max(minSide * 0.22, 36), 78) * textScale,
+            locationFontSize: min(max(minSide * 0.07, 14), 22) * textScale,
+            secondaryFontSize: min(max(minSide * 0.05, 11), 16) * textScale,
+            metricLabelFontSize: min(max(minSide * 0.035, 9), 12) * textScale,
+            metricValueFontSize: min(max(minSide * 0.06, 14), 22) * textScale,
             metricPadding: min(max(minSide * 0.022, 6), 10),
             metricCornerRadius: min(max(minSide * 0.04, 8), 14),
             forecastSpacing: min(max(minSide * 0.015, 4), 8),
             forecastStackSpacing: min(max(minSide * 0.012, 2), 6),
-            forecastDayFontSize: min(max(minSide * 0.04, 9), 13),
+            forecastDayFontSize: min(max(minSide * 0.04, 9), 13) * textScale,
             forecastSymbolSize: min(max(minSide * 0.07, 16), 26),
-            forecastTempFontSize: min(max(minSide * 0.045, 10), 14)
+            forecastTempFontSize: min(max(minSide * 0.045, 10), 14) * textScale
         )
     }
 
@@ -498,8 +511,8 @@ private struct WeatherWidgetContentView: View {
             contentGap: contentGap,
             stackSpacing: stackSpacing,
             symbolSize: min(minSide * 0.32, 34),
-            temperatureFontSize: min(minSide * 0.24, renderedSpan == .one ? 26 : 24),
-            secondaryFontSize: min(minSide * 0.13, 13),
+            temperatureFontSize: min(minSide * 0.24, renderedSpan == .one ? 26 : 24) * textScale,
+            secondaryFontSize: min(minSide * 0.13, 13) * textScale,
             leadingColumnWidth: min(minSide * 0.36, 42)
         )
     }

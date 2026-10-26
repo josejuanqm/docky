@@ -8,6 +8,8 @@ import CoreImage
 import SwiftUI
 
 struct NowPlayingWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -451,11 +453,11 @@ struct NowPlayingWidgetTileView: View {
             titleStackSpacing: titleStackSpacing,
             artworkSize: artworkSize,
             artworkCornerRadius: min(max(artworkSize * 0.08, 8), 18),
-            titleFontSize: min(max(minSide * 0.07, 14), 22),
-            subtitleFontSize: min(max(minSide * 0.05, 11), 16),
+            titleFontSize: min(max(minSide * 0.07, 14), 22) * textScale,
+            subtitleFontSize: min(max(minSide * 0.05, 11), 16) * textScale,
             progressBarHeight: progressBarHeight,
             progressLabelSpacing: progressLabelSpacing,
-            timestampFontSize: min(max(minSide * 0.04, 10), 13),
+            timestampFontSize: min(max(minSide * 0.04, 10), 13) * textScale,
             controlClusterSpacing: min(max(minSide * 0.04, 10), 18),
             primaryControlButtonSize: primaryControlButtonSize,
             primaryControlIconSize: primaryControlButtonSize * 0.5,
@@ -477,8 +479,8 @@ struct NowPlayingWidgetTileView: View {
         let artworkWidthFraction: CGFloat = renderedSpan == .two ? 0.34 : 0.24
         let artworkSize = min(availableHeight, width * artworkWidthFraction)
         let artworkCornerRadius = min(artworkSize / 2, max(0, cornerRadius - contentPadding))
-        let titleFontSize = min(minSide * 0.18, 16)
-        let subtitleFontSize = min(minSide * 0.14, 13)
+        let titleFontSize = min(minSide * 0.18, 16) * textScale
+        let subtitleFontSize = min(minSide * 0.14, 13) * textScale
         let controlIconSize = min(controlButtonSize * 0.72, controlButtonSize)
         let largeGlyphSize = min(minSide * 0.42, minSide * 0.56)
 

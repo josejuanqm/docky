@@ -2481,6 +2481,23 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Multiplier on the text inside built-in widgets, relative to each
+    /// widget's tuned base sizes (1 = 100%). Clamped to the bookends below.
+    var widgetTextScale: CGFloat {
+        didSet {
+            let clampedValue = min(
+                max(widgetTextScale, DefaultValues.widgetTextScaleMin),
+                DefaultValues.widgetTextScaleMax
+            )
+            if widgetTextScale != clampedValue {
+                widgetTextScale = clampedValue
+                return
+            }
+            guard clampedValue != oldValue else { return }
+            defaults.set(Double(clampedValue), forKey: Keys.widgetTextScale)
+        }
+    }
+
     /// Horizontal gap between Launchpad cells at the reference height.
     /// Scaled down on smaller displays with the same screen-height
     /// factor as the icon. Clamped to the bookends below.
@@ -3653,6 +3670,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let launchpadGridRowCount = "docky.launchpadGridRowCount"
         static let launchpadBaseIconSize = "docky.launchpadBaseIconSize"
         static let appFolderIconSize = "docky.appFolderIconSize"
+        static let widgetTextScale = "docky.widgetTextScale"
         static let launchpadColumnSpacing = "docky.launchpadColumnSpacing"
         static let launchpadBackgroundImagePath = "docky.launchpadBackgroundImagePath"
         static let launchpadBackgroundBlursImage = "docky.launchpadBackgroundBlursImage"
@@ -3769,6 +3787,9 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let appFolderIconSize: CGFloat = 96
         static let appFolderIconSizeMin: CGFloat = 56
         static let appFolderIconSizeMax: CGFloat = 128
+        static let widgetTextScale: CGFloat = 1
+        static let widgetTextScaleMin: CGFloat = 0.8
+        static let widgetTextScaleMax: CGFloat = 1.5
         static let launchpadColumnSpacing: CGFloat = 96
         static let launchpadSpacingMin: CGFloat = 0
         static let launchpadSpacingMax: CGFloat = 96
@@ -3901,6 +3922,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedLaunchpadGridRowCount = defaults.object(forKey: Keys.launchpadGridRowCount) as? Int
         let storedLaunchpadBaseIconSize = defaults.object(forKey: Keys.launchpadBaseIconSize) as? Double
         let storedAppFolderIconSize = defaults.object(forKey: Keys.appFolderIconSize) as? Double
+        let storedWidgetTextScale = defaults.object(forKey: Keys.widgetTextScale) as? Double
         let storedLaunchpadColumnSpacing = defaults.object(forKey: Keys.launchpadColumnSpacing) as? Double
         let storedLaunchpadBackgroundImagePath = defaults.string(forKey: Keys.launchpadBackgroundImagePath)
         let storedLaunchpadBackgroundBlursImage = defaults.object(forKey: Keys.launchpadBackgroundBlursImage) as? Bool
@@ -4054,6 +4076,13 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
                 DefaultValues.appFolderIconSizeMin
             ),
             DefaultValues.appFolderIconSizeMax
+        )
+        self.widgetTextScale = min(
+            max(
+                storedWidgetTextScale.map { CGFloat($0) } ?? DefaultValues.widgetTextScale,
+                DefaultValues.widgetTextScaleMin
+            ),
+            DefaultValues.widgetTextScaleMax
         )
         self.launchpadColumnSpacing = min(
             max(
@@ -4359,6 +4388,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
         appFolderIconSize = DefaultValues.appFolderIconSize
+        widgetTextScale = DefaultValues.widgetTextScale
         enablesLaunchpadOverlay = DefaultValues.enablesLaunchpadOverlay
         enablesStartMenuOverlay = DefaultValues.enablesStartMenuOverlay
         opensStartMenuFromFinderTile = DefaultValues.opensStartMenuFromFinderTile

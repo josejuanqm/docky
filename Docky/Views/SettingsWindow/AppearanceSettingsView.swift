@@ -767,6 +767,19 @@ struct AppearanceSettingsView: View {
     @ViewBuilder
     private var widgetsSection: some View {
         Section {
+            WidgetTextSizePreview()
+        }
+
+        Section("Text Size") {
+            widgetTextSizeRow
+
+            Text("Scales the text inside built-in widgets relative to their default sizes. Icons and layout stay the same. Third-party widgets draw their own text and aren't affected.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Section {
             widgetSpanBlock(
                 title: "1x Widgets",
                 paddingBinding: $preferences.widget1xContentPadding,
@@ -793,6 +806,35 @@ struct AppearanceSettingsView: View {
                 .foregroundStyle(.secondary)
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var widgetTextSizeRow: some View {
+        // Shown and stored as a percentage of each widget's base size,
+        // so "+25%" means the same thing on every widget and span.
+        let percent = Binding<Double>(
+            get: { Double(preferences.widgetTextScale * 100).rounded() },
+            set: { preferences.widgetTextScale = CGFloat($0 / 100) }
+        )
+        return HStack {
+            Text("Widget Text Size")
+                .frame(width: 140, alignment: .leading)
+            Slider(value: percent, in: 80...150, step: 5) {
+                Text("Widget Text Size")
+            } minimumValueLabel: {
+                Image(systemName: "textformat.size.smaller")
+            } maximumValueLabel: {
+                Image(systemName: "textformat.size.larger")
+            }
+            .labelsHidden()
+            Text("\(Int(percent.wrappedValue))%")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
+            Button("Reset") {
+                preferences.widgetTextScale = 1
+            }
+            .disabled(preferences.widgetTextScale == 1)
         }
     }
 

@@ -7,6 +7,8 @@ import AppKit
 import SwiftUI
 
 struct SystemStatusWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -52,17 +54,26 @@ struct SystemStatusWidgetTileView: View {
         }
     }
 
+    /// Rings with their labels when there's room; when larger widget text
+    /// no longer fits, the labels go and the rings alone show the levels.
     private func indicatorStrip(metrics: [SystemStatusMetricSnapshot], layout: LayoutMetrics) -> some View {
+        ViewThatFits(in: .vertical) {
+            indicatorRow(metrics: metrics, layout: layout, showsLabels: true)
+            indicatorRow(metrics: metrics, layout: layout, showsLabels: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func indicatorRow(metrics: [SystemStatusMetricSnapshot], layout: LayoutMetrics, showsLabels: Bool) -> some View {
         HStack(alignment: .center, spacing: layout.contentGap) {
             ForEach(metrics) { metric in
-                metricIndicator(metric: metric, layout: layout)
+                metricIndicator(metric: metric, layout: layout, showsLabel: showsLabels)
             }
         }
         .padding(layout.contentPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private func metricIndicator(metric: SystemStatusMetricSnapshot, layout: LayoutMetrics) -> some View {
+    private func metricIndicator(metric: SystemStatusMetricSnapshot, layout: LayoutMetrics, showsLabel: Bool) -> some View {
         VStack(spacing: layout.stackSpacing) {
             ZStack {
                 Circle()
@@ -86,27 +97,41 @@ struct SystemStatusWidgetTileView: View {
             }
             .frame(width: layout.circleDiameter, height: layout.circleDiameter)
 
-            VStack(spacing: 0) { 
-                Text(metric.primaryText)
-                    .font(.system(size: layout.valueFontSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.primary.opacity(0.98))
-                    .lineLimit(1)
+            if showsLabel {
+                VStack(spacing: 0) {
+                    Text(metric.primaryText)
+                        .font(.system(size: layout.valueFontSize, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.primary.opacity(0.98))
+                        .lineLimit(1)
+                }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
         .offset(y: 2)
     }
 
+    /// Drops the icon (or spinner) when larger widget text no longer
+    /// leaves room for it, so the message itself stays readable.
     private func emptyState(layout: LayoutMetrics) -> some View {
+        ViewThatFits(in: .vertical) {
+            emptyStateStack(layout: layout, showsIcon: true)
+            emptyStateStack(layout: layout, showsIcon: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func emptyStateStack(layout: LayoutMetrics, showsIcon: Bool) -> some View {
         VStack(spacing: layout.stackSpacing) {
-            if systemStatus.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color.primary.opacity(0.92))
-            } else {
-                Image(systemName: "gauge.with.needle")
-                    .font(.system(size: layout.iconSize, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.9))
+            if showsIcon {
+                if systemStatus.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color.primary.opacity(0.92))
+                } else {
+                    Image(systemName: "gauge.with.needle")
+                        .font(.system(size: layout.iconSize, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.9))
+                }
             }
 
             Text(systemStatus.isLoading ? "Loading Status" : "No Status Data")
@@ -124,7 +149,6 @@ struct SystemStatusWidgetTileView: View {
             }
         }
         .padding(layout.contentPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var visibleMetrics: [SystemStatusMetricSnapshot] {
@@ -161,13 +185,16 @@ struct SystemStatusWidgetTileView: View {
             contentPadding: contentPadding,
             contentGap: contentGap,
             stackSpacing: stackSpacing,
-            captionFontSize: min(circleDiameter * 0.18, 11),
-            titleFontSize: min(minSide * 0.17, renderedSpan == .one ? 14 : 16),
-            detailFontSize: min(minSide * 0.12, 13),
-            valueFontSize: min(circleDiameter * 0.24, renderedSpan == .three ? 12 : 14),
+            // Text runs ~40% larger than the other widgets: the ring labels
+            // were hard to read at their original size.
+            captionFontSize: min(circleDiameter * 0.252, 15.4) * textScale,
+            titleFontSize: min(minSide * 0.238, renderedSpan == .one ? 19.6 : 22.4) * textScale,
+            detailFontSize: min(minSide * 0.168, 18.2) * textScale,
+            valueFontSize: min(circleDiameter * 0.336, renderedSpan == .three ? 16.8 : 19.6) * textScale,
             circleDiameter: circleDiameter,
             ringWidth: min(circleDiameter * 0.1, 7),
-            iconSize: min(circleDiameter * 0.28, renderedSpan == .three ? 16 : 20)
+            // Follows the text size, capped so the symbol stays inside the ring.
+            iconSize: min(min(circleDiameter * 0.28, renderedSpan == .three ? 16 : 20) * textScale, circleDiameter * 0.5)
         )
     }
 
