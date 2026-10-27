@@ -25,25 +25,36 @@ struct MainWindowView: View {
         #endif
 
         let chromeFrameSize = resolvedChromeFrameSize
+        let chromeOffset = resolvedChromeAlongAxisOffset
         let dockEdge = dockEdgeAlignment
+        let isVertical = preferences.windowPosition
+            .resolved(systemOrientation: dockSettings.orientation)
+            .isVertical
 
-        ZStack(alignment: dockEdge) {
-            chromeBackground()
-                .frame(width: chromeFrameSize?.width, height: chromeFrameSize?.height)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: dockEdge)
-                .allowsHitTesting(true)
-                // Suppress the implicit easeInOut while magnification is
-                // tracking the cursor — chrome growth updates per frame
-                // and a 0.18s tween would visibly lag the pointer. Tile
-                // add/remove and other resting layout changes still
-                // animate normally.
-                .animation(
-                    isTrackingMagnification ? nil : chromeResizeAnimation,
-                    value: chromeFrameSize
-                )
-
-            TileContainerView()
-        }
+        // The chrome is a background so it never sizes the layout. A chrome
+        // grown past the dock (magnification on a dock that fills its
+        // edge) would otherwise enlarge the stack it sits in and shift the
+        // tile canvas, throwing off the cursor-to-tile mapping.
+        TileContainerView()
+            .background(alignment: dockEdge) {
+                chromeBackground()
+                    .frame(width: chromeFrameSize?.width, height: chromeFrameSize?.height)
+                    .offset(x: isVertical ? 0 : chromeOffset, y: isVertical ? chromeOffset : 0)
+                    .allowsHitTesting(true)
+                    // Suppress the implicit easeInOut while magnification is
+                    // tracking the cursor — chrome growth updates per frame
+                    // and a 0.18s tween would visibly lag the pointer. Tile
+                    // add/remove and other resting layout changes still
+                    // animate normally.
+                    .animation(
+                        isTrackingMagnification ? nil : chromeResizeAnimation,
+                        value: chromeFrameSize
+                    )
+            }
+        // Keeps the dock at its resting spot inside a window that extends
+        // past it along the axis (see `alongAxisLeadingInset`).
+        .padding(isVertical ? .top : .leading, layoutService.alongAxisLeadingInset)
+        .padding(isVertical ? .bottom : .trailing, layoutService.alongAxisTrailingInset)
         .compositingGroup()
     }
 
@@ -210,6 +221,17 @@ struct MainWindowView: View {
             return CGSize(width: chromeSize.width, height: chromeSize.height + chromeGrowth)
         }
         return CGSize(width: chromeSize.width + chromeGrowth, height: chromeSize.height)
+    }
+
+    /// Along-axis shift that keeps the grown chrome over a tile stack that
+    /// magnification has shifted. Applies only while the chrome is growing.
+    private var resolvedChromeAlongAxisOffset: CGFloat {
+        guard dockSettings.magnification,
+              preferences.effectiveWindowAxisSizing != .fullAxis,
+              chromeMetrics.alongAxisGrowth > 0 else {
+            return 0
+        }
+        return chromeMetrics.alongAxisOffset
     }
 
     private var resolvedBackgroundImage: NSImage? {

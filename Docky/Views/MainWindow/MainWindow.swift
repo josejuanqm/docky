@@ -33,6 +33,10 @@ final class MainWindowContainerView: NSView {
 
     private func setup() {
         contentView.translatesAutoresizingMaskIntoConstraints = false
+        // The window frame is set explicitly by `MainWindow`. Without this,
+        // a chrome grown by magnification raises the hosting view's minimum
+        // size and Auto Layout stretches the window to fit it.
+        contentView.sizingOptions = []
         addSubview(contentView)
 
         topConstraint = contentView.topAnchor.constraint(equalTo: topAnchor)
@@ -278,12 +282,26 @@ final class MainWindow: NSPanel {
             || (isMaximizedActiveOnTargetScreen && preferences.maximizedWindowBehavior == .hideDocky)
     }
 
+    /// Window room added past the dock's resting frame along its axis, in
+    /// top-left terms (leading is the top edge on a vertical dock).
+    private var restFrameInsets: (leading: CGFloat, trailing: CGFloat) = (0, 0)
+
+    /// The window frame without the along-axis magnification room, i.e.
+    /// where the dock itself sits.
+    private var restFrame: CGRect {
+        var f = frame
+        f.origin.y += restFrameInsets.trailing
+        f.size.height = max(0, f.height - restFrameInsets.leading - restFrameInsets.trailing)
+        return f
+    }
+
     /// The frame Docky claims for content reservation, or nil when Docky is
     /// hidden / off-screen / not currently rendering. Used by services that
     /// keep other apps' windows out of Docky's way. Only the chrome's depth
     /// counts, so the magnification headroom does not push windows away.
     var currentReservationFrame: CGRect? {
         guard visibilityState == .visible else { return nil }
+        let frame = restFrame
         guard let chrome = chromeScreenFrame() else { return frame }
         // A window edge must not land on the chrome's border.
         let gap: CGFloat = 4
@@ -313,7 +331,7 @@ final class MainWindow: NSPanel {
         guard chromeSize.width > 0, chromeSize.height > 0 else { return nil }
         let position = DockyPreferences.shared.windowPosition
             .resolved(systemOrientation: DockSettingsService.shared.orientation)
-        let f = frame
+        let f = restFrame
         let width = min(chromeSize.width, f.width)
         let height = min(chromeSize.height, f.height)
         switch position {
@@ -926,8 +944,27 @@ final class MainWindow: NSPanel {
             visibilityState: visibilityState
         )
 
-        let frame = CGRect(origin: origin, size: size)
-        revealTriggerZone = makeRevealTriggerZone(in: layoutBounds, frame: frame, position: position)
+        let restFrame = CGRect(origin: origin, size: size)
+        revealTriggerZone = makeRevealTriggerZone(in: layoutBounds, frame: restFrame, position: position)
+
+        // A vertical window is only as long as the dock, so magnified
+        // icons on a dock that fills its edge would be cut off by the
+        // window well short of the screen edge. Stretch the window to the
+        // whole edge and let the view pad itself back to the resting spot.
+        // Horizontal windows already span the screen width.
+        let extendsAlongAxis = position.isVertical && magnificationHeadroom > 0 && !fullAxis
+        let frame = extendsAlongAxis
+            ? CGRect(x: restFrame.minX, y: layoutBounds.minY, width: restFrame.width, height: layoutBounds.height)
+            : restFrame
+        // Top-left origin, like the SwiftUI view that applies them.
+        restFrameInsets = (
+            leading: max(0, frame.maxY - restFrame.maxY),
+            trailing: max(0, restFrame.minY - frame.minY)
+        )
+        DockLayoutService.shared.setAlongAxisInsets(
+            leading: restFrameInsets.leading,
+            trailing: restFrameInsets.trailing
+        )
         applyFrame(frame, animated: animated, duration: duration)
     }
 
