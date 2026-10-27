@@ -23,8 +23,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var debugStatusItem: NSStatusItem?
     private var debugSnapshotTextView: NSTextView?
     private var debugSnapshotCancellables = Set<AnyCancellable>()
+    /// Keeps Docky out of App Nap for its whole lifetime. The dock is always
+    /// on screen but rarely the active app, so macOS would otherwise throttle
+    /// its timers and run loop and make hover, magnification and autohide lag.
+    private var appNapActivity: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // Not plain `.userInitiated`: that also disables idle system sleep,
+        // which would keep the Mac awake for as long as Docky runs.
+        appNapActivity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason: "Docky is the dock and must respond immediately"
+        )
+
         // Bound every AX call to 1s so a hung app can't stall the main run loop.
         // Must precede any other AX work — applies process-wide.
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
@@ -313,6 +324,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationWillTerminate(_ aNotification: Notification) {
         if SystemDockVisibilityService.shared.hasSnapshot {
             SystemDockVisibilityService.shared.restore()
+        }
+        if let appNapActivity {
+            ProcessInfo.processInfo.endActivity(appNapActivity)
+            self.appNapActivity = nil
         }
     }
 
