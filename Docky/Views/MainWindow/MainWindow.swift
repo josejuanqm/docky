@@ -16,6 +16,10 @@ final class MainWindowContainerView: NSView {
     private var bottomConstraint: NSLayoutConstraint!
     private var leadingConstraint: NSLayoutConstraint!
     private var trailingConstraint: NSLayoutConstraint!
+    private var pointerDisplayLink: CADisplayLink?
+    private var lastPolledPointerLocation: NSPoint?
+    private var lastPointerMoveTime: CFTimeInterval = 0
+    private static let pointerRestDuration: CFTimeInterval = 0.5
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -29,6 +33,10 @@ final class MainWindowContainerView: NSView {
 
     private func setup() {
         contentView.translatesAutoresizingMaskIntoConstraints = false
+        // The window frame is set explicitly by `MainWindow`. Without this,
+        // a chrome grown by magnification raises the hosting view's minimum
+        // size and Auto Layout stretches the window to fit it.
+        contentView.sizingOptions = []
         addSubview(contentView)
 
         topConstraint = contentView.topAnchor.constraint(equalTo: topAnchor)
@@ -101,18 +109,69 @@ final class MainWindowContainerView: NSView {
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         (window as? MainWindow)?.pointerDidEnterWindow()
-        forwardMagnificationPointer(from: event)
+        forwardMagnificationPointer(atWindowPoint: event.locationInWindow)
+        startPointerPolling()
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        forwardMagnificationPointer(from: event)
+        forwardMagnificationPointer(atWindowPoint: event.locationInWindow)
+        startPointerPolling()
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
+        stopPointerPolling()
         (window as? MainWindow)?.pointerDidExitWindow()
         DockMagnificationService.shared.clearPointer()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopPointerPolling()
+        }
+    }
+
+    /// An inactive app gets far fewer mouse-moved events, with gaps of up to
+    /// 200 ms, and the dock panel never activates Docky. So magnification also
+    /// reads the pointer once per display frame. The poll stops while the
+    /// pointer rests, and the next mouse-moved event starts it again.
+    private func startPointerPolling() {
+        guard pointerDisplayLink == nil, DockSettingsService.shared.magnification else { return }
+        let link = displayLink(target: self, selector: #selector(pollPointer(_:)))
+        // Not `.common`: the dock must hold still while a context menu tracks.
+        link.add(to: .main, forMode: .default)
+        pointerDisplayLink = link
+        lastPolledPointerLocation = nil
+    }
+
+    private func stopPointerPolling() {
+        pointerDisplayLink?.invalidate()
+        pointerDisplayLink = nil
+    }
+
+    @objc private func pollPointer(_ link: CADisplayLink) {
+        guard let window else {
+            stopPointerPolling()
+            return
+        }
+        let mouseLocation = NSEvent.mouseLocation
+        if mouseLocation != lastPolledPointerLocation {
+            lastPolledPointerLocation = mouseLocation
+            lastPointerMoveTime = link.timestamp
+        } else if link.timestamp - lastPointerMoveTime > Self.pointerRestDuration {
+            stopPointerPolling()
+            return
+        }
+        let pointInWindow = window.convertPoint(fromScreen: mouseLocation)
+        // An inactive app can get the exit event late.
+        guard isMousePoint(convert(pointInWindow, from: nil), in: bounds) else {
+            stopPointerPolling()
+            DockMagnificationService.shared.clearPointer()
+            return
+        }
+        forwardMagnificationPointer(atWindowPoint: pointInWindow)
     }
 
     /// Pushes the live pointer position into the magnification service in
@@ -125,8 +184,8 @@ final class MainWindowContainerView: NSView {
     /// chrome to make room for magnified icons, so a window-wide tracking
     /// area would magnify tiles as soon as the pointer entered the empty
     /// headroom above the chrome, well before it ever touched a tile.
-    private func forwardMagnificationPointer(from event: NSEvent) {
-        let inHosting = contentView.convert(event.locationInWindow, from: nil)
+    private func forwardMagnificationPointer(atWindowPoint pointInWindow: NSPoint) {
+        let inHosting = contentView.convert(pointInWindow, from: nil)
         let topLeft: CGPoint = contentView.isFlipped
             ? inHosting
             : CGPoint(x: inHosting.x, y: contentView.bounds.height - inHosting.y)
@@ -223,11 +282,41 @@ final class MainWindow: NSPanel {
             || (isMaximizedActiveOnTargetScreen && preferences.maximizedWindowBehavior == .hideDocky)
     }
 
+    /// Window room added past the dock's resting frame along its axis, in
+    /// top-left terms (leading is the top edge on a vertical dock).
+    private var restFrameInsets: (leading: CGFloat, trailing: CGFloat) = (0, 0)
+
+    /// The window frame without the along-axis magnification room, i.e.
+    /// where the dock itself sits.
+    private var restFrame: CGRect {
+        var f = frame
+        f.origin.y += restFrameInsets.trailing
+        f.size.height = max(0, f.height - restFrameInsets.leading - restFrameInsets.trailing)
+        return f
+    }
+
     /// The frame Docky claims for content reservation, or nil when Docky is
     /// hidden / off-screen / not currently rendering. Used by services that
-    /// keep other apps' windows out of Docky's way.
+    /// keep other apps' windows out of Docky's way. Only the chrome's depth
+    /// counts, so the magnification headroom does not push windows away.
     var currentReservationFrame: CGRect? {
-        visibilityState == .visible ? frame : nil
+        guard visibilityState == .visible else { return nil }
+        let frame = restFrame
+        guard let chrome = chromeScreenFrame() else { return frame }
+        // A window edge must not land on the chrome's border.
+        let gap: CGFloat = 4
+        switch DockyPreferences.shared.windowPosition.resolved(systemOrientation: DockSettingsService.shared.orientation) {
+        case .bottom:
+            return CGRect(x: frame.minX, y: chrome.minY, width: frame.width, height: chrome.height.rounded(.up) + gap)
+        case .top:
+            let depth = chrome.height.rounded(.up) + gap
+            return CGRect(x: frame.minX, y: chrome.maxY - depth, width: frame.width, height: depth)
+        case .left:
+            return CGRect(x: chrome.minX, y: frame.minY, width: chrome.width.rounded(.up) + gap, height: frame.height)
+        case .right:
+            let depth = chrome.width.rounded(.up) + gap
+            return CGRect(x: chrome.maxX - depth, y: frame.minY, width: depth, height: frame.height)
+        }
     }
 
     /// Screen-coordinate rect of the visible chrome (the dock pill itself,
@@ -242,7 +331,7 @@ final class MainWindow: NSPanel {
         guard chromeSize.width > 0, chromeSize.height > 0 else { return nil }
         let position = DockyPreferences.shared.windowPosition
             .resolved(systemOrientation: DockSettingsService.shared.orientation)
-        let f = frame
+        let f = restFrame
         let width = min(chromeSize.width, f.width)
         let height = min(chromeSize.height, f.height)
         switch position {
@@ -295,13 +384,16 @@ final class MainWindow: NSPanel {
         observeWindowPlacementInputs()
         observeVisibilityInputs()
         updatePointerScreenMonitoring()
-        updateRevealMonitoring()
         let initialOverlap = computeContentOverlapStateOnTargetScreen()
         isFullscreenActiveOnTargetScreen = initialOverlap.isFullscreen
         isMaximizedActiveOnTargetScreen = initialOverlap.isMaximized
         if isContentOverlapActive {
             visibilityState = shouldRemainVisible ? .visible : .hidden
         }
+        // After the overlap state is known: launching hidden behind a
+        // maximized or fullscreen window needs the reveal monitor even
+        // with autohide off.
+        updateRevealMonitoring()
     }
 
     deinit {
@@ -529,8 +621,17 @@ final class MainWindow: NSPanel {
     }
 
     /// A hidden panel sits off-screen, where its tracking area can't fire, so
-    /// the reveal runs off monitored pointer movement instead.
+    /// the reveal runs off monitored pointer movement instead. When autohide
+    /// is inactive the panel is always visible and `syncPointerPresence`
+    /// early-returns, so a global `.mouseMoved` monitor would wake Docky on
+    /// every system-wide pointer move for nothing — only keep it installed
+    /// while autohide can actually hide us. Re-synced from
+    /// `applyEffectiveVisibility` whenever that condition changes.
     private func updateRevealMonitoring() {
+        let shouldMonitor = effectivelyAutohides
+        let isMonitoring = globalDragRevealMonitor != nil || localDragRevealMonitor != nil
+        guard shouldMonitor != isMonitoring else { return }
+
         if let globalDragRevealMonitor {
             NSEvent.removeMonitor(globalDragRevealMonitor)
             self.globalDragRevealMonitor = nil
@@ -539,6 +640,8 @@ final class MainWindow: NSPanel {
             NSEvent.removeMonitor(localDragRevealMonitor)
             self.localDragRevealMonitor = nil
         }
+
+        guard shouldMonitor else { return }
 
         let revealEvents: NSEvent.EventTypeMask = [
             .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
@@ -630,6 +733,9 @@ final class MainWindow: NSPanel {
 
     private func applyEffectiveVisibility(animated: Bool) {
         hideWorkItem?.cancel()
+        // `effectivelyAutohides` may have just flipped (autohide pref,
+        // fullscreen, or maximized state) — keep the reveal monitor in sync.
+        updateRevealMonitoring()
 
         if effectivelyAutohides {
             let nextState: VisibilityState = shouldRemainVisible ? .visible : .hidden
@@ -841,8 +947,27 @@ final class MainWindow: NSPanel {
             visibilityState: visibilityState
         )
 
-        let frame = CGRect(origin: origin, size: size)
-        revealTriggerZone = makeRevealTriggerZone(in: layoutBounds, frame: frame, position: position)
+        let restFrame = CGRect(origin: origin, size: size)
+        revealTriggerZone = makeRevealTriggerZone(in: layoutBounds, frame: restFrame, position: position)
+
+        // A vertical window is only as long as the dock, so magnified
+        // icons on a dock that fills its edge would be cut off by the
+        // window well short of the screen edge. Stretch the window to the
+        // whole edge and let the view pad itself back to the resting spot.
+        // Horizontal windows already span the screen width.
+        let extendsAlongAxis = position.isVertical && magnificationHeadroom > 0 && !fullAxis
+        let frame = extendsAlongAxis
+            ? CGRect(x: restFrame.minX, y: layoutBounds.minY, width: restFrame.width, height: layoutBounds.height)
+            : restFrame
+        // Top-left origin, like the SwiftUI view that applies them.
+        restFrameInsets = (
+            leading: max(0, frame.maxY - restFrame.maxY),
+            trailing: max(0, restFrame.minY - frame.minY)
+        )
+        DockLayoutService.shared.setAlongAxisInsets(
+            leading: restFrameInsets.leading,
+            trailing: restFrameInsets.trailing
+        )
         applyFrame(frame, animated: animated, duration: duration)
     }
 

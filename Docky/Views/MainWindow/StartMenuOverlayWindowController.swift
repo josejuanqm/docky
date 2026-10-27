@@ -642,7 +642,7 @@ private struct StartMenuView: View {
             StartMenuService.shared.dismiss()
         } label: {
             HStack(spacing: 10) {
-                Image(nsImage: IconCacheService.shared.icon(forBundleIdentifier: app.bundleIdentifier))
+                Image(nsImage: IconCacheService.shared.displayedIcon(forBundleIdentifier: app.bundleIdentifier))
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 22, height: 22)
@@ -716,7 +716,7 @@ private struct StartMenuView: View {
             StartMenuService.shared.dismiss()
         } label: {
             VStack(spacing: 6) {
-                Image(nsImage: IconCacheService.shared.icon(forBundleIdentifier: app.bundleIdentifier))
+                Image(nsImage: IconCacheService.shared.displayedIcon(forBundleIdentifier: app.bundleIdentifier))
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 52, height: 52)

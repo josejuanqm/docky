@@ -668,7 +668,7 @@ private struct WindowPreviewListRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(nsImage: IconCacheService.shared.icon(forBundleIdentifier: window.bundleIdentifier))
+            Image(nsImage: IconCacheService.shared.displayedIcon(forBundleIdentifier: window.bundleIdentifier))
                 .resizable()
                 .interpolation(.high)
                 .frame(width: iconSize, height: iconSize)

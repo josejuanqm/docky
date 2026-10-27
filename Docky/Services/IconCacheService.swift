@@ -37,6 +37,9 @@ final class IconCacheService {
     /// gain in the dock and extra per-frame resampling work during magnification.
     private static let normalizedIconExtent: CGFloat = 256
 
+    /// Covers a folder preview icon at the largest magnified size, about 110 pt.
+    private static let flattenedIconExtent: CGFloat = 128
+
     private init() {}
 
     /// Fetches an icon from LaunchServices and normalizes its nominal size so
@@ -53,6 +56,47 @@ final class IconCacheService {
         let key = "bundle:\(bundleIdentifier)" as NSString
         if let cached = cache.object(forKey: key) { return cached }
         let image = loadIcon(forBundleIdentifier: bundleIdentifier)
+        cache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// With the dark icon style on macOS 26, folder previews sometimes drew
+    /// the light variant of the LaunchServices icon while magnification
+    /// resized them. A bitmap has only one variant, so it can not flip.
+    func flattenedIcon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
+        let key = "flat:\(bundleIdentifier)" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+        let source = icon(forBundleIdentifier: bundleIdentifier)
+        var proposedRect = NSRect(x: 0, y: 0, width: Self.flattenedIconExtent, height: Self.flattenedIconExtent)
+        guard let cgImage = source.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) else {
+            return source
+        }
+        let image = NSImage(cgImage: cgImage, size: proposedRect.size)
+        cache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// For views outside the dock tiles: the override when one is set,
+    /// otherwise the LaunchServices icon. Uses the padding the user set for
+    /// the override in App Icons, matching the dock tile. Without one, adds
+    /// the margin of a macOS app icon (100 px of 1024) so an edge-to-edge
+    /// override sits at the same size as the system icons around it.
+    func displayedIcon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
+        let preferences = DockyPreferences.shared
+        guard let url = preferences.effectiveAppIconOverrideURL(forBundleIdentifier: bundleIdentifier),
+              let override = image(forImageFileURL: url) else {
+            return icon(forBundleIdentifier: bundleIdentifier)
+        }
+        let userPadding = preferences.appIconOverridePadding(forBundleIdentifier: bundleIdentifier)
+        let paddingFraction = userPadding > 0 ? userPadding : 100 / 1024
+        let key = "displayed:\(url.path):\(paddingFraction)" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+        let extent = Self.normalizedIconExtent
+        let inset = extent * paddingFraction
+        let image = NSImage(size: NSSize(width: extent, height: extent), flipped: false) { rect in
+            override.draw(in: rect.insetBy(dx: inset, dy: inset))
+            return true
+        }
         cache.setObject(image, forKey: key)
         return image
     }

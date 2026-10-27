@@ -340,7 +340,7 @@ struct BehaviorSettingsView: View {
                 Toggle("Show Notification Badges", isOn: $preferences.showsAppBadges)
                     .font(.headline)
 
-                Text("Paints the red notification count (like Mail's unread total) on running app tiles. Read from the system Dock, so it needs Accessibility permission.")
+                Text("Paints the red notification count (like Mail's unread total) on running app tiles.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -576,6 +576,26 @@ struct BehaviorSettingsView: View {
                     .disabled(!preferences.showsGroupedOpenedAppsInDock)
 
                 Text("Draws a rounded backdrop around the folder tile and its grouped opened apps. Turn off to keep the grouping without the visual halo.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Icon Size in Opened Folders")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Text("\(Int(preferences.appFolderIconSize)) pt")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                Slider(value: $preferences.appFolderIconSize, in: 56...128, step: 1)
+
+                Text("Size of the app icons in an opened app folder. The folder window grows and shrinks with it. Default is 96 pt.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

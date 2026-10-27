@@ -51,6 +51,10 @@ final class DockMagnificationService {
     @ObservationIgnored private var publishTimer: Timer?
     @ObservationIgnored private var frameInterval = DockMagnificationService.fastestFrameInterval()
     @ObservationIgnored private var screenObserver: NSObjectProtocol?
+    /// Called after the pointer location or ramp strength changes, so
+    /// `TileMagnificationState` can resolve tile sizes without any view
+    /// having to observe the pointer.
+    @ObservationIgnored var onUpdate: (() -> Void)?
 
     private init() {
         screenObserver = NotificationCenter.default.addObserver(
@@ -129,6 +133,7 @@ final class DockMagnificationService {
         if !isTrackingPointer {
             isTrackingPointer = true
         }
+        onUpdate?()
     }
 
     private func discardPending() {
@@ -173,6 +178,7 @@ final class DockMagnificationService {
         let next = rampSource + (rampTarget - rampSource) * CGFloat(eased)
         if abs(next - strength) > 0.0001 {
             strength = next
+            onUpdate?()
         }
         guard t >= 1 else { return }
         if abs(strength - rampTarget) > 0.0001 {
@@ -189,6 +195,7 @@ final class DockMagnificationService {
         }
         rampTimer?.invalidate()
         rampTimer = nil
+        onUpdate?()
     }
 }
 

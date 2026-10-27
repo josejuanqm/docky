@@ -7,6 +7,8 @@ import AppKit
 import SwiftUI
 
 struct CalendarWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -360,16 +362,28 @@ struct CalendarWidgetTileView: View {
         return formatter
     }
 
+    /// Drops the icon (or spinner) when larger widget text no longer
+    /// leaves room for it, so the message itself stays readable.
     private func emptyState(layout: LayoutMetrics) -> some View {
+        ViewThatFits(in: .vertical) {
+            emptyStateStack(layout: layout, showsIcon: true)
+            emptyStateStack(layout: layout, showsIcon: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func emptyStateStack(layout: LayoutMetrics, showsIcon: Bool) -> some View {
         VStack(alignment: .center, spacing: layout.stackSpacing) {
-            if calendar.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color.primary.opacity(0.92))
-            } else {
-                Image(systemName: calendar.lastErrorDescription == nil ? "calendar.badge.clock" : "calendar.badge.exclamationmark")
-                    .font(.system(size: layout.emptyIconSize, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.9))
+            if showsIcon {
+                if calendar.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color.primary.opacity(0.92))
+                } else {
+                    Image(systemName: calendar.lastErrorDescription == nil ? "calendar.badge.clock" : "calendar.badge.exclamationmark")
+                        .font(.system(size: layout.emptyIconSize, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.9))
+                }
             }
 
             Text(emptyTitle)
@@ -387,7 +401,6 @@ struct CalendarWidgetTileView: View {
             }
         }
         .padding(layout.contentPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func eventAccent(event: CalendarEventSnapshot, layout: LayoutMetrics) -> some View {
@@ -457,15 +470,15 @@ struct CalendarWidgetTileView: View {
             stackSpacing: stackSpacing,
             sectionSpacing: sectionSpacing,
             sectionGroupSpacing: min(max(minSide * 0.045, 10), 18),
-            sectionTitleFontSize: min(max(minSide * 0.04, 9), 12),
-            headerFontSize: min(max(minSide * 0.06, 13), 18),
+            sectionTitleFontSize: min(max(minSide * 0.04, 9), 12) * textScale,
+            headerFontSize: min(max(minSide * 0.06, 13), 18) * textScale,
             eventRowSpacing: min(max(minSide * 0.018, 4), 8),
             eventRowGap: min(max(minSide * 0.022, 6), 10),
             eventRowVerticalPadding: min(max(minSide * 0.018, 5), 8),
             eventRowHorizontalPadding: min(max(minSide * 0.025, 7), 12),
             eventRowCornerRadius: min(max(minSide * 0.03, 8), 12),
-            eventTitleFontSize: min(max(minSide * 0.05, 11), 14),
-            eventDetailFontSize: min(max(minSide * 0.04, 9), 12),
+            eventTitleFontSize: min(max(minSide * 0.05, 11), 14) * textScale,
+            eventDetailFontSize: min(max(minSide * 0.04, 9), 12) * textScale,
             accentWidth: min(max(minSide * 0.012, 3), 5),
             emptyIconSize: min(max(minSide * 0.16, 22), 36)
         )
@@ -484,10 +497,10 @@ struct CalendarWidgetTileView: View {
             contentGap: contentGap,
             stackSpacing: stackSpacing,
             accentWidth: min(minSide * 0.09, 10),
-            captionFontSize: min(minSide * 0.1, 11),
-            titleFontSize: min(minSide * 0.17, renderedSpan == .one ? 14 : 16),
-            prominentFontSize: min(minSide * 0.27, 26),
-            detailFontSize: min(minSide * 0.12, 13),
+            captionFontSize: min(minSide * 0.1, 11) * textScale,
+            titleFontSize: min(minSide * 0.17, renderedSpan == .one ? 14 : 16) * textScale,
+            prominentFontSize: min(minSide * 0.27, 26) * textScale,
+            detailFontSize: min(minSide * 0.12, 13) * textScale,
             emptyIconSize: min(minSide * 0.28, 28)
         )
     }

@@ -28,6 +28,13 @@ final class WindowReservationService {
     private var cancellables: Set<AnyCancellable> = []
     private var registrySubscription: AnyCancellable?
     private var windowCooldowns: [WindowID: Date] = [:]
+    /// AX-space frame we last asked each window to take, checked on the
+    /// next scan to see whether the resize landed.
+    private var pendingTargets: [WindowID: CGRect] = [:]
+    /// AX-space frame a window settled at after a resize that didn't land.
+    /// The window is left alone while it stays there, so an app that refuses
+    /// to move isn't shrunk again on every pass.
+    private var stuckFrames: [WindowID: CGRect] = [:]
     private let cooldownInterval: TimeInterval = 0.25
     private let matchTolerance: CGFloat = 1
     private let edgeTolerance: CGFloat = 2
@@ -80,6 +87,8 @@ final class WindowReservationService {
         registrySubscription?.cancel()
         registrySubscription = nil
         windowCooldowns.removeAll()
+        pendingTargets.removeAll()
+        stuckFrames.removeAll()
     }
 
     private func scan(windows: [AppWindow]) {
@@ -95,10 +104,29 @@ final class WindowReservationService {
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let now = Date()
 
+        // Drop bookkeeping for windows that no longer exist.
+        let liveIDs = Set(windows.map(\.id))
+        pendingTargets = pendingTargets.filter { liveIDs.contains($0.key) }
+        stuckFrames = stuckFrames.filter { liveIDs.contains($0.key) }
+
         for window in windows where window.processIdentifier != ownPID {
             if let until = windowCooldowns[window.id], now < until { continue }
 
             guard let axFrame = window.frame else { continue }
+
+            // A window that didn't take our last resize stays untouched until
+            // its frame changes (e.g. the user maximizes it again). Without
+            // this, pushAway would work from the partial result and shrink
+            // the window by Docky's width on every pass.
+            if let stuck = stuckFrames[window.id] {
+                if rectsMatch(axFrame, stuck) { continue }
+                stuckFrames[window.id] = nil
+            }
+            if let target = pendingTargets.removeValue(forKey: window.id),
+               !rectsMatch(axFrame, target) {
+                stuckFrames[window.id] = axFrame
+                continue
+            }
             // WindowRegistry returns AX-space frames (flipped Y, origin at the
             // top-left of the primary display). Convert to NSScreen space
             // before any geometry comparison.
@@ -126,6 +154,7 @@ final class WindowReservationService {
             let succeeded = registry.resize(window, to: axTarget)
             if succeeded {
                 windowCooldowns[window.id] = now.addingTimeInterval(cooldownInterval)
+                pendingTargets[window.id] = axTarget
             }
         }
     }

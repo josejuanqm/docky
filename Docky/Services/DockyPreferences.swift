@@ -1707,8 +1707,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
     }
 
     /// Whether running apps show their notification badge (the red count,
-    /// like Mail's unread total) on their dock tile. Read from the system
-    /// Dock via accessibility, see `DockBadgeService`.
+    /// like Mail's unread total) on their dock tile. See `DockBadgeService`.
     var showsAppBadges: Bool {
         didSet {
             guard showsAppBadges != oldValue else { return }
@@ -2456,6 +2455,46 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
             }
 
             defaults.set(Double(clampedValue), forKey: Keys.launchpadBaseIconSize)
+        }
+    }
+
+    /// The opened folder's cells, spacing and window size follow this size.
+    var appFolderIconSize: CGFloat {
+        didSet {
+            let clampedValue = min(
+                max(appFolderIconSize, DefaultValues.appFolderIconSizeMin),
+                DefaultValues.appFolderIconSizeMax
+            )
+            guard clampedValue != oldValue else {
+                if appFolderIconSize != clampedValue {
+                    appFolderIconSize = clampedValue
+                }
+                return
+            }
+
+            if appFolderIconSize != clampedValue {
+                appFolderIconSize = clampedValue
+                return
+            }
+
+            defaults.set(Double(clampedValue), forKey: Keys.appFolderIconSize)
+        }
+    }
+
+    /// Multiplier on the text inside built-in widgets, relative to each
+    /// widget's tuned base sizes (1 = 100%). Clamped to the bookends below.
+    var widgetTextScale: CGFloat {
+        didSet {
+            let clampedValue = min(
+                max(widgetTextScale, DefaultValues.widgetTextScaleMin),
+                DefaultValues.widgetTextScaleMax
+            )
+            if widgetTextScale != clampedValue {
+                widgetTextScale = clampedValue
+                return
+            }
+            guard clampedValue != oldValue else { return }
+            defaults.set(Double(clampedValue), forKey: Keys.widgetTextScale)
         }
     }
 
@@ -3630,6 +3669,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let launchpadGridColumnCount = "docky.launchpadGridColumnCount"
         static let launchpadGridRowCount = "docky.launchpadGridRowCount"
         static let launchpadBaseIconSize = "docky.launchpadBaseIconSize"
+        static let appFolderIconSize = "docky.appFolderIconSize"
+        static let widgetTextScale = "docky.widgetTextScale"
         static let launchpadColumnSpacing = "docky.launchpadColumnSpacing"
         static let launchpadBackgroundImagePath = "docky.launchpadBackgroundImagePath"
         static let launchpadBackgroundBlursImage = "docky.launchpadBackgroundBlursImage"
@@ -3743,6 +3784,12 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let launchpadBaseIconSize: CGFloat = 128
         static let launchpadBaseIconSizeMin: CGFloat = 48
         static let launchpadBaseIconSizeMax: CGFloat = 192
+        static let appFolderIconSize: CGFloat = 96
+        static let appFolderIconSizeMin: CGFloat = 56
+        static let appFolderIconSizeMax: CGFloat = 128
+        static let widgetTextScale: CGFloat = 1
+        static let widgetTextScaleMin: CGFloat = 0.8
+        static let widgetTextScaleMax: CGFloat = 1.5
         static let launchpadColumnSpacing: CGFloat = 96
         static let launchpadSpacingMin: CGFloat = 0
         static let launchpadSpacingMax: CGFloat = 96
@@ -3874,6 +3921,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedLaunchpadGridColumnCount = defaults.object(forKey: Keys.launchpadGridColumnCount) as? Int
         let storedLaunchpadGridRowCount = defaults.object(forKey: Keys.launchpadGridRowCount) as? Int
         let storedLaunchpadBaseIconSize = defaults.object(forKey: Keys.launchpadBaseIconSize) as? Double
+        let storedAppFolderIconSize = defaults.object(forKey: Keys.appFolderIconSize) as? Double
+        let storedWidgetTextScale = defaults.object(forKey: Keys.widgetTextScale) as? Double
         let storedLaunchpadColumnSpacing = defaults.object(forKey: Keys.launchpadColumnSpacing) as? Double
         let storedLaunchpadBackgroundImagePath = defaults.string(forKey: Keys.launchpadBackgroundImagePath)
         let storedLaunchpadBackgroundBlursImage = defaults.object(forKey: Keys.launchpadBackgroundBlursImage) as? Bool
@@ -4020,6 +4069,20 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
                 DefaultValues.launchpadBaseIconSizeMin
             ),
             DefaultValues.launchpadBaseIconSizeMax
+        )
+        self.appFolderIconSize = min(
+            max(
+                storedAppFolderIconSize.map { CGFloat($0) } ?? DefaultValues.appFolderIconSize,
+                DefaultValues.appFolderIconSizeMin
+            ),
+            DefaultValues.appFolderIconSizeMax
+        )
+        self.widgetTextScale = min(
+            max(
+                storedWidgetTextScale.map { CGFloat($0) } ?? DefaultValues.widgetTextScale,
+                DefaultValues.widgetTextScaleMin
+            ),
+            DefaultValues.widgetTextScaleMax
         )
         self.launchpadColumnSpacing = min(
             max(
@@ -4236,6 +4299,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         // App folders
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
+        appFolderIconSize = DefaultValues.appFolderIconSize
 
         // Widgets
         enablesWidgetHoverPreview = DefaultValues.enablesWidgetHoverPreview
@@ -4323,6 +4387,8 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         hiddenAppBundleIdentifiers = DefaultValues.hiddenAppBundleIdentifiers
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
+        appFolderIconSize = DefaultValues.appFolderIconSize
+        widgetTextScale = DefaultValues.widgetTextScale
         enablesLaunchpadOverlay = DefaultValues.enablesLaunchpadOverlay
         enablesStartMenuOverlay = DefaultValues.enablesStartMenuOverlay
         opensStartMenuFromFinderTile = DefaultValues.opensStartMenuFromFinderTile

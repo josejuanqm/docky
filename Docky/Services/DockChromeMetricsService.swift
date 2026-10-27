@@ -21,10 +21,19 @@ final class DockChromeMetricsService: ObservableObject {
     /// Zero when magnification is inactive.
     @Published private(set) var alongAxisGrowth: CGFloat = 0
 
+    /// How far the chrome's center moves along the axis so it keeps
+    /// covering a tile stack that is shifted to pin the icon under the
+    /// cursor. Zero for a centered stack, which grows evenly both ways.
+    @Published private(set) var alongAxisOffset: CGFloat = 0
+
     private init() {}
 
-    func setAlongAxisGrowth(_ value: CGFloat) {
-        guard abs(alongAxisGrowth - value) > 0.0001 else { return }
-        alongAxisGrowth = value
+    func setAlongAxis(growth: CGFloat, offset: CGFloat) {
+        if abs(alongAxisGrowth - growth) > 0.0001 {
+            alongAxisGrowth = growth
+        }
+        if abs(alongAxisOffset - offset) > 0.0001 {
+            alongAxisOffset = offset
+        }
     }
 }

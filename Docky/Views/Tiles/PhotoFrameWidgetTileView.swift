@@ -14,6 +14,8 @@ import AppKit
 import SwiftUI
 
 struct PhotoFrameWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -74,7 +76,7 @@ struct PhotoFrameWidgetTileView: View {
                 // "add a photo" there.
                 if renderedSpan != .one {
                     Text("Add Photos")
-                        .font(.system(size: max(9, shortSide * 0.11), weight: .medium))
+                        .font(.system(size: max(9, shortSide * 0.11) * textScale, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)

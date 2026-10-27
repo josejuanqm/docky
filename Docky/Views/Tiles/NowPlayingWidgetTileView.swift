@@ -8,6 +8,8 @@ import CoreImage
 import SwiftUI
 
 struct NowPlayingWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -398,8 +400,7 @@ struct NowPlayingWidgetTileView: View {
 
     @ViewBuilder
     private func artworkView(size: CGFloat?, artworkCornerRadius: CGFloat) -> some View {
-        if let artworkData = playbackState?.artworkData,
-           let artworkImage = NSImage(data: artworkData),
+        if let artworkImage = playbackState?.artwork?.image,
            playbackState?.isPresentable == true {
             Image(nsImage: artworkImage)
                 .resizable()
@@ -451,11 +452,11 @@ struct NowPlayingWidgetTileView: View {
             titleStackSpacing: titleStackSpacing,
             artworkSize: artworkSize,
             artworkCornerRadius: min(max(artworkSize * 0.08, 8), 18),
-            titleFontSize: min(max(minSide * 0.07, 14), 22),
-            subtitleFontSize: min(max(minSide * 0.05, 11), 16),
+            titleFontSize: min(max(minSide * 0.07, 14), 22) * textScale,
+            subtitleFontSize: min(max(minSide * 0.05, 11), 16) * textScale,
             progressBarHeight: progressBarHeight,
             progressLabelSpacing: progressLabelSpacing,
-            timestampFontSize: min(max(minSide * 0.04, 10), 13),
+            timestampFontSize: min(max(minSide * 0.04, 10), 13) * textScale,
             controlClusterSpacing: min(max(minSide * 0.04, 10), 18),
             primaryControlButtonSize: primaryControlButtonSize,
             primaryControlIconSize: primaryControlButtonSize * 0.5,
@@ -477,8 +478,8 @@ struct NowPlayingWidgetTileView: View {
         let artworkWidthFraction: CGFloat = renderedSpan == .two ? 0.34 : 0.24
         let artworkSize = min(availableHeight, width * artworkWidthFraction)
         let artworkCornerRadius = min(artworkSize / 2, max(0, cornerRadius - contentPadding))
-        let titleFontSize = min(minSide * 0.18, 16)
-        let subtitleFontSize = min(minSide * 0.14, 13)
+        let titleFontSize = min(minSide * 0.18, 16) * textScale
+        let subtitleFontSize = min(minSide * 0.14, 13) * textScale
         let controlIconSize = min(controlButtonSize * 0.72, controlButtonSize)
         let largeGlyphSize = min(minSide * 0.42, minSide * 0.56)
 
@@ -516,9 +517,8 @@ struct NowPlayingWidgetTileView: View {
             return (NSColor.windowBackgroundColor.blended(withFraction: 0.18, of: .black) ?? .windowBackgroundColor)
         }
         
-        if let artworkData = playbackState?.artworkData,
-           let artworkImage = NSImage(data: artworkData),
-           let extractedColor = Self.prominentColor(from: artworkImage) {
+        if let averageColor = playbackState?.artwork?.averageColor {
+            let extractedColor = averageColor.withSystemEffect(.pressed)
             return extractedColor.usingColorSpace(.deviceRGB) ?? extractedColor
         }
 
@@ -580,47 +580,6 @@ struct NowPlayingWidgetTileView: View {
         Task {
             await mediaPlayback.skipToPrevious(for: effectiveBundleIdentifier)
         }
-    }
-
-    private static let ciContext = CIContext(options: nil)
-
-    private static func prominentColor(from image: NSImage) -> NSColor? {
-        guard let tiffData = image.tiffRepresentation,
-              let ciImage = CIImage(data: tiffData) else {
-            return nil
-        }
-
-        let extent = ciImage.extent
-        guard !extent.isEmpty,
-              let filter = CIFilter(name: "CIAreaAverage") else {
-            return nil
-        }
-
-        filter.setValue(ciImage, forKey: kCIInputImageKey)
-        filter.setValue(CIVector(cgRect: extent), forKey: kCIInputExtentKey)
-
-        guard let outputImage = filter.outputImage else {
-            return nil
-        }
-
-        var rgba = [UInt8](repeating: 0, count: 4)
-        ciContext.render(
-            outputImage,
-            toBitmap: &rgba,
-            rowBytes: 4,
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            format: .RGBA8,
-            colorSpace: CGColorSpaceCreateDeviceRGB()
-        )
-
-        let baseColor = NSColor(
-            red: CGFloat(rgba[0]) / 255,
-            green: CGFloat(rgba[1]) / 255,
-            blue: CGFloat(rgba[2]) / 255,
-            alpha: 1
-        )
-
-        return baseColor.withSystemEffect(.pressed)
     }
 }
 

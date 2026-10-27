@@ -20,8 +20,23 @@ final class DockLayoutService: ObservableObject {
     @Published private(set) var compactsWidgetsForOverflow = false
     @Published private(set) var chromeSize: CGSize = .zero
     @Published private(set) var tileCanvasFrame: CGRect = .zero
+    /// Extra window room before and after the dock along its axis, so
+    /// magnified icons on a dock that fills its edge can spill out to the
+    /// screen edge instead of being cut off by the window. The dock view
+    /// pads itself by these amounts to stay at its resting position.
+    @Published private(set) var alongAxisLeadingInset: CGFloat = 0
+    @Published private(set) var alongAxisTrailingInset: CGFloat = 0
 
     private init() {}
+
+    func setAlongAxisInsets(leading: CGFloat, trailing: CGFloat) {
+        if abs(alongAxisLeadingInset - leading) > 0.0001 {
+            alongAxisLeadingInset = leading
+        }
+        if abs(alongAxisTrailingInset - trailing) > 0.0001 {
+            alongAxisTrailingInset = trailing
+        }
+    }
 
     func setContentScale(_ scale: CGFloat) {
         let clampedScale = min(max(scale, 0), 1)

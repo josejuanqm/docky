@@ -5,8 +5,75 @@
 
 import AppKit
 import Combine
+import CoreImage
 import Foundation
 import OSLog
+
+/// Decoded now-playing artwork plus its average color, built once per
+/// distinct artwork on the MediaRemote drain thread. Views read these
+/// directly so rendering never decodes the image or runs Core Image,
+/// which used to happen several times per redraw (magnification, menus,
+/// the 1s progress timeline) and caused dock lag.
+final class MediaArtwork: Equatable {
+    let image: NSImage
+    /// Plain average of the artwork pixels. The view applies its
+    /// appearance-dependent effect on top, which is cheap.
+    let averageColor: NSColor?
+
+    private let data: Data
+
+    init?(data: Data) {
+        guard let image = NSImage(data: data) else { return nil }
+        self.data = data
+        self.image = image
+        self.averageColor = Self.averageColor(of: image)
+    }
+
+    static func == (lhs: MediaArtwork, rhs: MediaArtwork) -> Bool {
+        lhs === rhs || lhs.data == rhs.data
+    }
+
+    // No intermediate caching: the context runs once per track, so keeping
+    // GPU buffers around between runs only costs memory.
+    private static let ciContext = CIContext(options: [.cacheIntermediates: false])
+
+    private static func averageColor(of image: NSImage) -> NSColor? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let ciImage = CIImage(cgImage: cgImage)
+        let extent = ciImage.extent
+        guard !extent.isEmpty,
+              let filter = CIFilter(name: "CIAreaAverage") else {
+            return nil
+        }
+
+        filter.setValue(ciImage, forKey: kCIInputImageKey)
+        filter.setValue(CIVector(cgRect: extent), forKey: kCIInputExtentKey)
+
+        guard let outputImage = filter.outputImage else {
+            return nil
+        }
+
+        var rgba = [UInt8](repeating: 0, count: 4)
+        ciContext.render(
+            outputImage,
+            toBitmap: &rgba,
+            rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+
+        return NSColor(
+            red: CGFloat(rgba[0]) / 255,
+            green: CGFloat(rgba[1]) / 255,
+            blue: CGFloat(rgba[2]) / 255,
+            alpha: 1
+        )
+    }
+}
 
 struct SyncedLyricsLine: Equatable {
     let time: TimeInterval
@@ -38,14 +105,14 @@ struct MediaPlaybackState: Equatable {
     var isAvailable: Bool
     var supportsFavorite: Bool
     var isFavorite: Bool
-    var artworkData: Data?
+    var artwork: MediaArtwork?
     var lastUpdated: Date
     var isPresentable: Bool {
         isAvailable && hasContent
     }
 
     var hasContent: Bool {
-        !title.isEmpty || !artist.isEmpty || artworkData != nil
+        !title.isEmpty || !artist.isEmpty || artwork != nil
     }
 
     var estimatedCurrentTime: TimeInterval {
@@ -387,6 +454,7 @@ final class MediaPlaybackService: ObservableObject {
         """
 
         _ = try? AppleScriptService.shared.executeDescriptor(source: source)
+        mediaRemote.invalidateFavoriteCache()
         try? await Task.sleep(for: .milliseconds(120))
         refresh()
     }
@@ -411,7 +479,7 @@ final class MediaPlaybackService: ObservableObject {
                 updatedState.duration = 0
                 updatedState.isAvailable = false
                 updatedState.isPlaying = false
-                updatedState.artworkData = nil
+                updatedState.artwork = nil
                 updatedState.lastUpdated = now
                 return updatedState
             }
@@ -478,6 +546,18 @@ private final class MediaRemoteBridge {
     private let helper = MediaRemoteHelperProcess()
     private var lastPayloadByBundleIdentifier: [String: MediaRemoteSnapshot.Payload] = [:]
     private var lastActiveBundleIdentifier: String?
+    // App display names never change at runtime; memoize the LaunchServices
+    // lookup so it doesn't run on every snapshot. Touched only from the
+    // helper drain thread (via `handle`).
+    private var displayNameCache: [String: String] = [:]
+    // Favorite state only changes when the track changes (or the user
+    // toggles it), so cache it per track key instead of firing an AppleScript
+    // round-trip to Music on every snapshot. Guarded because it's read from
+    // the drain thread but invalidated from the main thread on toggle.
+    private var favoriteByTrackKey: [String: Bool] = [:]
+    private let favoriteCacheLock = NSLock()
+    private var lastArtworkBase64: String?
+    private var lastArtwork: MediaArtwork?
 
     private init() {
         let bundleURL = NSURL(fileURLWithPath: "/System/Library/PrivateFrameworks/MediaRemote.framework")
@@ -518,10 +598,10 @@ private final class MediaRemoteBridge {
         let duration = payload.duration ?? 0
         let elapsedTime = payload.elapsedTime ?? 0
         let isPlaying = payload.playing ?? false
-        let artworkData = payload.artworkData.flatMap { Data(base64Encoded: $0) }
+        let artwork = artwork(fromBase64: payload.artworkData)
 
         guard !bundleIdentifier.isEmpty,
-              !title.isEmpty || !artist.isEmpty || artworkData != nil else {
+              !title.isEmpty || !artist.isEmpty || artwork != nil else {
             onStateChange?(nil)
             return
         }
@@ -540,18 +620,66 @@ private final class MediaRemoteBridge {
             isPlaying: isPlaying,
             isAvailable: true,
             supportsFavorite: bundleIdentifier == "com.apple.Music",
-            isFavorite: fetchFavorite(bundleIdentifier: bundleIdentifier),
-            artworkData: artworkData,
+            isFavorite: resolveFavorite(bundleIdentifier: bundleIdentifier, title: title, artist: artist, album: album),
+            artwork: artwork,
             lastUpdated: Date()
         )
         onStateChange?(state)
     }
 
-    private func fetchFavorite(bundleIdentifier: String) -> Bool {
+    /// Snapshots repeat the same artwork for the whole track (diff
+    /// snapshots merge it over the last payload), so decode only when the
+    /// encoded string actually changes. Only touched from the drain thread.
+    private func artwork(fromBase64 base64: String?) -> MediaArtwork? {
+        guard let base64 else { return nil }
+        if base64 == lastArtworkBase64 {
+            return lastArtwork
+        }
+
+        let artwork = Data(base64Encoded: base64).flatMap(MediaArtwork.init(data:))
+        lastArtworkBase64 = base64
+        lastArtwork = artwork
+        return artwork
+    }
+
+    /// Clears the cached favorite state. Called from the main thread after
+    /// the user toggles favorite so the next snapshot for the same track
+    /// re-queries Music instead of returning the stale value.
+    func invalidateFavoriteCache() {
+        favoriteCacheLock.lock()
+        favoriteByTrackKey.removeAll()
+        favoriteCacheLock.unlock()
+    }
+
+    private func resolveFavorite(bundleIdentifier: String, title: String, artist: String, album: String) -> Bool {
         guard bundleIdentifier == "com.apple.Music" else {
             return false
         }
 
+        let trackKey = "\(bundleIdentifier)|\(title)|\(artist)|\(album)"
+
+        favoriteCacheLock.lock()
+        if let cached = favoriteByTrackKey[trackKey] {
+            favoriteCacheLock.unlock()
+            return cached
+        }
+        favoriteCacheLock.unlock()
+
+        let value = fetchFavorite()
+
+        favoriteCacheLock.lock()
+        // Bound the cache; playlists are long but we only need the current
+        // track's value to stay warm across repeated snapshots.
+        if favoriteByTrackKey.count > 64 {
+            favoriteByTrackKey.removeAll()
+        }
+        favoriteByTrackKey[trackKey] = value
+        favoriteCacheLock.unlock()
+
+        return value
+    }
+
+    private func fetchFavorite() -> Bool {
         let source = """
         tell application "Music"
             if it is running then
@@ -565,15 +693,27 @@ private final class MediaRemoteBridge {
         end tell
         """
 
-        return (try? AppleScriptService.shared.executeDescriptor(source: source))?.booleanValue ?? false
+        // `handle` runs on the helper's background drain thread. Run the
+        // script on AppleScriptService's serial queue, not main: a slow or
+        // hung Music would otherwise freeze the dock until the Apple Event
+        // times out.
+        return (try? AppleScriptService.shared.executeDescriptorOnScriptQueue(source: source))?.booleanValue ?? false
     }
 
     private func displayName(for bundleIdentifier: String) -> String {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            return FileManager.default.displayName(atPath: url.path)
+        if let cached = displayNameCache[bundleIdentifier] {
+            return cached
         }
 
-        return bundleIdentifier
+        let resolved: String
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            resolved = FileManager.default.displayName(atPath: url.path)
+        } else {
+            resolved = bundleIdentifier
+        }
+
+        displayNameCache[bundleIdentifier] = resolved
+        return resolved
     }
 
     private static func function<T>(named name: String, in bundle: CFBundle?) -> T? {

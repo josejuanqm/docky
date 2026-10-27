@@ -7,6 +7,8 @@ import AppKit
 import SwiftUI
 
 struct RemindersWidgetTileView: View {
+    @Environment(\.widgetTextScale) private var textScale
+
     let tile: WidgetTile
     let cornerRadius: CGFloat
     let renderedSpan: TileSpan
@@ -141,16 +143,28 @@ struct RemindersWidgetTileView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
+    /// Drops the icon (or spinner) when larger widget text no longer
+    /// leaves room for it, so the message itself stays readable.
     private func emptyState(layout: LayoutMetrics) -> some View {
+        ViewThatFits(in: .vertical) {
+            emptyStateStack(layout: layout, showsIcon: true)
+            emptyStateStack(layout: layout, showsIcon: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func emptyStateStack(layout: LayoutMetrics, showsIcon: Bool) -> some View {
         VStack(alignment: .center, spacing: layout.stackSpacing) {
-            if reminders.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color.primary.opacity(0.92))
-            } else {
-                Image(systemName: reminders.lastErrorDescription == nil ? "checklist.checked" : "checklist.unchecked")
-                    .font(.system(size: layout.emptyIconSize, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.9))
+            if showsIcon {
+                if reminders.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color.primary.opacity(0.92))
+                } else {
+                    Image(systemName: reminders.lastErrorDescription == nil ? "checklist.checked" : "checklist.unchecked")
+                        .font(.system(size: layout.emptyIconSize, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.9))
+                }
             }
 
             Text(emptyTitle)
@@ -168,7 +182,6 @@ struct RemindersWidgetTileView: View {
             }
         }
         .padding(layout.contentPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func accent(item: ReminderItemSnapshot, layout: LayoutMetrics, now: Date) -> some View {
@@ -190,10 +203,10 @@ struct RemindersWidgetTileView: View {
             contentGap: contentGap,
             stackSpacing: stackSpacing,
             accentWidth: min(minSide * 0.09, 10),
-            captionFontSize: min(minSide * 0.1, 11),
-            titleFontSize: min(minSide * 0.17, renderedSpan == .one ? 14 : 16),
-            prominentFontSize: min(minSide * 0.27, 26),
-            detailFontSize: min(minSide * 0.12, 13),
+            captionFontSize: min(minSide * 0.1, 11) * textScale,
+            titleFontSize: min(minSide * 0.17, renderedSpan == .one ? 14 : 16) * textScale,
+            prominentFontSize: min(minSide * 0.27, 26) * textScale,
+            detailFontSize: min(minSide * 0.12, 13) * textScale,
             emptyIconSize: min(minSide * 0.28, 28)
         )
     }

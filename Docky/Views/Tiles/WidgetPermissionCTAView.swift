@@ -27,6 +27,7 @@ struct WidgetPermissionCTAView: View {
     var foreground: Color = .primary
 
     @ObservedObject private var permissions = PermissionsService.shared
+    @Environment(\.widgetTextScale) private var textScale
 
     private var showsReason: Bool {
         isExpanded || renderedSpan != .one
@@ -36,42 +37,62 @@ struct WidgetPermissionCTAView: View {
         GeometryReader { proxy in
             let minSide = max(min(proxy.size.width, proxy.size.height), 1)
             let iconSize = min(max(minSide * (isExpanded ? 0.16 : 0.24), 16), isExpanded ? 40 : 30)
-            let reasonSize = min(max(minSide * 0.11, 10), 14)
+            let reasonSize = min(max(minSide * 0.11, 10), 14) * textScale
             let spacing = min(max(minSide * 0.06, 4), 12)
 
-            VStack(spacing: spacing) {
+            // Larger widget text can outgrow the tile. Step down until it
+            // fits: drop the icon, then shorten the reason, then show only
+            // the button so access can always be granted.
+            ViewThatFits(in: .vertical) {
+                stack(iconSize: iconSize, reasonSize: reasonSize, spacing: spacing, showsIcon: true, reasonLines: 2)
+                stack(iconSize: iconSize, reasonSize: reasonSize, spacing: spacing, showsIcon: false, reasonLines: 2)
+                stack(iconSize: iconSize, reasonSize: reasonSize, spacing: spacing, showsIcon: false, reasonLines: 1)
+                stack(iconSize: iconSize, reasonSize: reasonSize, spacing: spacing, showsIcon: false, reasonLines: 0)
+            }
+            .padding(min(max(minSide * 0.1, 8), 20))
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+
+    private func stack(
+        iconSize: CGFloat,
+        reasonSize: CGFloat,
+        spacing: CGFloat,
+        showsIcon: Bool,
+        reasonLines: Int
+    ) -> some View {
+        VStack(spacing: spacing) {
+            if showsIcon {
                 Image(systemName: iconName)
                     .font(.system(size: iconSize, weight: .semibold))
                     .foregroundStyle(foreground.opacity(0.92))
                     .symbolRenderingMode(.hierarchical)
-
-                if showsReason {
-                    Text(reasonText)
-                        .font(.system(size: reasonSize, weight: .medium))
-                        .foregroundStyle(foreground.opacity(0.72))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Button {
-                    performAction()
-                } label: {
-                    Text(buttonTitle)
-                        .font(.system(size: reasonSize, weight: .semibold))
-                        .foregroundStyle(foreground.opacity(0.85))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .padding(.horizontal, reasonSize * 0.9)
-                        .padding(.vertical, reasonSize * 0.5)
-                        .background(
-                            Capsule().fill(foreground.opacity(0.16))
-                        )
-                }
-                .buttonStyle(.plain)
             }
-            .padding(min(max(minSide * 0.1, 8), 20))
-            .frame(width: proxy.size.width, height: proxy.size.height)
+
+            if showsReason, reasonLines > 0 {
+                Text(reasonText)
+                    .font(.system(size: reasonSize, weight: .medium))
+                    .foregroundStyle(foreground.opacity(0.72))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(reasonLines)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                performAction()
+            } label: {
+                Text(buttonTitle)
+                    .font(.system(size: reasonSize, weight: .semibold))
+                    .foregroundStyle(foreground.opacity(0.85))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, reasonSize * 0.9)
+                    .padding(.vertical, reasonSize * 0.5)
+                    .background(
+                        Capsule().fill(foreground.opacity(0.16))
+                    )
+            }
+            .buttonStyle(.plain)
         }
     }
 

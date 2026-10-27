@@ -27,6 +27,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import ScreenCaptureKit
+import os
 
 private let axWindowNumberAttribute = "AXWindowNumber" as CFString
 private let axCloseAction = "AXClose" as CFString
@@ -106,6 +107,7 @@ struct AppWindow: Identifiable, Hashable {
 
 final class WindowRegistry: ObservableObject {
     static let shared = WindowRegistry()
+    private static let logger = Logger(subsystem: "gt.quintero.Docky", category: "WindowRegistry")
 
     /// Observed-order window list across all tracked apps. Order is stable:
     /// new windows are appended; updates land in place; removals leave a
@@ -390,6 +392,31 @@ final class WindowRegistry: ObservableObject {
         else { return false }
 
         guard let element = liveElement(for: window) else { return false }
+        // Enhanced UI animates AX frame changes. A following position write
+        // can then see the old, full-width frame and get clamped to its edge.
+        // Disable it only for this transaction and restore the app's setting.
+        let application = AXUIElementCreateApplication(window.processIdentifier)
+        let enhancedUIAttribute = "AXEnhancedUserInterface" as CFString
+        var enhancedUIValue: CFTypeRef?
+        // If disabling fails, still resize (same as before this workaround)
+        // and leave the app's setting alone.
+        let restoreEnhancedUI = AXUIElementCopyAttributeValue(application, enhancedUIAttribute, &enhancedUIValue) == .success
+            && (enhancedUIValue as? Bool) == true
+            && AXUIElementSetAttributeValue(application, enhancedUIAttribute, kCFBooleanFalse) == .success
+        defer {
+            if restoreEnhancedUI {
+                let result = AXUIElementSetAttributeValue(application, enhancedUIAttribute, kCFBooleanTrue)
+                if result != .success {
+                    Self.logger.error("Failed to restore AXEnhancedUserInterface for pid \(window.processIdentifier, privacy: .public): AXError \(result.rawValue, privacy: .public)")
+                }
+            }
+        }
+
+        // Shrink before moving so a maximized window can fit at its new origin.
+        // Moving first can be clamped to the screen edge, leaving the gap on
+        // the opposite side after the size change. Reapply the size afterward
+        // because the source screen can constrain a cross-display expansion.
+        AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
         let posResult = AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionValue)
         let sizeResult = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue)
         return posResult == .success && sizeResult == .success
