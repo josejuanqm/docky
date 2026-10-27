@@ -5,8 +5,75 @@
 
 import AppKit
 import Combine
+import CoreImage
 import Foundation
 import OSLog
+
+/// Decoded now-playing artwork plus its average color, built once per
+/// distinct artwork on the MediaRemote drain thread. Views read these
+/// directly so rendering never decodes the image or runs Core Image,
+/// which used to happen several times per redraw (magnification, menus,
+/// the 1s progress timeline) and caused dock lag.
+final class MediaArtwork: Equatable {
+    let image: NSImage
+    /// Plain average of the artwork pixels. The view applies its
+    /// appearance-dependent effect on top, which is cheap.
+    let averageColor: NSColor?
+
+    private let data: Data
+
+    init?(data: Data) {
+        guard let image = NSImage(data: data) else { return nil }
+        self.data = data
+        self.image = image
+        self.averageColor = Self.averageColor(of: image)
+    }
+
+    static func == (lhs: MediaArtwork, rhs: MediaArtwork) -> Bool {
+        lhs === rhs || lhs.data == rhs.data
+    }
+
+    // No intermediate caching: the context runs once per track, so keeping
+    // GPU buffers around between runs only costs memory.
+    private static let ciContext = CIContext(options: [.cacheIntermediates: false])
+
+    private static func averageColor(of image: NSImage) -> NSColor? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let ciImage = CIImage(cgImage: cgImage)
+        let extent = ciImage.extent
+        guard !extent.isEmpty,
+              let filter = CIFilter(name: "CIAreaAverage") else {
+            return nil
+        }
+
+        filter.setValue(ciImage, forKey: kCIInputImageKey)
+        filter.setValue(CIVector(cgRect: extent), forKey: kCIInputExtentKey)
+
+        guard let outputImage = filter.outputImage else {
+            return nil
+        }
+
+        var rgba = [UInt8](repeating: 0, count: 4)
+        ciContext.render(
+            outputImage,
+            toBitmap: &rgba,
+            rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+
+        return NSColor(
+            red: CGFloat(rgba[0]) / 255,
+            green: CGFloat(rgba[1]) / 255,
+            blue: CGFloat(rgba[2]) / 255,
+            alpha: 1
+        )
+    }
+}
 
 struct SyncedLyricsLine: Equatable {
     let time: TimeInterval
@@ -38,14 +105,14 @@ struct MediaPlaybackState: Equatable {
     var isAvailable: Bool
     var supportsFavorite: Bool
     var isFavorite: Bool
-    var artworkData: Data?
+    var artwork: MediaArtwork?
     var lastUpdated: Date
     var isPresentable: Bool {
         isAvailable && hasContent
     }
 
     var hasContent: Bool {
-        !title.isEmpty || !artist.isEmpty || artworkData != nil
+        !title.isEmpty || !artist.isEmpty || artwork != nil
     }
 
     var estimatedCurrentTime: TimeInterval {
@@ -412,7 +479,7 @@ final class MediaPlaybackService: ObservableObject {
                 updatedState.duration = 0
                 updatedState.isAvailable = false
                 updatedState.isPlaying = false
-                updatedState.artworkData = nil
+                updatedState.artwork = nil
                 updatedState.lastUpdated = now
                 return updatedState
             }
@@ -489,6 +556,8 @@ private final class MediaRemoteBridge {
     // the drain thread but invalidated from the main thread on toggle.
     private var favoriteByTrackKey: [String: Bool] = [:]
     private let favoriteCacheLock = NSLock()
+    private var lastArtworkBase64: String?
+    private var lastArtwork: MediaArtwork?
 
     private init() {
         let bundleURL = NSURL(fileURLWithPath: "/System/Library/PrivateFrameworks/MediaRemote.framework")
@@ -529,10 +598,10 @@ private final class MediaRemoteBridge {
         let duration = payload.duration ?? 0
         let elapsedTime = payload.elapsedTime ?? 0
         let isPlaying = payload.playing ?? false
-        let artworkData = payload.artworkData.flatMap { Data(base64Encoded: $0) }
+        let artwork = artwork(fromBase64: payload.artworkData)
 
         guard !bundleIdentifier.isEmpty,
-              !title.isEmpty || !artist.isEmpty || artworkData != nil else {
+              !title.isEmpty || !artist.isEmpty || artwork != nil else {
             onStateChange?(nil)
             return
         }
@@ -552,10 +621,25 @@ private final class MediaRemoteBridge {
             isAvailable: true,
             supportsFavorite: bundleIdentifier == "com.apple.Music",
             isFavorite: resolveFavorite(bundleIdentifier: bundleIdentifier, title: title, artist: artist, album: album),
-            artworkData: artworkData,
+            artwork: artwork,
             lastUpdated: Date()
         )
         onStateChange?(state)
+    }
+
+    /// Snapshots repeat the same artwork for the whole track (diff
+    /// snapshots merge it over the last payload), so decode only when the
+    /// encoded string actually changes. Only touched from the drain thread.
+    private func artwork(fromBase64 base64: String?) -> MediaArtwork? {
+        guard let base64 else { return nil }
+        if base64 == lastArtworkBase64 {
+            return lastArtwork
+        }
+
+        let artwork = Data(base64Encoded: base64).flatMap(MediaArtwork.init(data:))
+        lastArtworkBase64 = base64
+        lastArtwork = artwork
+        return artwork
     }
 
     /// Clears the cached favorite state. Called from the main thread after

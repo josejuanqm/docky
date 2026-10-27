@@ -398,8 +398,7 @@ struct NowPlayingWidgetTileView: View {
 
     @ViewBuilder
     private func artworkView(size: CGFloat?, artworkCornerRadius: CGFloat) -> some View {
-        if let artworkData = playbackState?.artworkData,
-           let artworkImage = NSImage(data: artworkData),
+        if let artworkImage = playbackState?.artwork?.image,
            playbackState?.isPresentable == true {
             Image(nsImage: artworkImage)
                 .resizable()
@@ -516,9 +515,8 @@ struct NowPlayingWidgetTileView: View {
             return (NSColor.windowBackgroundColor.blended(withFraction: 0.18, of: .black) ?? .windowBackgroundColor)
         }
         
-        if let artworkData = playbackState?.artworkData,
-           let artworkImage = NSImage(data: artworkData),
-           let extractedColor = Self.prominentColor(from: artworkImage) {
+        if let averageColor = playbackState?.artwork?.averageColor {
+            let extractedColor = averageColor.withSystemEffect(.pressed)
             return extractedColor.usingColorSpace(.deviceRGB) ?? extractedColor
         }
 
@@ -580,47 +578,6 @@ struct NowPlayingWidgetTileView: View {
         Task {
             await mediaPlayback.skipToPrevious(for: effectiveBundleIdentifier)
         }
-    }
-
-    private static let ciContext = CIContext(options: nil)
-
-    private static func prominentColor(from image: NSImage) -> NSColor? {
-        guard let tiffData = image.tiffRepresentation,
-              let ciImage = CIImage(data: tiffData) else {
-            return nil
-        }
-
-        let extent = ciImage.extent
-        guard !extent.isEmpty,
-              let filter = CIFilter(name: "CIAreaAverage") else {
-            return nil
-        }
-
-        filter.setValue(ciImage, forKey: kCIInputImageKey)
-        filter.setValue(CIVector(cgRect: extent), forKey: kCIInputExtentKey)
-
-        guard let outputImage = filter.outputImage else {
-            return nil
-        }
-
-        var rgba = [UInt8](repeating: 0, count: 4)
-        ciContext.render(
-            outputImage,
-            toBitmap: &rgba,
-            rowBytes: 4,
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            format: .RGBA8,
-            colorSpace: CGColorSpaceCreateDeviceRGB()
-        )
-
-        let baseColor = NSColor(
-            red: CGFloat(rgba[0]) / 255,
-            green: CGFloat(rgba[1]) / 255,
-            blue: CGFloat(rgba[2]) / 255,
-            alpha: 1
-        )
-
-        return baseColor.withSystemEffect(.pressed)
     }
 }
 
