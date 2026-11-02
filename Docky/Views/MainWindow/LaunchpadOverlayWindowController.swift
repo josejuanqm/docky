@@ -530,6 +530,11 @@ private struct LaunchpadOverlayView: View {
                     handleKeyDown(event, columnCount: pageColumns, rowCount: pageRows)
                 }
             }
+            .background {
+                LaunchpadOverlayClickMonitor { point in
+                    handleBlankClick(at: point, in: proxy.size, pageCount: isVertical ? 0 : pages.count)
+                }
+            }
             .onAppear {
                 isSearchFocused = true
                 synchronizeSelection()
@@ -1274,6 +1279,47 @@ private struct LaunchpadOverlayView: View {
             }
         }
         return nil
+    }
+
+    /// Dismisses the launchpad when a plain click lands on empty space:
+    /// not on an app or folder tile, the search bar, the page dots or
+    /// the page chevrons, and not while a folder, rename or drag is open.
+    private func handleBlankClick(at point: CGPoint, in size: CGSize, pageCount: Int) {
+        guard overlay.isPresented,
+              dragState == nil,
+              expandedFolderID == nil,
+              renamingFolderID == nil,
+              !isRenamingExpandedFolder else { return }
+
+        let searchRect = CGRect(
+            x: (size.width - searchBarWidth) / 2 - 12,
+            y: searchBarTopInset - 12,
+            width: searchBarWidth + 24,
+            height: searchBarHeight + 24
+        )
+        if searchRect.contains(point) { return }
+
+        if pageCount > 1 {
+            let dotsWidth = CGFloat(pageCount) * pageIndicatorVisualHeight + 40
+            let dotsRect = CGRect(
+                x: (size.width - dotsWidth) / 2,
+                y: size.height - pageIndicatorBottomInset - pageIndicatorVisualHeight - 12,
+                width: dotsWidth,
+                height: pageIndicatorVisualHeight + pageIndicatorBottomInset + 12
+            )
+            if dotsRect.contains(point) { return }
+
+            let chevronBand: CGFloat = 24 + 44 + 16
+            let chevronRectLeft = CGRect(x: 0, y: size.height / 2 - 40, width: chevronBand, height: 80)
+            let chevronRectRight = CGRect(x: size.width - chevronBand, y: size.height / 2 - 40, width: chevronBand, height: 80)
+            if chevronRectLeft.contains(point) || chevronRectRight.contains(point) { return }
+        }
+
+        if cellFrames.values.contains(where: { $0.contains(point) }) { return }
+
+        DispatchQueue.main.async {
+            overlay.dismiss()
+        }
     }
 
     private var filteredEntries: [LaunchpadEntry] {
@@ -2218,3 +2264,71 @@ private struct LaunchpadOverlayKeyMonitor: NSViewRepresentable {
     }
 }
 
+
+
+/// Watches left clicks inside the launchpad window and reports the ones
+/// that didn't move (a click, not a drag) in top-left-origin window
+/// coordinates. Never consumes the event, so buttons keep working.
+private struct LaunchpadOverlayClickMonitor: NSViewRepresentable {
+    let clickHandler: (CGPoint) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(clickHandler: clickHandler)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.hostView = view
+        context.coordinator.start()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.clickHandler = clickHandler
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    final class Coordinator {
+        var clickHandler: (CGPoint) -> Void
+        weak var hostView: NSView?
+        private var eventMonitor: Any?
+        private var mouseDownLocation: NSPoint?
+
+        init(clickHandler: @escaping (CGPoint) -> Void) {
+            self.clickHandler = clickHandler
+        }
+
+        func start() {
+            guard eventMonitor == nil else { return }
+            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
+                guard let self,
+                      let window = self.hostView?.window,
+                      event.window === window else { return event }
+
+                switch event.type {
+                case .leftMouseDown:
+                    self.mouseDownLocation = event.locationInWindow
+                case .leftMouseUp:
+                    defer { self.mouseDownLocation = nil }
+                    guard let down = self.mouseDownLocation else { break }
+                    let up = event.locationInWindow
+                    guard hypot(up.x - down.x, up.y - down.y) < 5 else { break }
+                    let height = window.contentView?.bounds.height ?? window.frame.height
+                    self.clickHandler(CGPoint(x: up.x, y: height - up.y))
+                default:
+                    break
+                }
+                return event
+            }
+        }
+
+        func stop() {
+            guard let eventMonitor else { return }
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+    }
+}
