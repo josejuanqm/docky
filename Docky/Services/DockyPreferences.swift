@@ -1821,6 +1821,32 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Depth of the band kept free between Docky and the screen edge, for
+    /// another bar such as a ticker. Docky lays itself out inside the
+    /// remaining band and, when Accessibility is granted, keeps tiled windows
+    /// out of the strip too. 0 turns the strip off.
+    var reservedEdgeStripThickness: CGFloat {
+        didSet {
+            let clampedValue = min(
+                max(reservedEdgeStripThickness, DefaultValues.reservedEdgeStripThicknessMin),
+                DefaultValues.reservedEdgeStripThicknessMax
+            )
+            guard clampedValue != oldValue else {
+                if reservedEdgeStripThickness != clampedValue {
+                    reservedEdgeStripThickness = clampedValue
+                }
+                return
+            }
+
+            if reservedEdgeStripThickness != clampedValue {
+                reservedEdgeStripThickness = clampedValue
+                return
+            }
+
+            defaults.set(Double(clampedValue), forKey: Keys.reservedEdgeStripThickness)
+        }
+    }
+
     /// Dwell time the pointer must spend at the screen edge before Docky
     /// reveals while a fullscreen app is on the target screen. Mirrors the
     /// macOS Dock's intent-gating behavior in fullscreen.
@@ -3617,6 +3643,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowPreviewHoverDelay = "docky.windowPreviewHoverDelay"
         static let windowPreviewLayout = "docky.windowPreviewLayout"
         static let maximizedWindowBehavior = "docky.maximizedWindowBehavior"
+        static let reservedEdgeStripThickness = "docky.reservedEdgeStripThickness"
         static let hidesSystemDock = "docky.hidesSystemDock"
         static let overflowBehavior = "docky.overflowBehavior"
         static let windowAxisSizing = "docky.windowAxisSizing"
@@ -3730,6 +3757,9 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let windowPreviewHoverDelay: TimeInterval = 1.0
         static let windowPreviewLayout: WindowSwitcherLayout = .auto
         static let maximizedWindowBehavior: MaximizedWindowBehavior = .ignore
+        static let reservedEdgeStripThickness: CGFloat = 0
+        static let reservedEdgeStripThicknessMin: CGFloat = 0
+        static let reservedEdgeStripThicknessMax: CGFloat = 200
         static let hidesSystemDock = true
         static let overflowBehavior: DockOverflowBehavior = .rescale
         static let windowAxisSizing: DockWindowAxisSizing = .fitContent
@@ -3870,6 +3900,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedWindowPreviewHoverDelay = defaults.object(forKey: Keys.windowPreviewHoverDelay) as? Double
         let storedWindowPreviewLayout = defaults.string(forKey: Keys.windowPreviewLayout)
         let storedMaximizedWindowBehavior = defaults.string(forKey: Keys.maximizedWindowBehavior)
+        let storedReservedEdgeStripThickness = defaults.object(forKey: Keys.reservedEdgeStripThickness) as? Double
         let storedHidesSystemDock = defaults.object(forKey: Keys.hidesSystemDock) as? Bool
         let storedOverflowBehavior = defaults.string(forKey: Keys.overflowBehavior)
         let storedWindowAxisSizing = defaults.string(forKey: Keys.windowAxisSizing)
@@ -4004,6 +4035,13 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         self.windowPreviewHoverDelay = max(storedWindowPreviewHoverDelay ?? DefaultValues.windowPreviewHoverDelay, 0)
         self.windowPreviewLayout = storedWindowPreviewLayout.flatMap(WindowSwitcherLayout.init(rawValue:)) ?? DefaultValues.windowPreviewLayout
         self.maximizedWindowBehavior = (storedMaximizedWindowBehavior.flatMap(MaximizedWindowBehavior.init(rawValue:)) ?? DefaultValues.maximizedWindowBehavior)
+        self.reservedEdgeStripThickness = min(
+            max(
+                storedReservedEdgeStripThickness.map { CGFloat($0) } ?? DefaultValues.reservedEdgeStripThickness,
+                DefaultValues.reservedEdgeStripThicknessMin
+            ),
+            DefaultValues.reservedEdgeStripThicknessMax
+        )
         self.hidesSystemDock = storedHidesSystemDock ?? DefaultValues.hidesSystemDock
         self.overflowBehavior = (storedOverflowBehavior.flatMap(DockOverflowBehavior.init(rawValue:)) ?? DefaultValues.overflowBehavior)
         self.windowAxisSizing = (storedWindowAxisSizing.flatMap(DockWindowAxisSizing.init(rawValue:)) ?? DefaultValues.windowAxisSizing)
@@ -4300,6 +4338,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
         appFolderIconSize = DefaultValues.appFolderIconSize
+        reservedEdgeStripThickness = DefaultValues.reservedEdgeStripThickness
 
         // Widgets
         enablesWidgetHoverPreview = DefaultValues.enablesWidgetHoverPreview
@@ -4388,6 +4427,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
         appFolderIconSize = DefaultValues.appFolderIconSize
+        reservedEdgeStripThickness = DefaultValues.reservedEdgeStripThickness
         widgetTextScale = DefaultValues.widgetTextScale
         enablesLaunchpadOverlay = DefaultValues.enablesLaunchpadOverlay
         enablesStartMenuOverlay = DefaultValues.enablesStartMenuOverlay

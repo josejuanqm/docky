@@ -312,16 +312,22 @@ final class MainWindow: NSPanel {
         guard let chrome = chromeScreenFrame() else { return frame }
         // A window edge must not land on the chrome's border.
         let gap: CGFloat = 4
+        // Whatever keeps windows out of Docky's way must keep them out of the
+        // reserved strip as well, or a maximized window would cover whatever
+        // the user put there.
+        let strip = max(0, DockyPreferences.shared.reservedEdgeStripThickness)
         switch DockyPreferences.shared.windowPosition.resolved(systemOrientation: DockSettingsService.shared.orientation) {
         case .bottom:
-            return CGRect(x: frame.minX, y: chrome.minY, width: frame.width, height: chrome.height.rounded(.up) + gap)
+            let depth = chrome.height.rounded(.up) + gap + strip
+            return CGRect(x: frame.minX, y: chrome.minY - strip, width: frame.width, height: depth)
         case .top:
-            let depth = chrome.height.rounded(.up) + gap
+            let depth = chrome.height.rounded(.up) + gap + strip
             return CGRect(x: frame.minX, y: chrome.maxY - depth, width: frame.width, height: depth)
         case .left:
-            return CGRect(x: chrome.minX, y: frame.minY, width: chrome.width.rounded(.up) + gap, height: frame.height)
+            let depth = chrome.width.rounded(.up) + gap + strip
+            return CGRect(x: chrome.minX - strip, y: frame.minY, width: depth, height: frame.height)
         case .right:
-            let depth = chrome.width.rounded(.up) + gap
+            let depth = chrome.width.rounded(.up) + gap + strip
             return CGRect(x: chrome.maxX - depth, y: frame.minY, width: depth, height: frame.height)
         }
     }
@@ -850,7 +856,10 @@ final class MainWindow: NSPanel {
             position: position
         )
         let alongAxisContentPadding = position.isVertical ? verticalContentPadding : horizontalContentPadding
-        let layoutBounds = position.isVertical ? visibleBounds : screenBounds
+        let layoutBounds = insetBoundsForReservedEdgeStrip(
+            position.isVertical ? visibleBounds : screenBounds,
+            position: position
+        )
         let unreservedAvailableAxisLength = max(
             0,
             axisLength(of: layoutBounds.size, position: position) - alongAxisContentPadding
@@ -1146,6 +1155,48 @@ final class MainWindow: NSPanel {
             return CGRect(x: screenBounds.minX, y: frame.minY, width: thickness, height: frame.height)
         case .right:
             return CGRect(x: screenBounds.maxX - thickness, y: frame.minY, width: thickness, height: frame.height)
+        }
+    }
+
+    /// Keeps Docky out of the reserved edge strip: the dock lays itself out in
+    /// a band that stops short of the screen edge, leaving room between it and
+    /// the edge for another bar (a ticker, a HUD).
+    private func insetBoundsForReservedEdgeStrip(
+        _ bounds: CGRect,
+        position: ResolvedDockWindowPosition
+    ) -> CGRect {
+        let strip = max(0, preferences.reservedEdgeStripThickness)
+        guard strip > 0 else { return bounds }
+
+        switch position {
+        case .bottom:
+            return CGRect(
+                x: bounds.minX,
+                y: bounds.minY + strip,
+                width: bounds.width,
+                height: max(0, bounds.height - strip)
+            )
+        case .top:
+            return CGRect(
+                x: bounds.minX,
+                y: bounds.minY,
+                width: bounds.width,
+                height: max(0, bounds.height - strip)
+            )
+        case .left:
+            return CGRect(
+                x: bounds.minX + strip,
+                y: bounds.minY,
+                width: max(0, bounds.width - strip),
+                height: bounds.height
+            )
+        case .right:
+            return CGRect(
+                x: bounds.minX,
+                y: bounds.minY,
+                width: max(0, bounds.width - strip),
+                height: bounds.height
+            )
         }
     }
 
