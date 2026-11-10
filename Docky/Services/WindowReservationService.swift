@@ -52,6 +52,9 @@ final class WindowReservationService {
         observeChanges { [weak self] in
             let mode = DockyPreferences.shared.maximizedWindowBehavior
             let status = PermissionsService.shared.accessibility
+            // Reading the strip here keeps the observation re-running when the
+            // user turns it on or off.
+            _ = DockyPreferences.shared.reservedEdgeStripThickness
             self?.updateActivation(mode: mode, status: status)
         }
         .store(in: &cancellables)
@@ -66,7 +69,11 @@ final class WindowReservationService {
     }
 
     private func updateActivation(mode: MaximizedWindowBehavior, status: PermissionStatus) {
-        let shouldBeActive = (mode == .resizeWindow) && (status == .granted)
+        // A reserved edge strip needs the AX resize path even when the user
+        // leaves maximized-window handling alone: otherwise a maximized window
+        // would sit on top of whatever lives in the strip.
+        let reservesEdgeStrip = DockyPreferences.shared.reservedEdgeStripThickness > 0
+        let shouldBeActive = (mode == .resizeWindow || reservesEdgeStrip) && (status == .granted)
         if shouldBeActive {
             attachIfNeeded()
         } else {
