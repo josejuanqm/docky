@@ -494,8 +494,10 @@ struct TileView: View {
 
     /// Notification badge text to paint over this tile, or `nil` when the
     /// feature is off or the app has no badge. App folders show the summed
-    /// numeric badge of the apps they contain (mirroring how the count rolls
-    /// up when running apps collapse into a folder).
+    /// count of the apps they contain (mirroring how the count rolls up when
+    /// running apps collapse into a folder). When one of those badges isn't a
+    /// count, there is no total to show and the folder falls back to the
+    /// attention dot from `showsAttentionBadge`.
     private var badgeText: String? {
         guard preferences.showsAppBadges else { return nil }
         switch tile.content {
@@ -510,13 +512,42 @@ struct TileView: View {
             if preferences.folderBadgeMode == .perApp, appFolderDisplayMode == .grid {
                 return nil
             }
-            let total = folder.apps.reduce(0) { sum, app in
-                sum + (dockBadges.badge(forBundleIdentifier: app.bundleIdentifier).flatMap(Int.init) ?? 0)
-            }
-            return total > 0 ? String(total) : nil
+            return folderBadgeSummary?.text
         case .folder, .launchpad, .startMenu, .widget, .smartStack, .spacer, .flexibleSpacer, .divider, .trash, .minimizedWindow:
             return nil
         }
+    }
+
+    /// Rolled-up badge for an app folder's contents. Counts add up; a badge
+    /// that isn't a count (a percentage, a dot, a word) can't be summed with
+    /// them, so the folder reports "something needs attention" instead of a
+    /// nonsensical total.
+    private var folderBadgeSummary: (text: String?, needsAttention: Bool)? {
+        guard case .appFolder(let folder) = tile.content else { return nil }
+
+        var total = 0
+        var isCountOnly = true
+        var hasBadge = false
+
+        for app in folder.apps {
+            guard let badge = dockBadges.badge(forBundleIdentifier: app.bundleIdentifier) else { continue }
+            hasBadge = true
+            if let count = Int(badge), badge.allSatisfy({ $0.isNumber }) {
+                total += count
+            } else {
+                isCountOnly = false
+            }
+        }
+
+        guard hasBadge else { return nil }
+        guard isCountOnly else { return (text: nil, needsAttention: true) }
+        return total > 0 ? (text: String(total), needsAttention: false) : nil
+    }
+
+    /// Whether the badge slot should show a plain red dot because the folder
+    /// has pending badges that don't add up to a number.
+    private var showsAttentionBadge: Bool {
+        folderBadgeSummary?.needsAttention == true
     }
 
     /// Effective drop shadow applied behind the tile's icon content.
@@ -564,6 +595,9 @@ struct TileView: View {
             .overlay(alignment: .topTrailing) {
                 if let badgeText {
                     DockBadgeView(text: badgeText)
+                        .padding(appliedTileIconPadding)
+                } else if showsAttentionBadge {
+                    DockBadgeDotView()
                         .padding(appliedTileIconPadding)
                 }
             }

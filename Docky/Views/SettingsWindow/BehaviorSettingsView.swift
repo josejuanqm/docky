@@ -327,6 +327,17 @@ struct BehaviorSettingsView: View {
             .padding(.vertical, 4)
 
             VStack(alignment: .leading, spacing: 8) {
+                Toggle("Group Running Apps in a Folder", isOn: $preferences.groupsRunningAppsInFolder)
+                    .font(.headline)
+
+                Text("Collapses unpinned running apps into a single Running Apps folder. Apps that are pinned, or already shown beside their own app folder, keep their place and stay out of it.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+            .disabled(!preferences.showsRunningApps)
+
+            VStack(alignment: .leading, spacing: 8) {
                 Toggle("Dim Idle App Icons", isOn: $preferences.dimsIdleAppIcons)
                     .font(.headline)
 

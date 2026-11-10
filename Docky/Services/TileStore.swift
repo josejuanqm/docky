@@ -24,6 +24,7 @@ final class TileStore: ObservableObject {
     private static let changeNotification = Notification.Name("com.apple.dock.prefchanged")
     private static let hasImportedSystemDockPreferencesKey = "docky.tileStore.hasImportedSystemDockPreferences"
     private static let expandedInlineAppFolderIDsKey = "docky.tileStore.expandedInlineAppFolderIDs"
+    private static let runningAppsFolderTileID = "folder:running"
     private static let demoDebugPinnedAppNames = [
         "Dia",
         "Notes",
@@ -117,6 +118,7 @@ final class TileStore: ObservableObject {
         .store(in: &cancellables)
         observeChanges { [weak self] in
             _ = DockyPreferences.shared.showsGroupedOpenedAppsInDock
+            _ = DockyPreferences.shared.groupsRunningAppsInFolder
             _ = DockyPreferences.shared.effectiveShowsActivePinnedSeparator
             _ = DockyPreferences.shared.showsRunningApps
             _ = DockyPreferences.shared.showsMinimizedWindows
@@ -2211,6 +2213,17 @@ final class TileStore: ObservableObject {
         let runningTiles: [Tile]
         if !preferences.showsRunningApps {
             runningTiles = []
+        } else if preferences.groupsRunningAppsInFolder {
+            // One folder beats a shifting row of loose icons, especially
+            // with many apps open. Apps that already have a home on the
+            // dock (pinned, or shown beside their own app folder) are not
+            // repeated inside it.
+            runningTiles = Self.runningAppsFolderTiles(
+                pinnedTiles: pinnedWithoutFinder,
+                groupsOpenedApps: preferences.showsGroupedOpenedAppsInDock,
+                expandedInlineFolderIDs: expandedInlineAppFolderIDs,
+                hiddenBundleIDs: hiddenBundleIDs
+            )
         } else if preferences.hidesRecentApps {
             // "Hide recent apps" only suppresses the non-running tail ,
             // currently running unpinned apps still belong in the dock.
@@ -2242,6 +2255,60 @@ final class TileStore: ObservableObject {
         let trailing = trailingTiles(withInsertedMinimizedWindows: minimizedWindowTiles)
         result.append(contentsOf: hidesTrash ? trailing.filter { !Self.isTrash($0) } : trailing)
         tiles = result.map(applyingAppWidgetDisplay(to:))
+    }
+
+    /// Builds the single "Running Apps" folder tile. Returns an empty array
+    /// when every running app is already represented elsewhere, so the
+    /// folder disappears instead of lingering empty.
+    private static func runningAppsFolderTiles(
+        pinnedTiles: [Tile],
+        groupsOpenedApps: Bool,
+        expandedInlineFolderIDs: Set<String>,
+        hiddenBundleIDs: Set<String>
+    ) -> [Tile] {
+        var alreadyDisplayedBundleIDs = Self.pinnedStandaloneBundleIdentifiers(in: pinnedTiles)
+
+        for tile in pinnedTiles {
+            guard case .appFolder(let folder) = tile.content else { continue }
+            let showsAppsBesideFolder = folder.contentViewMode == .inline
+                ? expandedInlineFolderIDs.contains(folder.identifier)
+                : groupsOpenedApps
+            if showsAppsBesideFolder {
+                alreadyDisplayedBundleIDs.formUnion(folder.bundleIdentifiers)
+            }
+        }
+
+        let apps = WorkspaceService.shared.runningApps.compactMap { runningApp -> AppTile? in
+            let bundleIdentifier = runningApp.bundleIdentifier
+            guard bundleIdentifier != Self.finderBundleID,
+                  !alreadyDisplayedBundleIDs.contains(bundleIdentifier),
+                  !hiddenBundleIDs.contains(bundleIdentifier) else {
+                return nil
+            }
+            return Self.makeAppTile(bundleIdentifier: bundleIdentifier)
+        }
+
+        guard !apps.isEmpty else {
+            return []
+        }
+
+        return [Tile(
+            id: Self.runningAppsFolderTileID,
+            content: .appFolder(AppFolderTile(
+                identifier: AppFolderTile.runningAppsIdentifier,
+                displayName: String(localized: "Running Apps"),
+                apps: apps
+            ))
+        )]
+    }
+
+    /// Bundle identifiers that already have a tile of their own in the
+    /// pinned section, excluding apps that only live inside an app folder.
+    private static func pinnedStandaloneBundleIdentifiers(in tiles: [Tile]) -> Set<String> {
+        Set(tiles.compactMap { tile -> String? in
+            guard case .app(let app) = tile.content else { return nil }
+            return app.bundleIdentifier
+        })
     }
 
     /// Inserts every `layout.insertions` entry the active theme defines
@@ -2356,6 +2423,12 @@ final class TileStore: ObservableObject {
     }
 
     private func openedAppTiles(for folder: AppFolderTile) -> [Tile] {
+        // The synthetic running-apps folder already renders its members
+        // inside its own popover. Emitting "opened app" tiles beside it
+        // would add tiles the container skips but the window sizing still
+        // counts, leaving the dock too wide while the option is on.
+        guard !folder.isRunningAppsFolder else { return [] }
+
         if folder.contentViewMode == .inline {
             guard expandedInlineAppFolderIDs.contains(folder.identifier) else {
                 return []

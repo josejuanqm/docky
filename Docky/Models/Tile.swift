@@ -67,6 +67,15 @@ struct AppFolderTile: Equatable {
         self.contentViewMode = contentViewMode
     }
 
+    /// Stable identifier for the synthetic folder that groups the
+    /// running apps which don't already live on the dock. Not persisted,
+    /// so it can never collide with a user-made app folder.
+    nonisolated static let runningAppsIdentifier = "docky.runningAppsFolder"
+
+    nonisolated var isRunningAppsFolder: Bool {
+        identifier == Self.runningAppsIdentifier
+    }
+
     nonisolated var bundleIdentifiers: [String] {
         apps.map(\.bundleIdentifier)
     }
