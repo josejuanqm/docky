@@ -375,6 +375,12 @@ struct AppFolderPopoverView: View {
     @State private var cellFrames: [String: CGRect] = [:]
     @FocusState private var isTitleFieldFocused: Bool
 
+    /// The synthetic "Running Apps" folder is rebuilt from the live app
+    /// list, so renaming, reordering and removing apps don't apply to it.
+    private var isSyntheticRunningFolder: Bool {
+        tile.isRunningAppsFolder
+    }
+
     fileprivate static let columns = 3
     fileprivate static var itemWidth: CGFloat { DockyPreferences.shared.appFolderIconSize }
     fileprivate static var itemHeight: CGFloat { itemWidth }
@@ -412,7 +418,9 @@ struct AppFolderPopoverView: View {
 
                 Spacer(minLength: 0)
 
-                reorderToggle
+                if !isSyntheticRunningFolder {
+                    reorderToggle
+                }
             }
             .padding(.horizontal, Self.contentPadding)
             .padding(.top, 16)
@@ -501,6 +509,7 @@ struct AppFolderPopoverView: View {
             app: app,
             tileID: tileID,
             isReorderMode: isReorderMode,
+            allowsDragOut: !isSyntheticRunningFolder,
             beginDragOutOfFolder: beginDragOutOfFolder,
             openDroppedFiles: { providers, target in
                 openDroppedFiles(providers: providers, with: target)
@@ -667,8 +676,13 @@ struct AppFolderPopoverView: View {
                 .padding(.vertical, -2)
                 .contentShape(Rectangle())
                 .onHover { isTitleHovered = $0 }
-                .onTapGesture { startTitleEdit() }
-                .help("Click to rename")
+                .onTapGesture {
+                    guard !isSyntheticRunningFolder else { return }
+                    startTitleEdit()
+                }
+                .help(isSyntheticRunningFolder
+                    ? "Updates as apps open and quit"
+                    : "Click to rename")
         }
     }
 
@@ -749,6 +763,7 @@ struct AppFolderPopoverView: View {
         to actions: [ContextAction],
         for app: AppTile
     ) -> [ContextAction] {
+        guard !isSyntheticRunningFolder else { return actions }
         let folderID = tileID
         let bundleIdentifier = app.bundleIdentifier
 
@@ -1267,19 +1282,23 @@ private struct AppFolderItemDragModifier: ViewModifier {
     let app: AppTile
     let tileID: String
     let isReorderMode: Bool
+    let allowsDragOut: Bool
     let beginDragOutOfFolder: (AppTile) -> NSItemProvider
     let openDroppedFiles: ([NSItemProvider], AppTile) -> Void
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         if isReorderMode {
             content
-        } else {
+        } else if allowsDragOut {
             content
                 .onDrag { beginDragOutOfFolder(app) }
                 .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil) { providers in
                     openDroppedFiles(providers, app)
                     return true
                 }
+        } else {
+            content
         }
     }
 }
