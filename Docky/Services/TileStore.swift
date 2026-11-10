@@ -2423,6 +2423,12 @@ final class TileStore: ObservableObject {
     }
 
     private func openedAppTiles(for folder: AppFolderTile) -> [Tile] {
+        // The synthetic running-apps folder already renders its members
+        // inside its own popover. Emitting "opened app" tiles beside it
+        // would add tiles the container skips but the window sizing still
+        // counts, leaving the dock too wide while the option is on.
+        guard !folder.isRunningAppsFolder else { return [] }
+
         if folder.contentViewMode == .inline {
             guard expandedInlineAppFolderIDs.contains(folder.identifier) else {
                 return []
