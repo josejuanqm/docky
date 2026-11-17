@@ -2508,15 +2508,22 @@ private final class TileTooltipWindow {
             panel.setFrame(frame, display: true)
         }
         self.owner = owner
+        // Ordered in once and hidden with alpha: ordering a window in or out
+        // waits on a WindowServer round trip (SLSWindowIsOrderedIn syncs the
+        // CA transaction), which cost more than the popover it replaces when
+        // paid twice per tile crossing.
         if !panel.isVisible {
             panel.orderFrontRegardless()
+        }
+        if panel.alphaValue != 1 {
+            panel.alphaValue = 1
         }
     }
 
     func hide(owner: AnyObject) {
         guard self.owner === owner else { return }
         self.owner = nil
-        panel.orderOut(nil)
+        panel.alphaValue = 0
     }
 }
 
