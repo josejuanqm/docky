@@ -23,6 +23,10 @@ final class WidgetExpansionWindowController: NSWindowController, ObservableObjec
     private weak var heldMainWindow: MainWindow?
     private var pendingDismissTask: Task<Void, Never>?
     private var dismissAnimationTask: Task<Void, Never>?
+    /// Reused across presentations: a new NSHostingView per hover rebuilt
+    /// the whole expanded widget's view tree on the main thread (~90 ms
+    /// for a widget with a scroller of cards) before the window could show.
+    private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
 
     private init() {
         let window = NSWindow(
@@ -36,6 +40,7 @@ final class WidgetExpansionWindowController: NSWindowController, ObservableObjec
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = false
+        window.contentView = hostingView
         super.init(window: window)
     }
 
@@ -111,7 +116,7 @@ final class WidgetExpansionWindowController: NSWindowController, ObservableObjec
         let finalFrame = CGRect(origin: finalOrigin, size: windowSize)
         let initialFrame = CGRect(origin: initialOrigin, size: windowSize)
 
-        window.contentView = NSHostingView(rootView: rootView)
+        hostingView.rootView = AnyView(rootView)
         window.setFrame(initialFrame, display: false)
         window.alphaValue = 0
         window.orderFront(nil)
