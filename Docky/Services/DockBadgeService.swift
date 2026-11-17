@@ -27,6 +27,7 @@ final class DockBadgeService: ObservableObject {
     private let pollInterval: TimeInterval = 2
 
     private var timer: Timer?
+    private var readTask: Task<Void, Never>?
 
     private init() {}
 
@@ -51,22 +52,33 @@ final class DockBadgeService: ObservableObject {
 
     // MARK: - Polling
 
+    /// The LaunchServices reads are synchronous XPC (two per app), so they
+    /// run off the main thread; on it they stalled the dock for tens of
+    /// milliseconds every poll, dropping frames mid-hover.
     private func refresh() {
-        var newBadges: [String: String] = [:]
+        guard readTask == nil else { return }
+        readTask = Task {
+            let newBadges = await Task.detached(priority: .utility) { Self.readBadges() }.value
+            readTask = nil
+            if newBadges != badgesByBundleID {
+                badgesByBundleID = newBadges
+            }
+        }
+    }
+
+    nonisolated private static func readBadges() -> [String: String] {
+        var badges: [String: String] = [:]
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
             guard let bundleID = app.bundleIdentifier,
                   let badge = badgeLabel(forProcessIdentifier: app.processIdentifier) else { continue }
-            newBadges[bundleID] = badge
+            badges[bundleID] = badge
         }
-
-        if newBadges != badgesByBundleID {
-            badgesByBundleID = newBadges
-        }
+        return badges
     }
 
     /// The badge string the app set (e.g. "5", "•"). Empty / whitespace
     /// means no badge.
-    private func badgeLabel(forProcessIdentifier pid: pid_t) -> String? {
+    nonisolated private static func badgeLabel(forProcessIdentifier pid: pid_t) -> String? {
         guard let asn = _LSASNCreateWithPid(nil, pid)?.takeRetainedValue(),
               let info = _LSCopyApplicationInformationItem(kLSDefaultSessionID, asn, "StatusLabel" as CFString)?
                 .takeRetainedValue() as? [String: Any],
