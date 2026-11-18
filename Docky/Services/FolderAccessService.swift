@@ -24,6 +24,9 @@ final class FolderAccessService: ObservableObject {
     private let staleAfter: TimeInterval = 15
     private var contentsCache: [URL: (date: Date, items: [URL])] = [:]
     private var watchersByURL: [URL: FolderWatcher] = [:]
+    /// Owners waiting while `beginWatching` opens the folder off the main
+    /// thread. `open` can block for hundreds of ms (TCC / file providers).
+    private var pendingWatchOwners: [URL: Set<String>] = [:]
     private var sortCache: [FolderSortCacheKey: (date: Date, items: [URL])] = [:]
     private let maxSortCacheEntries = 32
     private var sortEntries: [URL: (date: Date, entry: FolderSortEntry)] = [:]
@@ -267,12 +270,28 @@ final class FolderAccessService: ObservableObject {
             watchersByURL[normalizedFolderURL] = watcher
             return
         }
-
-        let descriptor = open(normalizedFolderURL.path, O_EVTONLY)
-        guard descriptor >= 0 else {
+        if pendingWatchOwners[normalizedFolderURL] != nil {
+            pendingWatchOwners[normalizedFolderURL]?.insert(ownerID)
             return
         }
 
+        pendingWatchOwners[normalizedFolderURL] = [ownerID]
+        let path = normalizedFolderURL.path
+        Task {
+            let descriptor = await Task.detached(priority: .userInitiated) {
+                open(path, O_EVTONLY)
+            }.value
+            let owners = pendingWatchOwners.removeValue(forKey: normalizedFolderURL) ?? []
+            guard descriptor >= 0 else { return }
+            guard !owners.isEmpty else {
+                close(descriptor)
+                return
+            }
+            startWatcher(for: normalizedFolderURL, descriptor: descriptor, ownerIDs: owners)
+        }
+    }
+
+    private func startWatcher(for normalizedFolderURL: URL, descriptor: Int32, ownerIDs: Set<String>) {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
             eventMask: [.write, .rename, .delete, .attrib, .extend, .link, .revoke],
@@ -286,7 +305,7 @@ final class FolderAccessService: ObservableObject {
         }
 
         watchersByURL[normalizedFolderURL] = FolderWatcher(
-            ownerIDs: [ownerID],
+            ownerIDs: ownerIDs,
             source: source
         )
         source.resume()
@@ -294,6 +313,10 @@ final class FolderAccessService: ObservableObject {
 
     func endWatching(_ folderURL: URL, ownerID: String) {
         let normalizedFolderURL = folderURL.standardizedFileURL
+        if pendingWatchOwners[normalizedFolderURL] != nil {
+            pendingWatchOwners[normalizedFolderURL]?.remove(ownerID)
+            return
+        }
         guard var watcher = watchersByURL[normalizedFolderURL] else {
             return
         }
