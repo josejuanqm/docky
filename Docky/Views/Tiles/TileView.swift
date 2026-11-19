@@ -2413,7 +2413,9 @@ private struct TileTooltipPopoverPresenter: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> TooltipAnchorView {
-        TooltipAnchorView()
+        let view = TooltipAnchorView()
+        view.onRemovedFromWindow = { [coordinator = context.coordinator] in coordinator.close() }
+        return view
     }
 
     func updateNSView(_ nsView: TooltipAnchorView, context: Context) {
@@ -2504,6 +2506,13 @@ private final class TileTooltipWindow {
 
         panel.level = NSWindow.Level(rawValue: anchorWindow.level.rawValue + 1)
         panel.collectionBehavior = anchorWindow.collectionBehavior
+        // A child of the dock window, as the popover was, so it moves and
+        // hides with the dock instead of being left behind on screen.
+        // Only re-parented when the anchor window changes.
+        if panel.parent !== anchorWindow {
+            panel.parent?.removeChildWindow(panel)
+            anchorWindow.addChildWindow(panel, ordered: .above)
+        }
         if panel.frame != frame {
             panel.setFrame(frame, display: true)
         }
@@ -2521,7 +2530,9 @@ private final class TileTooltipWindow {
     }
 
     func hide(owner: AnyObject) {
-        guard self.owner === owner else { return }
+        // A nil owner means the tile that showed it is gone without hiding
+        // it; any hide then clears the stranded label.
+        guard self.owner == nil || self.owner === owner else { return }
         self.owner = nil
         panel.alphaValue = 0
     }
@@ -2623,8 +2634,17 @@ private struct TileTooltipMaterial: NSViewRepresentable {
 }
 
 private final class TooltipAnchorView: NSView {
+    /// Called when the view leaves its window, so a label it showed
+    /// doesn't outlive the tile.
+    var onRemovedFromWindow: (() -> Void)?
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { onRemovedFromWindow?() }
     }
 }
 
