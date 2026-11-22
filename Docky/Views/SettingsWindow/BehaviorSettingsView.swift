@@ -128,6 +128,28 @@ struct BehaviorSettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
+                    Text("Reserved Edge Strip")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Text(preferences.reservedEdgeStripThickness > 0
+                        ? "\(Int(preferences.reservedEdgeStripThickness)) pt"
+                        : "Off")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                Slider(value: $preferences.reservedEdgeStripThickness, in: 0...200, step: 1)
+
+                Text("Leaves a band of screen between Docky and the screen edge, so another bar (a ticker, a HUD) can live there. Docky moves inward and, with Accessibility permission, maximized windows stop above the strip instead of covering it. 0 turns it off.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
                     Text("Spaces")
                         .font(.headline)
 
