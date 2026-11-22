@@ -530,6 +530,7 @@ private struct LaunchpadOverlayView: View {
                     handleKeyDown(event, columnCount: pageColumns, rowCount: pageRows)
                 }
             }
+            }
             .onAppear {
                 isSearchFocused = true
                 synchronizeSelection()
@@ -1283,7 +1284,20 @@ private struct LaunchpadOverlayView: View {
         // is reaching for.
         guard !query.isEmpty else { return sortedEntries(overlay.entries) }
 
-        return overlay.entries
+        // Search also looks inside folders: every app in a folder is
+        // offered as its own result, so typing a name finds it wherever
+        // it lives in the layout.
+        var seenIDs = Set<String>()
+        let searchable: [LaunchpadEntry] = overlay.entries.flatMap { entry -> [LaunchpadEntry] in
+            switch entry {
+            case .app:
+                return [entry]
+            case .folder(let folder):
+                return [entry] + folder.apps.map { LaunchpadEntry.app($0) }
+            }
+        }.filter { seenIDs.insert($0.id).inserted }
+
+        return searchable
             .compactMap { entry -> (entry: LaunchpadEntry, score: Int)? in
                 let score = matchScore(for: entry, query: query)
                 guard score != Int.max else { return nil }
