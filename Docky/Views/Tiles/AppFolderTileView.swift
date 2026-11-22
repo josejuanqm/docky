@@ -378,6 +378,15 @@ struct AppFolderPopoverView: View {
     fileprivate static let columns = 3
     fileprivate static var itemWidth: CGFloat { DockyPreferences.shared.appFolderIconSize }
     fileprivate static var itemHeight: CGFloat { itemWidth }
+    /// Extra room below each icon for its name when labels are on. The
+    /// spacing leaves clearance for the running indicator dot.
+    fileprivate static let labelSpacing: CGFloat = 6
+    fileprivate static let labelFontSize: CGFloat = 12
+    fileprivate static var labelHeight: CGFloat {
+        DockyPreferences.shared.showsAppFolderLabels ? labelSpacing + 16 : 0
+    }
+    /// Full cell height: the icon plus the label row, if shown.
+    fileprivate static var cellHeight: CGFloat { itemHeight + labelHeight }
     /// Spacing and padding scale with the icon so a small folder keeps the
     /// proportions of the default 96 pt layout.
     fileprivate static var itemSpacing: CGFloat { (itemWidth / 8).rounded() }
@@ -485,8 +494,19 @@ struct AppFolderPopoverView: View {
             WorkspaceService.shared.activateOrOpen(bundleIdentifier: app.bundleIdentifier)
             isPresented = false
         } label: {
-            iconImage(for: app)
-                .opacity(isBeingDragged ? 0 : (isReorderMode ? 0.85 : 1))
+            VStack(spacing: Self.labelSpacing) {
+                iconImage(for: app)
+
+                if preferences.showsAppFolderLabels {
+                    Text(app.displayName)
+                        .font(.system(size: Self.labelFontSize))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(width: Self.itemWidth)
+                }
+            }
+            .opacity(isBeingDragged ? 0 : (isReorderMode ? 0.85 : 1))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background {
@@ -708,7 +728,7 @@ struct AppFolderPopoverView: View {
     static func popoverSize(forAppCount appCount: Int) -> CGSize {
         let rows = max(Int(ceil(Double(appCount) / Double(columns))), 1)
         let width = CGFloat(columns) * itemWidth + CGFloat(columns - 1) * itemSpacing + contentPadding * 2
-        let gridHeight = CGFloat(rows) * itemHeight + CGFloat(max(rows - 1, 0)) * itemSpacing
+        let gridHeight = CGFloat(rows) * cellHeight + CGFloat(max(rows - 1, 0)) * itemSpacing
         let height = min(gridHeight + contentPadding * 2 + headerHeight + 16, maxHeight)
         return CGSize(width: width, height: height)
     }
