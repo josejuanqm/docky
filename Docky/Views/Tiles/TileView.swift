@@ -2413,7 +2413,9 @@ private struct TileTooltipPopoverPresenter: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> TooltipAnchorView {
-        TooltipAnchorView()
+        let view = TooltipAnchorView()
+        view.onRemovedFromWindow = { [coordinator = context.coordinator] in coordinator.close() }
+        return view
     }
 
     func updateNSView(_ nsView: TooltipAnchorView, context: Context) {
@@ -2431,86 +2433,218 @@ private struct TileTooltipPopoverPresenter: NSViewRepresentable {
     }
 
     final class Coordinator {
-        private let hostingController = NSHostingController(rootView: TileTooltipView(title: ""))
-        private let popover = NSPopover()
+        private var title: String
         private var preferredEdge: NSRectEdge
-        private var currentTitle: String
 
         init(title: String, preferredEdge: NSRectEdge) {
+            self.title = title
             self.preferredEdge = preferredEdge
-            self.currentTitle = title
-            hostingController.rootView = TileTooltipView(title: title)
-            popover.contentViewController = hostingController
-            popover.animates = false
-            popover.behavior = .applicationDefined
-            updateContentSize()
         }
 
         func update(title: String, preferredEdge: NSRectEdge) {
+            self.title = title
             self.preferredEdge = preferredEdge
-            guard title != currentTitle else { return }
-            currentTitle = title
-            hostingController.rootView = TileTooltipView(title: title)
-            updateContentSize()
-            // NSPopover does not reliably recenter its pointer arrow when
-            // contentSize changes on a live popover, leaving the arrow
-            // offset from the (resized) bubble when the title width changes
-            // (e.g. folder rename). Close so the next show() reopens with
-            // the arrow correctly centered against the new bubble width.
-            if popover.isShown {
-                popover.close()
-            }
         }
 
         func show(relativeTo view: NSView) {
-            guard view.window != nil else { return }
-            let anchorRect = anchorRect(in: view.bounds)
-            if popover.isShown {
-                popover.positioningRect = anchorRect
-            } else {
-                popover.show(relativeTo: anchorRect, of: view, preferredEdge: preferredEdge)
-            }
+            TileTooltipWindow.shared.show(title: title, edge: preferredEdge, anchor: view, owner: self)
         }
 
         func close() {
-            popover.performClose(nil)
-        }
-
-        private func updateContentSize() {
-            // sizeThatFits asks SwiftUI to measure the rootView for the given
-            // proposed size and works whether or not the hosting view is in a
-            // window. view.fittingSize is unreliable when the popover is
-            // hidden (e.g. while the grid popover is open), so a rename in
-            // that state would leave contentSize stale, and the next hover
-            // would show a bubble whose width didn't match its arrow.
-            let size = hostingController.sizeThatFits(
-                in: NSSize(width: CGFloat.greatestFiniteMagnitude,
-                           height: CGFloat.greatestFiniteMagnitude)
-            )
-            hostingController.preferredContentSize = size
-            popover.contentSize = size
-        }
-
-        private func anchorRect(in bounds: NSRect) -> NSRect {
-            switch preferredEdge {
-            case .minX:
-                NSRect(x: bounds.minX, y: bounds.midY - 0.5, width: 1, height: 1)
-            case .maxX:
-                NSRect(x: bounds.maxX - 1, y: bounds.midY - 0.5, width: 1, height: 1)
-            case .minY:
-                NSRect(x: bounds.midX - 0.5, y: bounds.minY, width: 1, height: 1)
-            case .maxY:
-                NSRect(x: bounds.midX - 0.5, y: bounds.maxY - 1, width: 1, height: 1)
-            @unknown default:
-                NSRect(x: bounds.midX - 0.5, y: bounds.maxY - 1, width: 1, height: 1)
-            }
+            TileTooltipWindow.shared.hide(owner: self)
         }
     }
 }
 
+/// One label window shared by every tile. Hovering across the dock moves it
+/// and swaps its text. An NSPopover per tile built and attached a fresh
+/// popover window on every show (5-10 ms each on the main thread), which
+/// dropped a frame at each tile crossing while magnifying.
+private final class TileTooltipWindow {
+    static let shared = TileTooltipWindow()
+
+    private let panel: NSPanel
+    private let hostingView = NSHostingView(rootView: TileTooltipBubble(title: "", edge: .maxY))
+    private var bubbleSize: CGSize = .zero
+    private weak var owner: AnyObject?
+
+    private init() {
+        panel = NSPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.contentView = hostingView
+    }
+
+    func show(title: String, edge: NSRectEdge, anchor view: NSView, owner: AnyObject) {
+        guard let anchorWindow = view.window else { return }
+        let bubble = TileTooltipBubble(title: title, edge: edge)
+        if hostingView.rootView != bubble || bubbleSize == .zero {
+            hostingView.rootView = bubble
+            bubbleSize = hostingView.fittingSize
+        }
+
+        // The arrow tip sits on the anchor view's inward edge, where the
+        // popover's positioning rect used to be.
+        let anchor = anchorWindow.convertToScreen(view.convert(view.bounds, to: nil))
+        let size = bubbleSize
+        let origin: CGPoint = switch edge {
+        case .minY: CGPoint(x: anchor.midX - size.width / 2, y: anchor.minY - size.height)
+        case .maxX: CGPoint(x: anchor.maxX, y: anchor.midY - size.height / 2)
+        case .minX: CGPoint(x: anchor.minX - size.width, y: anchor.midY - size.height / 2)
+        default: CGPoint(x: anchor.midX - size.width / 2, y: anchor.maxY)
+        }
+        let frame = CGRect(origin: CGPoint(x: origin.x.rounded(), y: origin.y.rounded()), size: size)
+
+        panel.level = NSWindow.Level(rawValue: anchorWindow.level.rawValue + 1)
+        panel.collectionBehavior = anchorWindow.collectionBehavior
+        // A child of the dock window, as the popover was, so it moves and
+        // hides with the dock instead of being left behind on screen.
+        // Only re-parented when the anchor window changes.
+        if panel.parent !== anchorWindow {
+            panel.parent?.removeChildWindow(panel)
+            anchorWindow.addChildWindow(panel, ordered: .above)
+        }
+        if panel.frame != frame {
+            panel.setFrame(frame, display: true)
+        }
+        self.owner = owner
+        // Ordered in once and hidden with alpha: ordering a window in or out
+        // waits on a WindowServer round trip (SLSWindowIsOrderedIn syncs the
+        // CA transaction), which cost more than the popover it replaces when
+        // paid twice per tile crossing.
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
+        if panel.alphaValue != 1 {
+            panel.alphaValue = 1
+        }
+    }
+
+    func hide(owner: AnyObject) {
+        // A nil owner means the tile that showed it is gone without hiding
+        // it; any hide then clears the stranded label.
+        guard self.owner == nil || self.owner === owner else { return }
+        self.owner = nil
+        panel.alphaValue = 0
+    }
+}
+
+/// The label with a popover-style bubble and an arrow pointing at the tile.
+/// `edge` is the side of the tile the bubble sits on, as with NSPopover.
+private struct TileTooltipBubble: View, Equatable {
+    static let arrowLength: CGFloat = 8
+    static let arrowWidth: CGFloat = 16
+
+    let title: String
+    let edge: NSRectEdge
+
+    var body: some View {
+        let shape = TileTooltipBubbleShape(edge: edge)
+        TileTooltipView(title: title)
+            .padding(arrowSide, Self.arrowLength)
+            .background {
+                TileTooltipMaterial().clipShape(shape)
+            }
+            .overlay {
+                shape.stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+            }
+    }
+
+    private var arrowSide: Edge.Set {
+        switch edge {
+        case .minY: .top
+        case .maxX: .leading
+        case .minX: .trailing
+        default: .bottom
+        }
+    }
+}
+
+private struct TileTooltipBubbleShape: Shape {
+    let edge: NSRectEdge
+    var cornerRadius: CGFloat = 8
+
+    func path(in rect: CGRect) -> Path {
+        let a = TileTooltipBubble.arrowLength
+        let w = TileTooltipBubble.arrowWidth / 2
+        var b = rect
+        switch edge {
+        case .minY: b.origin.y += a; b.size.height -= a
+        case .maxX: b.origin.x += a; b.size.width -= a
+        case .minX: b.size.width -= a
+        default: b.size.height -= a
+        }
+        let r = min(cornerRadius, b.width / 2, b.height / 2)
+
+        // Clockwise (y-down), with the arrow spliced into its side.
+        var p = Path()
+        p.move(to: CGPoint(x: b.minX + r, y: b.minY))
+        if edge == .minY {
+            p.addLine(to: CGPoint(x: b.midX - w, y: b.minY))
+            p.addLine(to: CGPoint(x: b.midX, y: rect.minY))
+            p.addLine(to: CGPoint(x: b.midX + w, y: b.minY))
+        }
+        p.addLine(to: CGPoint(x: b.maxX - r, y: b.minY))
+        p.addArc(tangent1End: CGPoint(x: b.maxX, y: b.minY), tangent2End: CGPoint(x: b.maxX, y: b.minY + r), radius: r)
+        if edge == .minX {
+            p.addLine(to: CGPoint(x: b.maxX, y: b.midY - w))
+            p.addLine(to: CGPoint(x: rect.maxX, y: b.midY))
+            p.addLine(to: CGPoint(x: b.maxX, y: b.midY + w))
+        }
+        p.addLine(to: CGPoint(x: b.maxX, y: b.maxY - r))
+        p.addArc(tangent1End: CGPoint(x: b.maxX, y: b.maxY), tangent2End: CGPoint(x: b.maxX - r, y: b.maxY), radius: r)
+        if edge == .maxY {
+            p.addLine(to: CGPoint(x: b.midX + w, y: b.maxY))
+            p.addLine(to: CGPoint(x: b.midX, y: rect.maxY))
+            p.addLine(to: CGPoint(x: b.midX - w, y: b.maxY))
+        }
+        p.addLine(to: CGPoint(x: b.minX + r, y: b.maxY))
+        p.addArc(tangent1End: CGPoint(x: b.minX, y: b.maxY), tangent2End: CGPoint(x: b.minX, y: b.maxY - r), radius: r)
+        if edge == .maxX {
+            p.addLine(to: CGPoint(x: b.minX, y: b.midY + w))
+            p.addLine(to: CGPoint(x: rect.minX, y: b.midY))
+            p.addLine(to: CGPoint(x: b.minX, y: b.midY - w))
+        }
+        p.addLine(to: CGPoint(x: b.minX, y: b.minY + r))
+        p.addArc(tangent1End: CGPoint(x: b.minX, y: b.minY), tangent2End: CGPoint(x: b.minX + r, y: b.minY), radius: r)
+        p.closeSubpath()
+        return p
+    }
+}
+
+private struct TileTooltipMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
 private final class TooltipAnchorView: NSView {
+    /// Called when the view leaves its window, so a label it showed
+    /// doesn't outlive the tile.
+    var onRemovedFromWindow: (() -> Void)?
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { onRemovedFromWindow?() }
     }
 }
 
