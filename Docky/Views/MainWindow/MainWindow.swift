@@ -441,6 +441,9 @@ final class MainWindow: NSPanel {
         // DockEditModeService are still ObservableObject; their
         // `@Published` projections are merged via Combine below.
         let layoutSignals: [AnyPublisher<Void, Never>] = [
+            // Edit mode expands a collapsed trailing divider into a drop
+            // target, which changes the content length.
+            editMode.$isActive.map { _ in () }.eraseToAnyPublisher(),
             editMode.$paletteDrag.map { _ in () }.eraseToAnyPublisher(),
             editMode.$paletteDropDestination.map { _ in () }.eraseToAnyPublisher(),
             DockDragService.shared.$kind.map { _ in () }.eraseToAnyPublisher(),
@@ -835,13 +838,13 @@ final class MainWindow: NSPanel {
             }
             return tile
         }()
-        let sizingTiles = TileContainerView.previewedTiles(
+        let sizingTiles = TileContainerView.layoutTiles(from: TileContainerView.previewedTiles(
             from: tileStore.tiles,
             paletteDrag: editMode.paletteDrag,
             paletteDropDestination: editMode.paletteDropDestination,
             externalAppDropPreview: externalAppDropPreview,
             externalFolderDropPreview: externalFolderDropPreview
-        )
+        ))
         let naturalContentSize = TileContainerView.contentSize(
             tiles: sizingTiles,
             tileSize: baseTileSize,
