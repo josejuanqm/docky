@@ -2340,6 +2340,14 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
+    /// Shows each app's name under its icon in an opened app folder.
+    var showsAppFolderLabels: Bool {
+        didSet {
+            guard showsAppFolderLabels != oldValue else { return }
+            defaults.set(showsAppFolderLabels, forKey: Keys.showsAppFolderLabels)
+        }
+    }
+
     /// Whether Docky's Launchpad overlay is enabled.
     var enablesLaunchpadOverlay: Bool {
         didSet {
@@ -3662,6 +3670,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let hiddenAppBundleIdentifiers = "docky.hiddenAppBundleIdentifiers"
         static let showsGroupedOpenedAppsInDock = "docky.showsGroupedOpenedAppsInDock"
         static let showsGroupedOpenedAppsBackdrop = "docky.showsGroupedOpenedAppsBackdrop"
+        static let showsAppFolderLabels = "docky.showsAppFolderLabels"
         static let enablesLaunchpadOverlay = "docky.enablesLaunchpadOverlay"
         static let enablesStartMenuOverlay = "docky.enablesStartMenuOverlay"
         static let opensStartMenuFromFinderTile = "docky.opensStartMenuFromFinderTile"
@@ -3775,6 +3784,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         static let hiddenAppBundleIdentifiers: [String] = []
         static let showsGroupedOpenedAppsInDock = true
         static let showsGroupedOpenedAppsBackdrop = true
+        static let showsAppFolderLabels = false
         static let enablesLaunchpadOverlay = true
         static let enablesStartMenuOverlay = true
         static let opensStartMenuFromFinderTile = false
@@ -3914,6 +3924,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         let storedHiddenAppBundleIdentifiers = defaults.stringArray(forKey: Keys.hiddenAppBundleIdentifiers)
         let storedShowsGroupedOpenedAppsInDock = defaults.object(forKey: Keys.showsGroupedOpenedAppsInDock) as? Bool
         let storedShowsGroupedOpenedAppsBackdrop = defaults.object(forKey: Keys.showsGroupedOpenedAppsBackdrop) as? Bool
+        let storedShowsAppFolderLabels = defaults.object(forKey: Keys.showsAppFolderLabels) as? Bool
         let storedEnablesLaunchpadOverlay = defaults.object(forKey: Keys.enablesLaunchpadOverlay) as? Bool
         let storedEnablesStartMenuOverlay = defaults.object(forKey: Keys.enablesStartMenuOverlay) as? Bool
         let storedOpensStartMenuFromFinderTile = defaults.object(forKey: Keys.opensStartMenuFromFinderTile) as? Bool
@@ -4054,6 +4065,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         self.hiddenAppBundleIdentifiers = Self.normalizedBundleIdentifiers(storedHiddenAppBundleIdentifiers ?? DefaultValues.hiddenAppBundleIdentifiers)
         self.showsGroupedOpenedAppsInDock = storedShowsGroupedOpenedAppsInDock ?? DefaultValues.showsGroupedOpenedAppsInDock
         self.showsGroupedOpenedAppsBackdrop = storedShowsGroupedOpenedAppsBackdrop ?? DefaultValues.showsGroupedOpenedAppsBackdrop
+        self.showsAppFolderLabels = storedShowsAppFolderLabels ?? DefaultValues.showsAppFolderLabels
         self.enablesLaunchpadOverlay = storedEnablesLaunchpadOverlay ?? DefaultValues.enablesLaunchpadOverlay
         self.enablesStartMenuOverlay = storedEnablesStartMenuOverlay ?? DefaultValues.enablesStartMenuOverlay
         self.opensStartMenuFromFinderTile = storedOpensStartMenuFromFinderTile ?? DefaultValues.opensStartMenuFromFinderTile
@@ -4299,6 +4311,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         // App folders
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
+        showsAppFolderLabels = DefaultValues.showsAppFolderLabels
         appFolderIconSize = DefaultValues.appFolderIconSize
 
         // Widgets
@@ -4387,6 +4400,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         hiddenAppBundleIdentifiers = DefaultValues.hiddenAppBundleIdentifiers
         showsGroupedOpenedAppsInDock = DefaultValues.showsGroupedOpenedAppsInDock
         showsGroupedOpenedAppsBackdrop = DefaultValues.showsGroupedOpenedAppsBackdrop
+        showsAppFolderLabels = DefaultValues.showsAppFolderLabels
         appFolderIconSize = DefaultValues.appFolderIconSize
         widgetTextScale = DefaultValues.widgetTextScale
         enablesLaunchpadOverlay = DefaultValues.enablesLaunchpadOverlay

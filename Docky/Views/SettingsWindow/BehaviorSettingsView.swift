@@ -600,6 +600,16 @@ struct BehaviorSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Show App Names in Opened Folders", isOn: $preferences.showsAppFolderLabels)
+                    .font(.headline)
+
+                Text("Shows each app's name below its icon. Rows get a little taller to fit the name; icons keep their size.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
         }
     }
 
