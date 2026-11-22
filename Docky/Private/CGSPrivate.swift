@@ -35,6 +35,14 @@ func CGSCopyManagedDisplaySpaces(_ connection: CGSConnectionID) -> Unmanaged<CFA
 @_silgen_name("_AXUIElementGetWindow") @discardableResult
 func _AXUIElementGetWindow(_ element: AXUIElement, _ wid: inout CGWindowID) -> AXError
 
+// Builds an AX element from a remote token (pid, 0, 'coco', element ID).
+// Lets us reach windows on other Spaces, which kAXWindowsAttribute omits.
+// Raising such a window is what makes the system switch to its Space;
+// without it, clicking an app whose windows are all parked on inactive
+// Spaces can't bring one of them forward.
+@_silgen_name("_AXUIElementCreateWithRemoteToken")
+func _AXUIElementCreateWithRemoteToken(_ token: CFData) -> Unmanaged<AXUIElement>?
+
 @_silgen_name("CGSSetWindowBackgroundBlurRadius")
 func CGSSetWindowBackgroundBlurRadius(
     _ connection: CGSConnectionID,

@@ -299,6 +299,48 @@ final class WindowRegistry: ObservableObject {
         return restored && raised
     }
 
+    /// Brings forward a window AX doesn't list (e.g. parked on another Space),
+    /// which switches to that window's Space. SLPS alone only reorders: the
+    /// Space switch happens when the app raises the window itself, so this
+    /// needs the window's AX element. Returns false when it can't be found.
+    @discardableResult
+    func focus(pid: pid_t, cgWindowID: CGWindowID) -> Bool {
+        guard PermissionsService.shared.accessibility == .granted,
+              let element = axElementOffSpace(pid: pid, cgWindowID: cgWindowID) else {
+            return false
+        }
+        return focusViaSLPS(pid: pid, cgWindowID: cgWindowID, element: element)
+    }
+
+    /// Finds the AX element of a window on another Space by walking the app's
+    /// remote element IDs, since kAXWindowsAttribute only covers active Spaces.
+    private func axElementOffSpace(pid: pid_t, cgWindowID: CGWindowID) -> AXUIElement? {
+        var token = Data(count: 20)
+        token.replaceSubrange(0..<4, with: withUnsafeBytes(of: pid) { Data($0) })
+        token.replaceSubrange(8..<12, with: withUnsafeBytes(of: Int32(0x636f_636f)) { Data($0) })
+
+        let deadline = Date().addingTimeInterval(0.1)
+        for elementID: UInt64 in 0..<1000 {
+            token.replaceSubrange(12..<20, with: withUnsafeBytes(of: elementID) { Data($0) })
+            guard let element = _AXUIElementCreateWithRemoteToken(token as CFData)?.takeRetainedValue() else {
+                continue
+            }
+            // Child elements (toolbars, web areas…) report their window's ID
+            // too but can't be raised; only accept the window itself.
+            var windowID: CGWindowID = 0
+            var role: CFTypeRef?
+            if _AXUIElementGetWindow(element, &windowID) == .success, windowID == cgWindowID,
+               AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success,
+               role as? String == kAXWindowRole as String {
+                return element
+            }
+            if Date() > deadline {
+                break
+            }
+        }
+        return nil
+    }
+
     private func focusViaSLPS(pid: pid_t, cgWindowID: CGWindowID, element: AXUIElement) -> Bool {
         var psn = ProcessSerialNumber()
         guard GetProcessForPID(pid, &psn) == noErr else { return false }

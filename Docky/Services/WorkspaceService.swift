@@ -127,6 +127,31 @@ final class WorkspaceService: ObservableObject {
         let isFrontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier
             && !runningApp.isHidden
 
+        // Activation doesn't switch Spaces when the app is already active (e.g.
+        // after moving to a Space without its windows), and AX only lists
+        // windows on active Spaces. Ask the window server instead: when the
+        // clicked display shows none of the app's windows, bring forward its
+        // most recent window parked on another Space of that display, which
+        // switches that display to it. With no window on any active Space, take
+        // the most recent one anywhere; otherwise keep the normal behavior.
+        let pid = runningApp.processIdentifier
+        if !runningApp.isHidden,
+           let clickedScreen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }),
+           !hasOnScreenWindow(pid: pid, on: clickedScreen) {
+            let clickedBounds = cgBounds(of: clickedScreen)
+            // Skip helper windows (Chrome keeps 1x1 and strip-sized ones around).
+            let parked = windowsOnOtherSpaces(pid: pid).filter { $0.bounds.width >= 100 && $0.bounds.height >= 100 }
+            let parkedOnClickedScreen = parked.filter {
+                clickedBounds.contains(CGPoint(x: $0.bounds.midX, y: $0.bounds.midY))
+            }
+            let targets = parkedOnClickedScreen.isEmpty && !hasOnScreenWindow(pid: pid, on: nil)
+                ? parked
+                : parkedOnClickedScreen
+            if targets.contains(where: { WindowRegistry.shared.focus(pid: pid, cgWindowID: $0.id) }) {
+                return
+            }
+        }
+
         // No AX windows can also mean every window is on another Space (AX
         // can't see those): activate to switch Spaces instead of reopening.
         if accessibilityGranted, allWindows.isEmpty {
@@ -160,23 +185,69 @@ final class WorkspaceService: ObservableObject {
         runningApp.activateTransferringFrontmost(options: [.activateAllWindows])
     }
 
-    /// Whether the window server knows a live, ordinary window for `pid` that
-    /// isn't on the active Space (ordered-in filters stale closed-window entries).
-    private func hasWindowOnAnotherSpace(pid: pid_t) -> Bool {
-        guard let entries = CGWindowListCopyWindowInfo([], kCGNullWindowID) as? [[String: Any]] else {
-            return false
+    /// Whether `pid` has an ordinary, visible window on the active Space of
+    /// `screen`, or of any display when `screen` is nil.
+    private func hasOnScreenWindow(pid: pid_t, on screen: NSScreen?) -> Bool {
+        guard let entries = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return true
         }
-        let connection = CGSMainConnectionID()
+        let screenBounds = screen.map(cgBounds(of:))
         return entries.contains { entry in
             guard (entry[kCGWindowOwnerPID as String] as? pid_t) == pid,
                   (entry[kCGWindowLayer as String] as? Int) == 0,
                   ((entry[kCGWindowAlpha as String] as? Double) ?? 0) > 0,
-                  (entry[kCGWindowIsOnscreen as String] as? Bool) != true,
-                  let windowID = entry[kCGWindowNumber as String] as? CGWindowID else {
+                  let boundsDict = entry[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                  // Skip helper windows (Chrome keeps 1x1 and strip-sized ones around).
+                  bounds.width >= 100, bounds.height >= 100 else {
                 return false
             }
-            return SLSWindowIsOrderedIn(connection, windowID)
+            guard let screenBounds else { return true }
+            return screenBounds.contains(CGPoint(x: bounds.midX, y: bounds.midY))
         }
+    }
+
+    /// Whether the window server knows a live, ordinary window for `pid` that
+    /// isn't on the active Space.
+    private func hasWindowOnAnotherSpace(pid: pid_t) -> Bool {
+        !windowsOnOtherSpaces(pid: pid).isEmpty
+    }
+
+    /// Live, ordinary windows of `pid` that aren't on an active Space, in
+    /// window-server order (ordered-in filters stale closed-window entries).
+    private func windowsOnOtherSpaces(pid: pid_t) -> [(id: CGWindowID, bounds: CGRect)] {
+        guard let entries = CGWindowListCopyWindowInfo([], kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+        let connection = CGSMainConnectionID()
+        return entries.compactMap { entry in
+            guard (entry[kCGWindowOwnerPID as String] as? pid_t) == pid,
+                  (entry[kCGWindowLayer as String] as? Int) == 0,
+                  ((entry[kCGWindowAlpha as String] as? Double) ?? 0) > 0,
+                  (entry[kCGWindowIsOnscreen as String] as? Bool) != true,
+                  let windowID = entry[kCGWindowNumber as String] as? CGWindowID,
+                  let boundsDict = entry[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                  SLSWindowIsOrderedIn(connection, windowID) else {
+                return nil
+            }
+            return (windowID, bounds)
+        }
+    }
+
+    /// `screen`'s frame in CG window coordinates (top-left origin anchored to
+    /// the primary display).
+    private func cgBounds(of screen: NSScreen) -> CGRect {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.maxY
+        return CGRect(
+            x: screen.frame.minX,
+            y: primaryHeight - screen.frame.maxY,
+            width: screen.frame.width,
+            height: screen.frame.height
+        )
     }
 
     private func applyFrontmostAppTileClickBehavior(
