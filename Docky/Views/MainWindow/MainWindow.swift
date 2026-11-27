@@ -257,6 +257,8 @@ final class MainWindow: NSPanel {
     private var localPointerMonitor: Any?
     private var globalDragRevealMonitor: Any?
     private var localDragRevealMonitor: Any?
+    private var revealMonitorEvents: NSEvent.EventTypeMask = []
+    private var postRevealPointerCheckWorkItem: DispatchWorkItem?
     private var revealTriggerZone: CGRect = .zero
     private var isPointerInsideWindow = false
     private var activeInteractionCount = 0
@@ -406,6 +408,7 @@ final class MainWindow: NSPanel {
     deinit {
         fullscreenRecheckWorkItem?.cancel()
         fullscreenRevealWorkItem?.cancel()
+        postRevealPointerCheckWorkItem?.cancel()
         if let globalPointerMonitor {
             NSEvent.removeMonitor(globalPointerMonitor)
         }
@@ -625,16 +628,25 @@ final class MainWindow: NSPanel {
     }
 
     /// A hidden panel sits off-screen, where its tracking area can't fire, so
-    /// the reveal runs off monitored pointer movement instead. When autohide
-    /// is inactive the panel is always visible and `syncPointerPresence`
-    /// early-returns, so a global `.mouseMoved` monitor would wake Docky on
-    /// every system-wide pointer move for nothing — only keep it installed
-    /// while autohide can actually hide us. Re-synced from
-    /// `applyEffectiveVisibility` whenever that condition changes.
+    /// the reveal runs off monitored pointer movement instead. A global
+    /// `.mouseMoved` monitor gets every system-wide pointer event, uncoalesced,
+    /// on the main thread. While the dock is visible and hovered, that backlog
+    /// delays hover, magnification and context menus by seconds. So
+    /// `.mouseMoved` is only monitored while the dock is hidden. A visible dock
+    /// gets enter/exit from the content view's tracking area. Drag events stay
+    /// monitored for as long as autohide can hide us, so a drag that starts
+    /// elsewhere still reveals the dock. Re-synced from `setVisibility` and
+    /// `applyEffectiveVisibility` whenever either condition changes.
     private func updateRevealMonitoring() {
-        let shouldMonitor = effectivelyAutohides
-        let isMonitoring = globalDragRevealMonitor != nil || localDragRevealMonitor != nil
-        guard shouldMonitor != isMonitoring else { return }
+        var events: NSEvent.EventTypeMask = []
+        if effectivelyAutohides {
+            events = [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+            if visibilityState == .hidden {
+                events.insert(.mouseMoved)
+            }
+        }
+        guard events != revealMonitorEvents else { return }
+        revealMonitorEvents = events
 
         if let globalDragRevealMonitor {
             NSEvent.removeMonitor(globalDragRevealMonitor)
@@ -645,18 +657,35 @@ final class MainWindow: NSPanel {
             self.localDragRevealMonitor = nil
         }
 
-        guard shouldMonitor else { return }
+        guard !events.isEmpty else { return }
 
-        let revealEvents: NSEvent.EventTypeMask = [
-            .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
-        ]
-        globalDragRevealMonitor = NSEvent.addGlobalMonitorForEvents(matching: revealEvents) { [weak self] _ in
+        globalDragRevealMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
             self?.syncPointerPresence()
         }
-        localDragRevealMonitor = NSEvent.addLocalMonitorForEvents(matching: revealEvents) { [weak self] event in
+        localDragRevealMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
             self?.syncPointerPresence()
             return event
         }
+    }
+
+    /// A reveal sets `isPointerInsideWindow` from the monitor while the panel
+    /// is still off screen. If the pointer leaves before the panel slides
+    /// under it, the tracking area never saw an enter and won't send an exit,
+    /// and the `.mouseMoved` monitor is already gone. Re-check once the slide
+    /// has finished so the dock can't get stuck visible.
+    private func schedulePostRevealPointerCheck() {
+        postRevealPointerCheckWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self,
+                  self.visibilityState == .visible,
+                  self.isPointerInsideWindow
+            else { return }
+            let location = NSEvent.mouseLocation
+            guard !self.frame.contains(location), !self.revealTriggerZone.contains(location) else { return }
+            self.pointerDidExitWindow()
+        }
+        postRevealPointerCheckWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + autohideAnimationDuration + 0.05, execute: workItem)
     }
 
     private func handlePointerScreenChangeIfNeeded() {
@@ -786,7 +815,14 @@ final class MainWindow: NSPanel {
         guard visibilityState != state else { return }
 
         visibilityState = state
+        updateRevealMonitoring()
         applyCurrentFrame(animated: animated)
+        if state == .visible {
+            schedulePostRevealPointerCheck()
+        } else {
+            postRevealPointerCheckWorkItem?.cancel()
+            postRevealPointerCheckWorkItem = nil
+        }
     }
 
     private func applyCurrentFrame(animated: Bool) {
